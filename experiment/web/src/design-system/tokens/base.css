@@ -1,0 +1,6 @@
+html,body{margin:0;background:var(--surface-page);font-family:var(--font-sans);color:var(--text-primary);font-size:var(--font-size-md);line-height:var(--line-height-base);}
+a{color:var(--text-link);text-decoration:none}a:hover{text-decoration:underline}
+input,select,textarea,button{font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border-focus)}
+:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+::selection{background:var(--red-150)}

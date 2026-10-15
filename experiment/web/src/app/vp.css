@@ -1,0 +1,171 @@
+/*
+ * Layout and utility classes used by the valuation screens.
+ *
+ * The prototype assumed these existed on its host page but they weren't
+ * part of the handoff, so they're authored here against the design
+ * system's tokens — no raw colour values.
+ */
+
+/* --- layout ------------------------------------------------------- */
+.row {
+  display: flex;
+  align-items: center;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+
+.card {
+  background: var(--surface-card);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+/* Tabular figures for money, areas and references (design brief §4). */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* --- sidebar nav -------------------------------------------------- */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 15px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.nav:hover {
+  background: var(--surface-subtle);
+  text-decoration: none;
+}
+.nav.on {
+  background: var(--surface-accent);
+  color: var(--text-accent);
+}
+
+/* --- segmented control -------------------------------------------- */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-card);
+}
+.seg button {
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-right: 1px solid var(--border-default);
+  background: var(--surface-card);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.seg button:last-child {
+  border-right: 0;
+}
+.seg button:hover {
+  background: var(--surface-subtle);
+}
+.seg button.on {
+  background: var(--surface-accent);
+  color: var(--text-accent);
+}
+
+/* --- indicators --------------------------------------------------- */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--gray-150) 25%,
+    var(--gray-100) 37%,
+    var(--gray-150) 63%
+  );
+  background-size: 400% 100%;
+  border-radius: 6px;
+  animation: vp-shimmer 1.4s ease infinite;
+}
+@keyframes vp-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+  }
+}
+
+/* --- media placeholders ------------------------------------------- */
+/* Photos and the static location map aren't wired up yet; these keep the
+   layout honest until uploads and the maps key land. */
+.ph,
+.mapph {
+  background: var(--gray-150);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+.mapph {
+  aspect-ratio: auto;
+  background-image: linear-gradient(var(--gray-200) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gray-200) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* --- report preview ----------------------------------------------- */
+/* A4 at 96dpi is 794 × 1123px. */
+.a4 {
+  width: 794px;
+  min-height: 1123px;
+  background: var(--surface-card);
+  padding: 56px 64px 32px;
+  margin: 0 auto 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgba(20, 20, 20, 0.12);
+}
+
+/* Inline-editable free text in the report preview. */
+.ed:hover {
+  background: var(--surface-subtle);
+}
+.ed:focus {
+  background: var(--surface-subtle);
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+/* --- iPad landscape frame (design brief deliverable 3) ------------- */
+.ipad {
+  width: 1180px;
+  height: 820px;
+  margin: 0 auto;
+  border: 14px solid var(--gray-900);
+  border-radius: 22px;
+  overflow: auto;
+  background: var(--surface-page);
+}

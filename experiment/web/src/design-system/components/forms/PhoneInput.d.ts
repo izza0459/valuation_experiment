@@ -1,0 +1,2 @@
+export interface PhoneInputProps { code?: string; /** ISO country code for the flag */ country?: string; value?: string; onChange?: React.ChangeEventHandler<HTMLInputElement>; placeholder?: string; style?: React.CSSProperties; }
+export declare function PhoneInput(props: PhoneInputProps): JSX.Element;

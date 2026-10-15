@@ -1,0 +1,2 @@
+export interface TabsProps { items: (string | { label: string; count?: number | string })[]; active?: string; onChange?: (label: string) => void; size?: 'sm' | 'md'; style?: React.CSSProperties; }
+export declare function Tabs(props: TabsProps): JSX.Element;

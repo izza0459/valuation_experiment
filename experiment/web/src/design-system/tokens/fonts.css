@@ -1,0 +1,6 @@
+/* Outfit is a Google Fonts substitute: no CRM font files were provided. */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+:root{
+  --font-sans:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:ui-monospace,'SFMono-Regular',Menlo,monospace;
+}

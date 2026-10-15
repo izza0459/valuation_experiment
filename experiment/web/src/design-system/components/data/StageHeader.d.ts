@@ -1,0 +1,2 @@
+export interface StageHeaderProps { name: string; status?: string; tone?: 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'neutral'; assignee?: string; }
+export declare function StageHeader(props: StageHeaderProps): JSX.Element;

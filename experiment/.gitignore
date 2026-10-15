@@ -1,0 +1,19 @@
+# Backend (Django/Python)
+backend/.venv/
+backend/db.sqlite3
+backend/.env
+backend/staticfiles/
+backend/media/
+__pycache__/
+*.pyc
+
+# Frontend (Next.js)
+web/node_modules/
+web/.next/
+web/.env.local
+web/npm-debug.log*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

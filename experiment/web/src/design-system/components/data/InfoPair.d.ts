@@ -1,0 +1,2 @@
+export interface InfoPairProps { label: string; value?: React.ReactNode; /** link = teal (REF #), accent = red (counts, amounts) */ tone?: 'default' | 'link' | 'accent'; children?: React.ReactNode; style?: React.CSSProperties; }
+export declare function InfoPair(props: InfoPairProps): JSX.Element;

@@ -1,0 +1,438 @@
+{#- Standard valuation report, structure per CLAUDE.md §5.
+    Wording is our own. Text that is legal in nature is marked PLACEHOLDER
+    until approved wording exists (CLAUDE.md §11); a report must not be
+    issued while any remains. -#}
+{% macro placeholder(what) -%}
+<p class="placeholder">[PLACEHOLDER – replace with approved wording: {{ what }}]</p>
+{%- endmacro %}
+
+{#- Commercial and legal terms quoted in the wording below, from the firm's
+    Word template (Valuation_Report_Template.docx), where they were shown in
+    [brackets] for confirmation. Change them here; nothing else repeats them. -#}
+{%- set terms = {
+  "standards_effective": "31 January 2025",
+  "fee_share_pct": 5,
+  "file_retention_years": 6,
+  "non_solicitation_months": 6,
+  "force_majeure_days": 30,
+  "late_payment_days": 30,
+  "remedy_days": 30,
+  "termination_notice_days": 30,
+  "courts": "Dubai Courts",
+} -%}
+
+{%- set market_value_definition = "The estimated amount for which an asset or liability should exchange on the valuation date between a willing buyer and a willing seller in an arm’s length transaction, after proper marketing and where the parties had each acted knowledgeably, prudently and without compulsion." -%}
+
+{#- The firm's registered legal name (REPORT_FIRM_LEGAL_NAME). Until it is
+    set, the report says so and cannot be issued. -#}
+{% macro legal_name() -%}
+{% if firm.legal_name %}{{ firm.legal_name }}{% else %}<span class="placeholder">[PLACEHOLDER – replace with approved wording: the firm’s registered legal name]</span>{% endif %}
+{%- endmacro %}
+
+{% macro table(rows, cls="kv") -%}
+<table class="{{ cls }}">
+  {% for r in rows %}
+  <tr><th>{{ r.label }}</th><td>{{ r.value }}</td></tr>
+  {% endfor %}
+</table>
+{%- endmacro %}
+
+{% macro entries(items) -%}
+{% for item in items %}
+  <h4>{{ item.title }}</h4>
+  <p class="prose">{{ item.body }}</p>
+{% endfor %}
+{%- endmacro %}
+
+{% macro photo(p) -%}
+<figure>{% if p.src %}<img src="{{ p.src }}" alt="">{% else %}<div class="missing-image">Photograph unavailable</div>{% endif %}<figcaption>{{ p.caption }}</figcaption></figure>
+{%- endmacro %}
+
+{% macro signature(person, role) -%}
+<div class="signature">
+  <div class="sig-line"></div>
+  {% if person %}
+  <div class="sig-name">{{ person.name }}</div>
+  <div class="sig-role">{{ role }}{% if person.title %} · {{ person.title }}{% endif %}</div>
+  {% if person.qualifications %}<div>{{ person.qualifications }}</div>{% endif %}
+  {% if person.rera_no %}<div>RERA registration no.: {{ person.rera_no }}</div>{% endif %}
+  {% if person.rics_no %}<div>RICS membership no.: {{ person.rics_no }}</div>{% endif %}
+  {% else %}
+  <div class="sig-name missing">{{ role }} not assigned</div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Valuation Report {{ meta.ref_no }}</title>
+<style>{{ css }}</style>
+</head>
+<body class="{{ 'draft' if meta.is_draft else 'final' }}">
+
+{# ---------- Cover ---------- #}
+<section class="cover">
+  <div class="logo">{{ firm.name }}</div>
+  <h1>Valuation Report</h1>
+  <p class="cover-address">{{ property.address or "—" }}</p>
+  <table class="kv cover-table">
+    <tr><th>Valuation Ref No.</th><td>{{ meta.ref_no }}{% if meta.version > 1 %} (version {{ meta.version }}){% endif %}</td></tr>
+    <tr><th>Valuation date</th><td>{{ dates.valuation or "—" }}</td></tr>
+    <tr><th>Prepared for</th><td>{{ client.name }}</td></tr>
+    <tr><th>Prepared by</th><td>{{ firm.name }}</td></tr>
+  </table>
+  {% if meta.is_draft %}
+  <div class="draft-box">
+    <strong>DRAFT – not issued.</strong>
+    {% if meta.outstanding %}
+    <p>Still to complete before this can be sent for review:</p>
+    <ul>{% for item in meta.outstanding %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{# ---------- 1 Executive summary ---------- #}
+<section>
+  <h2>1. Executive Summary</h2>
+  {% if exec_photos %}
+  <div class="photo-row">{% for p in exec_photos %}{{ photo(p) }}{% endfor %}</div>
+  {% elif meta.is_draft %}
+  <p class="note">Executive-summary photographs have not been attached.</p>
+  {% endif %}
+
+  <h3>Property details</h3>
+  {{ table(property_details) }}
+
+  <h3>Valuation summary</h3>
+  {{ table(valuation_summary) }}
+  {% if bua_assumed_note %}<p class="note">{{ bua_assumed_note }}</p>{% endif %}
+
+  {% if under_construction %}
+  <h3>Under construction</h3>
+  {{ table(under_construction) }}
+  {% endif %}
+
+  <div class="signatures">
+    {{ signature(valuer, "Valuer") }}
+    {{ signature(counter_signatory, "Counter-signatory") }}
+  </div>
+</section>
+
+{# ---------- 2 Terms of engagement ---------- #}
+<section>
+  <h2>2. Terms of Engagement</h2>
+  <h3>Addressee</h3>
+  <p>{{ client.name }}{% if client.billing_address %}<br>{{ client.billing_address }}{% endif %}{% if client.po_box %}<br>PO Box {{ client.po_box }}{% endif %}</p>
+  <p>To be relied upon by {{ client.name }}{% if purpose %} for {{ purpose | lower }} purposes{% endif %} only.</p>
+
+  <h3>Standards</h3>
+  <p>This Valuation Report has been prepared in accordance with the Emirates Book of Valuation Standards (EBVS) and the RICS Valuation – Global Standards (effective {{ terms.standards_effective }}).</p>
+  <p>The RICS Valuation – Global Standards incorporate and are consistent with the International Valuation Standards (IVS).</p>
+
+  <h3>Basis of valuation</h3>
+  {% if valuation.basis_key in ("market_value", "market_value_transferable_title") %}
+  <p>The valuation has been prepared on the basis of {{ valuation.basis }} as defined in the International Valuation Standards and adopted by RICS:</p>
+  <p class="quote">“{{ market_value_definition }}”</p>
+  <p>Market Value reflects the highest and best use of the asset: the use that is physically possible, legally permissible and financially feasible, and which produces the highest value from a market participant’s perspective.</p>
+  <p>A full definition of Market Value is provided in Appendix 3.</p>
+  {% else %}
+  <p>The valuation has been prepared on the basis of {{ valuation.basis or "—" }}, as defined in Appendix 3.</p>
+  {% endif %}
+
+  <h3>Independence and objectivity</h3>
+  <p>We confirm that neither the Valuer nor {{ firm.name }} has any pecuniary interest giving rise to a conflict of interest in valuing the property. This report represents our independent and objective opinion.</p>
+
+  <h3>Disclosure</h3>
+  <p class="prose">{{ text.disclosure or "—" }}</p>
+  <p>The total fees earned by {{ firm.name }} from the Client, including the fee for this report, represent less than {{ terms.fee_share_pct }}% of our total revenues.</p>
+
+  <h3>Knowledge and skills of valuer</h3>
+  <p>We confirm that we have sufficient knowledge of the relevant local and national property markets, and the skills and understanding to undertake the valuation competently.</p>
+
+  <h3>Assumptions</h3>
+  <p>An assumption is a matter reasonably accepted as fact in the context of the valuation without specific investigation or verification. Assumptions adopted in this valuation are set out in the body of this report and in Appendix 2.</p>
+  {% if text.assumptions %}<p class="prose">{{ text.assumptions }}</p>{% endif %}
+
+  <h3>Special assumptions</h3>
+  {% if text.special_assumptions %}<p>The following Special Assumptions have been adopted:</p>{{ entries(text.special_assumptions) }}{% else %}<p>No Special Assumptions have been adopted.</p>{% endif %}
+  <p>A Special Assumption is one that assumes facts differing from those existing at the valuation date, or that would not be made by a typical market participant on that date.</p>
+
+  <h3>Other matters</h3>
+  {% if text.other_matters %}{{ entries(text.other_matters) }}{% else %}<p>None.</p>{% endif %}
+</section>
+
+{# ---------- 3 Due diligence ---------- #}
+<section>
+  <h2>3. Extent of Due Diligence</h2>
+  <p>{% if inspection_type %}An inspection of type “{{ inspection_type }}” was carried out{% if inspection_date %} on {{ inspection_date }}{% endif %}.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
+
+  <h3>Information provided</h3>
+  {% if information_provided %}<ul>{% for item in information_provided %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p>None recorded.</p>{% endif %}
+
+  <h3>Property areas</h3>
+  <table class="grid">
+    <tr><th>Item</th><th>Area</th><th>Source</th></tr>
+    {% for r in areas %}
+    <tr><td>{{ r.label }}</td><td>{{ r.value }}</td><td>{{ (bua_source if r.label == "Built-up area" else plot_source) or "—" }}</td></tr>
+    {% endfor %}
+  </table>
+  {% if bua_assumed_note %}<p class="note">{{ bua_assumed_note }}</p>{% endif %}
+</section>
+
+{# ---------- 4 Property analysis ---------- #}
+<section>
+  <h2>4. Property Analysis</h2>
+  <h3>Location</h3>
+  {% if text.sub_community %}<p class="prose">{{ text.sub_community }}</p>{% endif %}
+  {% if text.location %}<p class="prose">{{ text.location }}</p>{% endif %}
+  {% if not (text.sub_community or text.location) %}<p>—</p>{% endif %}
+  <div class="map-box">
+    {% if property.coordinates %}Location map · {{ property.coordinates }}{% else %}Location map – coordinates not recorded{% endif %}
+  </div>
+
+  <h3>Description</h3>
+  {% if text.specification %}<p class="prose">{{ text.specification }}</p>{% else %}<p>—</p>{% endif %}
+
+  <h3>Accommodation</h3>
+  <table class="grid">
+    <tr><th>Floor</th><th>Accommodation</th></tr>
+    <tr><td>{{ accommodation.floor or "—" }}</td><td>{{ accommodation.rooms | join(", ") or "—" }}</td></tr>
+  </table>
+
+  <h3>Building specification</h3>
+  {% if building_specification %}{{ table(building_specification) }}{% else %}<p>—</p>{% endif %}
+
+  {% if text.amenities %}<h3>Communal amenities</h3><p class="prose">{{ text.amenities }}</p>{% endif %}
+
+  <h3>Condition</h3>
+  {% if text.condition %}<p class="prose">{{ text.condition }}</p>{% else %}<p>—</p>{% endif %}
+  {% if text.repairs %}<p class="prose"><strong>Repairs noted:</strong> {{ text.repairs }}</p>{% endif %}
+
+  {% if reinstatement %}<h3>Reinstatement</h3><p>The estimated reinstatement value for insurance purposes is {{ reinstatement }}.</p>{% endif %}
+</section>
+
+{# ---------- 5 Market commentary ---------- #}
+<section>
+  <h2>5. Market Commentary</h2>
+  {% if text.market_commentary %}<p class="prose">{{ text.market_commentary }}</p>{% else %}<p>—</p>{% endif %}
+</section>
+
+{# ---------- 6 Valuation methodology ---------- #}
+<section>
+  <h2>6. Valuation Methodology</h2>
+  <p>The market approach, comparable method, has been used: the property is valued by reference to prices achieved for, or asked for, similar properties, adjusted for the differences between them and the subject.</p>
+  {% if text.valuation_commentary %}<h3>Valuation commentary</h3><p class="prose">{{ text.valuation_commentary }}</p>{% endif %}
+
+  <h3>Comparable evidence</h3>
+  {% if comparables %}
+  <table class="grid">
+    <tr><th>District</th><th>Views</th><th>BUA (sqft)</th><th>Type</th><th>Net price (AED)</th><th>Transaction</th></tr>
+    {% for c in comparables %}
+    <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.bua_sqft }}</td><td>{{ c.type }}</td><td>{{ c.price }}</td><td>{{ c.transaction }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="note">No comparable evidence has been recorded for this valuation.</p>
+  {% endif %}
+</section>
+
+{# ---------- 7 Opinion of market value ---------- #}
+<section>
+  <h2>7. Opinion of Market Value</h2>
+  <p>Having carefully considered the matter, we are of the opinion that the {{ valuation.basis or "value" }} of the {% if interest %}{{ interest }} {% endif %}interest in the subject property, {{ "subject to the existing tenancy" if occupancy_key in ("tenanted", "multi_tenanted", "tenanted_short_term") else "assuming vacant possession" }}, as at {{ dates.valuation or "the valuation date" }}, is fairly represented in the sum of:</p>
+  <div class="value-box">
+    <div class="value-figure">{{ valuation.market_value or "—" }}</div>
+    {% if valuation.market_value_words %}<div class="value-words">({{ valuation.market_value_words }})</div>{% endif %}
+  </div>
+  <p>The above value is provided gross of any land transfer charges, legal costs or sales fees. These costs are subject to negotiation, and transfer fees may change without public consultation. They may be shared between vendor and purchaser or borne by one party, typically depending on relative negotiating positions.</p>
+  <p>This valuation report has been prepared by the valuer for and on behalf of {{ firm.name }}. The valuer confirms they have the requisite local knowledge and skills to undertake the valuation competently. The signatory also confirms the report is genuine and authorised by {{ legal_name() }}.</p>
+  {% if valuation.uncertainty %}
+  <h3>Material valuation uncertainty</h3>
+  {% if valuation.uncertainty_note %}<p class="prose">{{ valuation.uncertainty_note }}</p>{% endif %}
+  {{ placeholder("standard material valuation uncertainty statement (RICS VPS 3 / VPGA 10)") }}
+  {% endif %}
+  <div class="signatures">
+    {{ signature(valuer, "Valuer") }}
+    {{ signature(counter_signatory, "Counter-signatory") }}
+  </div>
+</section>
+
+{# ---------- 8 Disclaimer ---------- #}
+<section>
+  <h2>8. Disclaimer</h2>
+  <p>This report has been prepared on the basis that there has been full disclosure of all information and facts that may affect the valuation.</p>
+  <p>This report is provided solely for the stated purpose and for the use of the party to whom it is addressed. It is confidential to the Client and may not be disclosed to any third party, or reproduced in whole or in part in any document, circular or statement, without the prior written consent of {{ firm.name }}. No responsibility is accepted to any third party for the whole or any part of its contents.</p>
+</section>
+
+{# ---------- Appendices ---------- #}
+{% set f = firm.name %}
+<section class="terms">
+  <h2>Appendix 1 – Terms and Conditions</h2>
+  <p>Thank you for instructing {{ f }} to conduct a valuation of your property. Set out below are {{ f }}’s Terms &amp; Conditions of Business (“Terms of Engagement”), which you should read carefully. These Terms of Engagement form an integral part of every proposal, contract and agreement for the provision of valuation services by {{ f }}.</p>
+
+  <h3>1. Definitions and Interpretation</h3>
+  <h4>The Client</h4>
+  <p>A person or persons who at any relevant time own, or have a formal interest in, the property that gives them the right to possession of the property, or the person duly authorised to instruct {{ f }} to provide the Services below.</p>
+  <h4>{{ f }}’s Materials</h4>
+  <p>Any intellectual property of {{ f }} (other than any Deliverables).</p>
+  <h4>Confidential Information</h4>
+  <p>All information of whatever nature relating wholly or partly to the Services or the affairs of the Client or its affiliates which (i) is supplied by or on behalf of the Client to {{ f }} in writing or orally, whether before or after the date of these Terms of Engagement; (ii) is obtained by {{ f }} in writing or orally, through or following discussions with the management, employees, agents or advisers of the Client or an affiliate; (iii) is acquired by observation or attendance by {{ f }} at the offices or other premises of the Client; or (iv) consists of any reports, analyses, compilations, studies or other documents prepared by, on behalf of or for {{ f }}, and which contain, are derived from or otherwise reflect any information described above.</p>
+  <h4>Deliverables</h4>
+  <p>Any works and materials created, developed, written or prepared by {{ f }}, its employees, agents or subcontractors in relation to, or as part of, the performance of the Services.</p>
+  <h4>Engagement</h4>
+  <p>The Client’s appointment of {{ f }} to provide Services under the Terms of Engagement.</p>
+  <h4>Force Majeure</h4>
+  <p>(i) Acts of God, such as fire, flood, earthquake or other natural causes; (ii) terrorist events, riots, insurrections, war or national emergency; (iii) judicial, legal or other action of a governmental authority which prevents or delays the performance of the Engagement, provided such action has not been caused by the failure of the Client to comply with these Terms of Engagement or the relevant rules and regulations of any UAE municipality; and any other event beyond a party’s reasonable control. Market conditions, market fluctuations or financial inability will not be deemed a Force Majeure event.</p>
+  <h4>Intellectual Property Rights</h4>
+  <p>(i) Copyright, patents, database rights and rights in trademarks, designs, know-how and confidential information (whether registered or unregistered); (ii) applications for registration, and the right to apply for registration, of any of these rights; and (iii) all other intellectual property rights and equivalent or similar forms of protection existing anywhere in the world.</p>
+  <h4>Services</h4>
+  <p>The services (including provision of the Deliverables) to be provided by {{ f }} under these Terms of Engagement including, without limitation, those identified in the relevant proposal and/or schedules.</p>
+
+  <h3>2. Scope of Business</h3>
+  <p>In carrying out the Services, {{ f }} will exercise the degree of skill, diligence, prudence and foresight reasonably expected of a skilled and experienced consultant of international repute engaged in the same or similar activities as the Services, under the same or similar circumstances as those contemplated in the proposal to which these Terms of Engagement apply.</p>
+
+  <h3>3. Fees and Expenses</h3>
+  <p>3.1 The fees for the Services are calculated in accordance with the Fee Structure of the Valuation Proposal.</p>
+  <p>3.2 The Client agrees to reimburse {{ f }} for all expenses, as identified or otherwise agreed, which are properly and reasonably incurred by {{ f }} in the provision of the Services, provided that the Client is given appropriate receipts or other reasonable evidence of such expenditure. Such expenses may include, without limitation, travel, accommodation, subsistence, telephone, postage, copying, photography and advertising, or as otherwise agreed.</p>
+  <p>3.3 {{ f }} may require payments on account before commencing or completing any Services. In such event, the amount of the payment on account shall be calculated having regard to the programme for performance of the Services and the likely timing and amount of expenses to be incurred.</p>
+  <p>3.4 The fees are exclusive of value added tax which, where applicable, will be charged to the Client at the prevailing rate.</p>
+
+  <h3>4. Payment</h3>
+  <p>4.1 All invoices are payable by the Client immediately on receipt.</p>
+  <p>4.2 All payments due to {{ f }} under the Terms of Engagement must be made without set-off or counterclaim and free of and without deduction for any taxes, levies or duties of any description. If the Client is required by applicable law to make any such deduction, the sum due shall be increased so that {{ f }} receives on the due date a net sum equal to the sum it would have received had no such deduction been required.</p>
+
+  <h3>5. The Client’s Obligations</h3>
+  <p>5.1 In consideration of {{ f }} performing the Services on these Terms of Engagement, the Client agrees to pay {{ f }} all fees, expenses and value added tax as required under the relevant fee structure. {{ f }} may suspend and/or cease further work on behalf of the Client in the event of non-payment, partial payment or late payment of any of its invoices.</p>
+  <p>5.2 The Client will provide {{ f }} with any information and documents that {{ f }} may reasonably request for the proper performance of its obligations under these Terms of Engagement.</p>
+  <p>5.3 The Client will use reasonable efforts to allow {{ f }} such access to the Client’s premises, and to such other premises and property, as is necessary to perform the Services during normal business hours.</p>
+  <p>5.4 The Client confirms that {{ f }} is entitled to rely upon the accuracy, sufficiency and consistency of any information supplied to it by the Client. {{ f }} will not be liable for any inaccuracies in information provided by the Client or by any third party on the Client’s behalf.</p>
+  <p>5.5 The Client authorises {{ f }} to disclose the Confidential Information to its employees, officers, subcontractors and professional advisers on a strict “need-to-know” basis only, and {{ f }} shall ensure that each recipient is bound to hold the Confidential Information in confidence to the standard required under each Valuation Proposal.</p>
+
+  <h3>6. Intellectual Property Rights</h3>
+  <p>6.1 {{ f }} is the beneficial owner of {{ f }}’s Materials.</p>
+  <p>6.2 Subject to all payments due under the Terms of Engagement having been paid, {{ f }} grants the Client an irrevocable, royalty-free, non-exclusive licence to use and reproduce the Deliverables for all purposes relating to the subject matter of the Valuation Proposal.</p>
+  <p>6.3 The Client acknowledges that, in the course of providing the Services, {{ f }} may use products, materials and methodologies proprietary to the Client. {{ f }} agrees that it does not acquire any rights in those proprietary products, materials and methodologies, whether under these Terms of Engagement or otherwise.</p>
+
+  <h3>7. Electronic Communications</h3>
+  <p>7.1 {{ f }} and the Client may correspond or convey documentation by email unless the Client expressly requests otherwise.</p>
+  <p>7.2 {{ f }} is not liable for any loss, damage, expense, harm or inconvenience resulting from the loss, delay, interception, corruption or alteration of any email due to any reason beyond {{ f }}’s reasonable control.</p>
+  <p>7.3 The Client will use all reasonable procedures to ensure that any materials sent by any electronic medium to {{ f }} are virus-free.</p>
+
+  <h3>8. Documents</h3>
+  <p>8.1 The Services are provided for the Client’s benefit only. No part of any report or advice produced by {{ f }} for the Client may be reproduced, transmitted, copied or disclosed to any third party without the prior written consent of {{ f }}. {{ f }} is not liable to any third party who relies on advice produced for the benefit of the Client.</p>
+  <p>8.2 {{ f }} is authorised to retain the Client’s documents while payments due under the Terms of Engagement remain outstanding.</p>
+  <p>8.3 {{ f }} will keep its files relating to a particular Client’s report for {{ terms.file_retention_years }} years after issue of its final invoice, on the basis that {{ f }} has the Client’s authority to destroy the files on expiry of that period unless the Client has previously requested in writing the return of its papers. {{ f }} is not liable for any loss of documentation after the stated retention date.</p>
+  <p>8.4 The Client is responsible for {{ f }}’s charges in producing any documentation the Client requires to comply with a third party’s request for disclosure.</p>
+
+  <h3>9. Confidentiality</h3>
+  <p>9.1 {{ f }} will seek the Client’s prior consent should it wish to publicise the fact that it has provided Services to the Client. Such consent is not to be unreasonably withheld or delayed.</p>
+  <p>9.2 In respect of any information supplied under the Terms of Engagement by either party and designated by the disclosing party as confidential, the recipient agrees to:</p>
+  <p>i. protect the Confidential Information in a reasonable and appropriate manner or in accordance with applicable professional standards;</p>
+  <p>ii. use the Confidential Information only to perform its obligations under the Terms of Engagement; and</p>
+  <p>iii. reproduce the Confidential Information only as required to perform its obligations under the Terms of Engagement.</p>
+  <p>This confidentiality provision does not apply to information which is (i) publicly known; (ii) disclosed by a third party without restriction; (iii) independently developed; or (iv) disclosed pursuant to a legal requirement or order.</p>
+
+  <h3>10. Non-Solicitation</h3>
+  <p>10.1 The Client undertakes not to offer employment to, or induce or solicit to take up employment with the Client, any employee of {{ f }} working for the Client under the Terms of Engagement, for a period of {{ terms.non_solicitation_months }} months following the end of that person’s involvement under the Terms of Engagement.</p>
+  <p>10.2 In the event that the Client breaches clause 10.1, the Client agrees to pay a penalty equal to {{ terms.non_solicitation_months }} months’ salary of the member of staff in question.</p>
+
+  <h3>11. Limitation of Liability</h3>
+  <p>11.1 {{ f }}’s total liability relating to an Engagement under these Terms of Engagement (including any act or omission of {{ f }}) will in no event exceed the fees collected by {{ f }} under these Terms of Engagement for the Engagement which has given rise to the liability.</p>
+
+  <h3>12. Force Majeure</h3>
+  <p>12.1 Neither party is liable to the other for any delay in performance, or failure to perform or comply with the Terms of Engagement, due to a Force Majeure event.</p>
+  <p>12.2 Both parties agree to notify each other on becoming aware of a Force Majeure event, such notice to contain details of the circumstances giving rise to it.</p>
+  <p>12.3 A Force Majeure event will be grounds for termination of the Engagement if it remains in effect for more than {{ terms.force_majeure_days }} days, or if it will clearly result in a party being unable to perform its obligations under these Terms of Engagement for more than {{ terms.force_majeure_days }} days. A party terminating the Engagement due to a Force Majeure event will not incur any liability to the other party, except for payment obligations accrued for Services rendered before the Force Majeure event began.</p>
+
+  <h3>13. Termination</h3>
+  <p>13.1 {{ f }} may terminate the Engagement by notice with immediate effect if the Client has failed to pay an invoice within {{ terms.late_payment_days }} days of the final date for payment of that invoice.</p>
+  <p>13.2 Either party may terminate the Engagement by notice with immediate effect if the other party becomes insolvent.</p>
+  <p>13.3 Either party may terminate the Engagement by notice with immediate effect if the other party is in breach of its obligations and, where the breach is capable of remedy, fails to remedy it within {{ terms.remedy_days }} days of receipt of a notice specifying the breach.</p>
+  <p>13.4 Either party may terminate the Engagement by giving not less than {{ terms.termination_notice_days }} days’ written notice to the other. In such event {{ f }} is entitled to payment of fees for the Services performed, and of expenses properly incurred, up to the date of termination. Where the Terms of Engagement do not specify how such fees are calculated, a fair and reasonable pro rata calculation shall apply, having regard to the fees payable for completion of the Engagement, its expected duration and the Services performed before termination.</p>
+  <p>13.5 The expiry or termination of an Engagement, however arising, will not affect any provisions expressed to operate or continue in effect after termination, and is without prejudice to any rights or liabilities accrued at the date of expiry or termination.</p>
+
+  <h3>14. Dispute Resolution &amp; Governing Law</h3>
+  <p>14.1 The Terms of Engagement are governed by and construed in accordance with the laws of the United Arab Emirates.</p>
+  <p>14.2 All disputes between the parties arising out of or in connection with these Terms of Engagement are subject to the exclusive jurisdiction of the {{ terms.courts }}.</p>
+
+  <h3>15. General</h3>
+  <p>15.1 The Terms of Engagement constitute the entire agreement between {{ f }} and the Client and supersede all prior agreements, understandings, representations or communications between the parties. No amendment or variation of these Terms of Engagement will have contractual effect without the prior written approval of both parties.</p>
+  <p>15.2 An Engagement may not be assigned or otherwise transferred without the prior express written consent of the other party. {{ f }} may assign the Engagement to an affiliate or use a subcontractor to provide the Services with the prior written consent of the Client, which will not be unreasonably withheld. The Client may assign the Engagement in favour of its lenders, and {{ f }} may not withhold its consent to such assignment.</p>
+  <p>15.3 Any notice given under the Terms of Engagement must be in writing and delivered to the address provided in the proposal by hand, email or courier. Notices are deemed given: when delivered, if by hand; on confirmed delivery by the courier company, if by courier; and immediately, if by email, provided no bounce-back report is received.</p>
+  <p>15.4 No term of the Terms of Engagement may be waived, and no breach excused, unless the waiver or consent is in writing and signed by the party granting it.</p>
+  <p>15.5 If any term or provision of these Terms of Engagement is determined to be illegal or unenforceable, it shall be deemed severed, and all other terms and provisions shall remain in full force and effect.</p>
+  <p>15.6 The Terms of Engagement do not make either party the agent or legal representative of the other, and do not create a partnership or joint venture. Both parties are independent contractors acting as principals for their own accounts.</p>
+  <p>15.7 The Terms of Engagement have been prepared and executed in the English language and, notwithstanding any translation, the English language version will prevail.</p>
+  <p>{{ f }} will commence provision of the Services once these Terms of Engagement have been signed and acknowledged by the Client.</p>
+</section>
+<section class="terms">
+  <h2>Appendix 2 – General Assumptions</h2>
+  <p>These general assumptions form part of our Terms of Engagement and apply to this valuation unless stated otherwise in the report. If any assumption proves incorrect, the valuation may need to be reviewed.</p>
+  <h3>1. Basis of Valuation</h3>
+  <p>The property has been valued on the basis set out in Section 2 and defined in Appendix 3.</p>
+  <h3>2. Title</h3>
+  <p>Unless advised otherwise by the Client or its legal advisers, we assume the property has good and marketable title, free from encumbrances, restrictive covenants, disputes, mortgages or onerous outgoings, other than those disclosed in the documents provided. Where a Title Deed, Affection Plan or similar is provided, its contents are reflected in the valuation.</p>
+  <h3>3. Condition of Structure and Services</h3>
+  <p>Regard has been paid to the apparent state of repair, but no building survey has been carried out. We cannot confirm that the property is free from defects, deleterious materials, infestation or structural faults, and we assume it is. No tests of services have been undertaken; we assume all services are connected and functioning satisfactorily.</p>
+  <h3>4. Ground Conditions</h3>
+  <p>No geotechnical or environmental investigations have been made. We assume ground conditions are suitable for the existing buildings and that there are no abnormal conditions or services crossing the site that would affect value.</p>
+  <h3>5. Plant, Machinery and Contents</h3>
+  <p>No allowance is made for plant and machinery not forming part of the building services, nor for furniture, fittings, equipment, vehicles or stock.</p>
+  <h3>6. Goodwill</h3>
+  <p>No account is taken of any business goodwill arising from the occupation of the property.</p>
+  <h3>7. Floor Areas</h3>
+  <p>We have relied on the areas provided by the Client or shown on official documents and assume they have been measured in accordance with local measurement practice.</p>
+  <h3>8. Environmental Matters and Flooding</h3>
+  <p>No contamination investigations have been made and none is assumed. Where the property is in an area susceptible to flooding, we assume adequate insurance is in place and renewable without excessive premium or excess.</p>
+  <h3>9. Statutory Requirements and Planning</h3>
+  <p>We assume the property has been constructed and is occupied in accordance with all relevant planning, zoning, building and Civil Defence approvals, including the UAE Fire &amp; Life Safety Code, and is not subject to outstanding statutory notices. No formal enquiries have been made of the relevant authorities.</p>
+  <h3>10. Leasing</h3>
+  <p>Where leases are provided, we assume they are complete and current, that tenants can meet their obligations, and that there are no material arrears, breaches or disputes. No investigation of tenant covenant strength has been undertaken.</p>
+  <h3>11. Legal Issues</h3>
+  <p>Any comments on legal matters should be verified by the Client’s legal advisers. We accept no responsibility for the interpretation of the legal position.</p>
+  <h3>12. Information</h3>
+  <p>We assume the information provided is complete and correct, and that all matters relevant to value known to the Client have been disclosed.</p>
+  <h3>13. Purchaser’s Costs</h3>
+  <p>Values are reported gross of transfer fees, agency fees and purchaser’s costs unless stated otherwise.</p>
+  <h3>14. Taxation</h3>
+  <p>No allowance is made for VAT, corporate tax or any other tax liability arising on disposal, nor for any repayment of grants or incentives.</p>
+  <h3>15. Properties under Construction</h3>
+  <p>Where relevant, we have relied on construction cost and completion information provided by the owner or its advisers, and assume works are carried out in accordance with approved plans and with assignable warranties.</p>
+</section>
+<section class="terms">
+  <h2>Appendix 3 – Bases of Valuation</h2>
+  <h3>Market Value (IVS)</h3>
+  <p class="quote">“{{ market_value_definition }}”</p>
+  <h3>Market Rent (IVS)</h3>
+  <p class="quote">“The estimated amount for which an interest in real property should be leased on the valuation date between a willing lessor and a willing lessee on appropriate lease terms in an arm’s length transaction, after proper marketing and where the parties had each acted knowledgeably, prudently and without compulsion.”</p>
+  <h3>Investment Value / Worth</h3>
+  <p>The value of an asset to a particular owner or prospective owner for individual investment or operational objectives. It is an entity-specific basis and does not assume an exchange.</p>
+  <h3>Fair Value (IFRS 13)</h3>
+  <p>The price that would be received to sell an asset or paid to transfer a liability in an orderly transaction between market participants at the measurement date.</p>
+  <h3>Premise of Value – Highest and Best Use</h3>
+  <p>The use, from a market participant’s perspective, that produces the highest value for an asset. It must be physically possible, legally permissible and financially feasible, and may be the current use or an alternative use.</p>
+</section>
+<section>
+  <h2>Appendix 4 – Documents Received</h2>
+  {% if documents %}{% for d in documents %}
+  <div class="document">
+    <h4>{{ d.title }}{% if d.caption %} – {{ d.caption }}{% endif %}</h4>
+    {% for src in d.pages %}
+    <figure class="doc-page">{% if src %}<img src="{{ src }}" alt="">{% else %}<div class="missing-image">Page unavailable</div>{% endif %}<figcaption>Page {{ loop.index }} of {{ d.total_pages }}</figcaption></figure>
+    {% else %}<figure><div class="missing-image">Document unavailable</div></figure>{% endfor %}
+    {% if d.total_pages > d.pages|length and d.pages %}<p class="note">The first {{ d.pages|length }} of {{ d.total_pages }} pages are shown.</p>{% endif %}
+  </div>
+  {% endfor %}
+  {% else %}<p class="note">No documents have been attached.</p>{% endif %}
+</section>
+<section>
+  <h2>Appendix 5 – Inspection Photographs</h2>
+  {% if photos %}<div class="photo-grid">{% for p in photos %}{{ photo(p) }}{% endfor %}</div>
+  {% else %}<p class="note">No photographs have been attached.</p>{% endif %}
+</section>
+
+</body>
+</html>

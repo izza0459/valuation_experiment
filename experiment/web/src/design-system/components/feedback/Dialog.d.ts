@@ -1,0 +1,2 @@
+export interface DialogProps { open?: boolean; title: string; subtitle?: string; onClose?: () => void; actions?: React.ReactNode; width?: number; children?: React.ReactNode; }
+export declare function Dialog(props: DialogProps): JSX.Element | null;

@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = ["migrations", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "B008",  # function call in default arg — common and fine in Django
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

@@ -1,0 +1,2 @@
+export interface IconButtonProps { /** Lucide icon name */ icon: string; size?: number; /** soft = pink circle (header, edit); outline = white circle */ variant?: 'soft' | 'outline'; label: string; onClick?: () => void; style?: React.CSSProperties; }
+export declare function IconButton(props: IconButtonProps): JSX.Element;

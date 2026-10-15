@@ -1,0 +1,2 @@
+export interface OptionCardProps { title: string; price: string; oldPrice?: string; description?: string; meta?: string[]; selected?: boolean; onSelect?: () => void; }
+export declare function OptionCard(props: OptionCardProps): JSX.Element;

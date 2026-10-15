@@ -1,0 +1,2 @@
+export interface UploadButtonProps { /** "Upload" for files, "Link" for URLs */ label?: string; onClick?: () => void; disabled?: boolean; }
+export declare function UploadButton(props: UploadButtonProps): JSX.Element;

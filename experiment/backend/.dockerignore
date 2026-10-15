@@ -1,0 +1,10 @@
+# Local-only files: the image installs its own packages and uses Postgres.
+.venv/
+db.sqlite3
+.env
+media/
+staticfiles/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/

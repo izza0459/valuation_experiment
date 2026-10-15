@@ -1,0 +1,84 @@
+/* Standard valuation report. Placeholder branding until the final template
+   arrives (CLAUDE.md §11): a text wordmark and a single accent colour. */
+
+:root { --accent: #b3261e; --ink: #1f2933; --muted: #616e7c; --rule: #d9dee3; --wash: #f5f7f9; }
+
+@page {
+  size: A4;
+  margin: 24mm 18mm 22mm 18mm;
+  @top-left { content: "{{ firm_name | cssstr }}"; font: 600 9pt "Helvetica", sans-serif; color: var(--accent); }
+  @bottom-left { content: "Valuation Ref No.: {{ ref_no | cssstr }}"; font: 8pt "Helvetica", sans-serif; color: var(--muted); }
+  @bottom-right { content: "Page | " counter(page); font: 8pt "Helvetica", sans-serif; color: var(--muted); }
+}
+@page :first { @top-left { content: none; } }
+
+/* A report is paper: white with dark ink whatever the viewer's theme. */
+html { color-scheme: light; }
+body { font: 10pt/1.5 "Helvetica", "Arial", sans-serif; color: var(--ink); margin: 0; }
+
+{% if is_draft %}
+/* Drawn as the page background so it repeats on every page of the PDF. */
+@page {
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='210mm' height='297mm' viewBox='0 0 210 297'><text x='105' y='160' text-anchor='middle' font-family='Helvetica' font-weight='700' font-size='46' fill='%23b3261e' fill-opacity='0.07' transform='rotate(-30 105 160)'>DRAFT</text></svg>") no-repeat center / 210mm 297mm;
+}
+{% endif %}
+
+/* On-screen preview only (WeasyPrint prints with @page): one A4 sheet wide. */
+@media screen {
+  html { background: #e9ecef; }
+  body { background: #fff; max-width: 210mm; margin: 8mm auto; padding: 18mm; box-shadow: 0 1px 8px rgba(0, 0, 0, 0.15); box-sizing: border-box; }
+  section { margin-bottom: 14mm; padding-bottom: 8mm; border-bottom: 1px dashed var(--rule); }
+}
+section { break-before: page; }
+section.cover { break-before: auto; }
+
+h1 { font-size: 30pt; margin: 40mm 0 6mm; letter-spacing: -0.5pt; }
+h2 { font-size: 16pt; margin: 0 0 6mm; padding-bottom: 2mm; border-bottom: 2pt solid var(--accent); }
+h3 { font-size: 11pt; margin: 6mm 0 2mm; color: var(--accent); }
+h4 { font-size: 10pt; margin: 3mm 0 1mm; }
+p { margin: 0 0 3mm; }
+ul { margin: 0 0 3mm; padding-left: 5mm; }
+
+.logo { font-size: 14pt; font-weight: 700; color: var(--accent); letter-spacing: 1pt; text-transform: uppercase; }
+.cover-address { font-size: 14pt; margin-bottom: 10mm; }
+.prose { white-space: pre-line; }
+.note { color: var(--muted); font-style: italic; }
+.quote { font-style: italic; margin-left: 4mm; }
+.terms p, .terms h4 { font-size: 9pt; }
+.terms h3 { margin-top: 4mm; }
+.placeholder { background: #fff3cd; border: 1pt dashed #b58105; padding: 2mm 3mm; color: #5c4400; font-size: 9pt; }
+.missing { color: var(--accent); }
+
+table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; break-inside: auto; }
+tr { break-inside: avoid; }
+table.kv th { width: 38%; text-align: left; font-weight: 600; background: var(--wash); }
+table.kv th, table.kv td { padding: 1.6mm 3mm; border-bottom: 0.5pt solid var(--rule); vertical-align: top; }
+table.grid th { text-align: left; background: var(--wash); border-bottom: 1pt solid var(--ink); }
+table.grid th, table.grid td { padding: 1.6mm 3mm; border-bottom: 0.5pt solid var(--rule); vertical-align: top; }
+.cover-table { width: 70%; }
+
+.value-box { border: 1.5pt solid var(--accent); padding: 6mm; margin: 4mm 0 5mm; text-align: center; }
+.value-figure { font-size: 24pt; font-weight: 700; }
+.value-words { color: var(--muted); margin-top: 1mm; }
+
+.signatures { display: flex; gap: 12mm; margin-top: 14mm; break-inside: avoid; }
+.signature { flex: 1; font-size: 9pt; }
+.sig-line { border-bottom: 0.75pt solid var(--ink); height: 14mm; margin-bottom: 2mm; }
+.sig-name { font-weight: 700; font-size: 10pt; }
+.sig-role { color: var(--muted); }
+
+.map-box { border: 1pt dashed var(--rule); background: var(--wash); height: 55mm; display: flex; align-items: center; justify-content: center; color: var(--muted); margin: 3mm 0; }
+
+.photo-row, .photo-grid { display: grid; gap: 4mm; grid-template-columns: repeat(2, 1fr); }
+.photo-row { grid-template-columns: repeat(3, 1fr); }
+figure { margin: 0 0 4mm; break-inside: avoid; }
+figure img { width: 100%; }
+.document { margin-bottom: 6mm; }
+.doc-page { text-align: center; }
+/* Heading, page and caption have to fit on one A4 page, so a tall scan is limited by height, not width. */
+.doc-page img { border: 0.5pt solid var(--rule); width: auto; max-width: 100%; max-height: 195mm; }
+.document h4 { break-after: avoid; }
+.missing-image { background: var(--wash); border: 0.5pt dashed var(--muted); color: var(--muted); padding: 12mm 4mm; text-align: center; font-size: 9pt; }
+figcaption { font-size: 8.5pt; color: var(--muted); }
+
+.draft-box { margin-top: 12mm; padding: 4mm; border: 1.5pt solid var(--accent); background: #fdecea; font-size: 9pt; }

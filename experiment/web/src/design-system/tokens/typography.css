@@ -1,0 +1,10 @@
+:root{
+  --font-size-xs:12px; --font-size-sm:13px; --font-size-base:14px; --font-size-md:15px; --font-size-lg:16px;
+  --font-size-xl:17px; --font-size-2xl:20px; --font-size-3xl:24px; --font-size-4xl:26px;
+  --font-weight-light:300; --font-weight-regular:400; --font-weight-medium:500; --font-weight-semibold:600; --font-weight-bold:700;
+  --line-height-tight:1.2; --line-height-base:1.4; --line-height-relaxed:1.5;
+  /* Semantic */
+  --text-page-title:var(--font-size-4xl); --text-entity-title:var(--font-size-3xl); --text-section-title:var(--font-size-2xl);
+  --text-card-title:var(--font-size-xl); --text-label:var(--font-size-lg); --text-value-size:var(--font-size-lg);
+  --text-meta:var(--font-size-base); --text-caption:var(--font-size-sm); --text-nav:var(--font-size-xl);
+}

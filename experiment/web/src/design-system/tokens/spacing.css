@@ -1,0 +1,13 @@
+:root{
+  --space-1:4px; --space-2:6px; --space-3:8px; --space-4:10px; --space-5:12px; --space-6:14px; --space-7:16px;
+  --space-8:18px; --space-9:20px; --space-10:24px; --space-11:28px; --space-12:32px; --space-13:40px;
+  --radius-sm:4px; --radius-md:6px; --radius-lg:8px; --radius-xl:10px; --radius-2xl:12px; --radius-pill:999px;
+  --control-height-sm:34px; --control-height-md:42px; --control-height-lg:46px; --control-height-input:48px;
+  --header-height:76px;
+  --shadow-header:0 1px 0 var(--gray-200);
+  --shadow-card:0 1px 2px rgba(0,0,0,.04);
+  --shadow-popover:0 8px 24px rgba(0,0,0,.10);
+  --shadow-drawer:-8px 0 24px rgba(0,0,0,.10);
+  --backdrop:rgba(20,20,20,.35);
+  --duration-fast:150ms; --ease-standard:cubic-bezier(.2,0,0,1);
+}
