@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+// Unset or empty: call /api/... on this app's own address, which next.config.ts
+// forwards to Django (API_PROXY_TARGET). Works the same locally, through a
+// tunnel and on Render. Set a full URL only to call Django directly.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
   status: number;

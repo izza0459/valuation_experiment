@@ -1,0 +1,76 @@
+# Render Blueprint: a free DEMO deployment (render.com → New → Blueprint).
+#
+#   valuation-web  Next.js app, the address people open. It forwards /api/...
+#                  to valuation-api, so the browser only ever talks to one site.
+#   valuation-api  Django in Docker (the PDF engine needs its system libraries).
+#                  Issuing runs inline: no Redis or Celery worker on the free tier.
+#   valuation-db   Postgres.
+#
+# Free-tier limits: services sleep after 15 idle minutes (~1 minute to wake);
+# the free database is deleted after 30 days; uploaded photos, documents and
+# PDFs are on the service's own disk and are lost on every restart or deploy.
+# Not UAE-hosted (CLAUDE.md §7): made-up data only.
+#
+# If Render can't use a name below (taken), it adds a suffix: then update
+# API_PROXY_TARGET, DJANGO_ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS to match.
+
+databases:
+  - name: valuation-db
+    plan: free
+    region: frankfurt
+    databaseName: valuation
+    user: valuation
+
+services:
+  - type: web
+    name: valuation-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./experiment/backend/Dockerfile
+    dockerContext: ./experiment/backend
+    dockerCommand: sh render-start.sh
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: valuation-db
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      # Requests arrive through valuation-web, so both addresses are expected.
+      - key: DJANGO_ALLOWED_HOSTS
+        value: valuation-api.onrender.com,valuation-web.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://valuation-web.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://valuation-web.onrender.com
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: "true"
+      - key: REPORT_FIRM_NAME
+        value: Bayut Valuation Services
+      # Filled in by you in Render's dashboard; never committed.
+      - key: REPORT_FIRM_LEGAL_NAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+
+  - type: web
+    name: valuation-web
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: experiment/web
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Read when the app is built: rebuild after changing it.
+      - key: API_PROXY_TARGET
+        value: https://valuation-api.onrender.com

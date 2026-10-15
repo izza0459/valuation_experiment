@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
       { source: "/api/:path*", destination: `${target}/api/:path*` },
     ];
   },
+  // One build worker: the default (one per CPU) runs out of memory on small
+  // machines such as Render's free builders. Slower, but it finishes.
+  experimental: { cpus: 1 },
   // ngrok's free tunnel addresses, so the dev server serves its assets there.
   allowedDevOrigins: ["*.ngrok-free.app", "*.ngrok-free.dev", "*.ngrok.app"],
   turbopack: {

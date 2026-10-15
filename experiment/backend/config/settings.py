@@ -34,6 +34,9 @@ if not SECRET_KEY:
 ALLOWED_HOSTS = env.list(
     "DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"] if DEBUG else []
 )
+# Render sets this to the service's own public address (…onrender.com).
+if RENDER_HOST := env("RENDER_EXTERNAL_HOSTNAME", default=""):
+    ALLOWED_HOSTS.append(RENDER_HOST)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
