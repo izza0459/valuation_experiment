@@ -121,41 +121,63 @@ class TestContent:
         job.refresh_from_db()
         assert rows(build_context(job), "property_details")["Lease expiry"] == "01 Jan 2120"
 
-    def test_under_construction_values_appear_only_when_under_construction(self, job):
-        assert build_context(job)["under_construction"] == []
-        job.location.property_status = "under_construction"
-        job.location.save()
-        job.valuation.completion_pct = "40"
-        job.valuation.as_is_value = "300000"
-        job.valuation.save()
-        job.refresh_from_db()
-        ctx = build_context(job)
-        assert rows(ctx, "under_construction")["As-is value"] == "AED 300,000"
-        assert rows(ctx, "property_details")["Year built / completion"] == "Under construction – 40% complete"
-
-    def test_the_service_charge_row_is_for_banks_that_ask_for_it(self, job):
+    def test_hidden_fields_stay_out_of_the_report_even_with_data(self, job):
+        """Fields no longer on the form keep their data but aren't reported."""
         job.inspection.service_charge = "14.5"
         job.inspection.save()
-        job.refresh_from_db()
-        assert "Service charge" not in rows(build_context(job), "property_details")
-        job.bank.rules = {"requires_service_charge": True}
+        job.location.property_status = "under_construction"
+        job.location.coastline_distance_km = "3"
+        job.location.property_age_band = "9 to 10"
+        job.location.save()
+        job.valuation.as_is_value = "300000"
+        job.valuation.market_rent_low, job.valuation.market_rent_high = "40000", "50000"
+        job.valuation.save()
+        job.bank.rules = {"requires_service_charge": True, "requires_forced_sale_value": True}
         job.bank.save()
-        job.refresh_from_db()
-        assert rows(build_context(job), "property_details")["Service charge"] == "AED 14.50"
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        details, summary = rows(ctx, "property_details"), rows(ctx, "valuation_summary")
+        for label in ("Service charge", "Distance from coastline", "Age band"):
+            assert label not in details
+        for label in ("Forced sale value", "Estimated rental range"):
+            assert label not in summary
+        assert "under_construction" not in ctx
+        assert details["Year built"] == "Under construction"
 
-    def test_exact_age_and_forced_sale_follow_the_bank_rules(self, job):
+    def test_the_report_template_rows(self, job):
+        job.property.development = "The Views"
+        job.property.save()
+        job.summary.total_floors = 10
+        job.summary.ground_elevation = "35"
+        job.summary.no_of_bedrooms = 1
+        job.summary.save()
         job.location.built_date = datetime.date(2019, 3, 1)
         job.location.save()
-        job.refresh_from_db()
+        job.valuation.market_rent = "60000"
+        job.valuation.save()
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        details, summary = rows(ctx, "property_details"), rows(ctx, "valuation_summary")
+        assert "Rukan Residences, The Views, Dubailand" in details["Address (as inspected)"]
+        assert details["Total no. of floors"] == "G + 10 Floors"
+        assert details["Elevation above sea level"] == "Approximately 35 m"
+        assert details["Type of property"] == "1 Bedroom apartment"
+        assert details["Age of the property"] == "07.05"  # 1 Mar 2019 to 26 Aug 2026
+        assert summary["Market Rent"] == "AED 60,000 per annum"
+
+    def test_tenancy_and_reinstatement_wording(self, job):
         ctx = build_context(job)
-        assert "Exact age" not in rows(ctx, "property_details")
-        assert "Forced sale value" not in rows(ctx, "valuation_summary")
-        job.bank.rules = {"requires_exact_age": True, "requires_forced_sale_value": True}
-        job.bank.save()
-        job.refresh_from_db()
-        ctx = build_context(job)
-        assert rows(ctx, "property_details")["Exact age"] == "7 years"
-        assert rows(ctx, "valuation_summary")["Forced sale value"] == "AED 652,500 (Market Value less 10%)"
+        assert "part of a larger structure" in ctx["reinstatement"]  # an apartment
+        assert ctx["tenancy"] == ""
+        job.inspection.occupancy = "tenanted"
+        job.inspection.tenant_name = "T. Tenant"
+        job.inspection.rent_if_any = "90000"
+        job.inspection.tenancy_expiry = datetime.date(2027, 5, 31)
+        job.inspection.save()
+        job.valuation.reinstatement_note = "Custom wording."
+        job.valuation.save()
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        assert ctx["tenancy"] == "The property is let to T. Tenant at AED 90,000 per annum, expiring 31 May 2027."
+        assert ctx["tenanted"] is True
+        assert ctx["reinstatement"] == "Custom wording."
 
     def test_the_spa_caveat_appears_only_when_the_area_comes_from_an_spa(self, job):
         assert build_context(job)["bua_assumed_note"] == ""

@@ -110,11 +110,6 @@
   {{ table(valuation_summary) }}
   {% if bua_assumed_note %}<p class="note">{{ bua_assumed_note }}</p>{% endif %}
 
-  {% if under_construction %}
-  <h3>Under construction</h3>
-  {{ table(under_construction) }}
-  {% endif %}
-
   <div class="signatures">
     {{ signature(valuer, "Valuer") }}
     {{ signature(counter_signatory, "Counter-signatory") }}
@@ -167,7 +162,7 @@
 {# ---------- 3 Due diligence ---------- #}
 <section>
   <h2>3. Extent of Due Diligence</h2>
-  <p>{% if inspection_type %}An inspection of type “{{ inspection_type }}” was carried out{% if inspection_date %} on {{ inspection_date }}{% endif %}.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
+  <p>{% if inspection_type %}The subject property was inspected{% if inspector %} by {{ inspector }}{% endif %}{% if inspection_date %} on {{ inspection_date }}{% endif %} ({{ inspection_type }}). The inspection was non-intrusive and limited to accessible, visible areas.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
 
   <h3>Information provided</h3>
   {% if information_provided %}<ul>{% for item in information_provided %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p>None recorded.</p>{% endif %}
@@ -213,7 +208,11 @@
   {% if text.condition %}<p class="prose">{{ text.condition }}</p>{% else %}<p>—</p>{% endif %}
   {% if text.repairs %}<p class="prose"><strong>Repairs noted:</strong> {{ text.repairs }}</p>{% endif %}
 
-  {% if reinstatement %}<h3>Reinstatement</h3><p>The estimated reinstatement value for insurance purposes is {{ reinstatement }}.</p>{% endif %}
+  <h3>Tenancy</h3>
+  <p class="prose">{{ tenancy or "—" }}</p>
+
+  <h3>Reinstatement cost</h3>
+  <p class="prose">{{ reinstatement or "—" }}</p>
 </section>
 
 {# ---------- 5 Market commentary ---------- #}
@@ -244,17 +243,16 @@
 {# ---------- 7 Opinion of market value ---------- #}
 <section>
   <h2>7. Opinion of Market Value</h2>
-  <p>Having carefully considered the matter, we are of the opinion that the {{ valuation.basis or "value" }} of the {% if interest %}{{ interest }} {% endif %}interest in the subject property, {{ "subject to the existing tenancy" if occupancy_key in ("tenanted", "multi_tenanted", "tenanted_short_term") else "assuming vacant possession" }}, as at {{ dates.valuation or "the valuation date" }}, is fairly represented in the sum of:</p>
+  <p>Having carefully considered the matter, we are of the opinion that the {{ valuation.basis or "value" }} of the {% if interest %}{{ interest }} {% endif %}interest in the subject property, {{ "subject to the existing tenancy" if tenanted else "assuming vacant possession" }}, as at {{ dates.valuation or "the valuation date" }}, is fairly represented in the sum of:</p>
   <div class="value-box">
     <div class="value-figure">{{ valuation.market_value or "—" }}</div>
     {% if valuation.market_value_words %}<div class="value-words">({{ valuation.market_value_words }})</div>{% endif %}
   </div>
   <p>The above value is provided gross of any land transfer charges, legal costs or sales fees. These costs are subject to negotiation, and transfer fees may change without public consultation. They may be shared between vendor and purchaser or borne by one party, typically depending on relative negotiating positions.</p>
   <p>This valuation report has been prepared by the valuer for and on behalf of {{ firm.name }}. The valuer confirms they have the requisite local knowledge and skills to undertake the valuation competently. The signatory also confirms the report is genuine and authorised by {{ legal_name() }}.</p>
-  {% if valuation.uncertainty %}
-  <h3>Material valuation uncertainty</h3>
-  {% if valuation.uncertainty_note %}<p class="prose">{{ valuation.uncertainty_note }}</p>{% endif %}
-  {{ placeholder("standard material valuation uncertainty statement (RICS VPS 3 / VPGA 10)") }}
+  {% if valuation.uncertainty and valuation.uncertainty_note %}
+  <h3>Special note</h3>
+  <p class="prose">{{ valuation.uncertainty_note }}</p>
   {% endif %}
   <div class="signatures">
     {{ signature(valuer, "Valuer") }}

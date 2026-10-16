@@ -16,7 +16,9 @@ from apps.presets.models import PresetOption, TextLibraryItem
 PLACEHOLDER = "[PLACEHOLDER – replace with approved wording] "
 
 PRESETS = {
-    "purpose": ["Mortgage Security", "Audit Purpose", "Internal Purpose"],
+    "purpose": [
+        "Mortgage Security", "Audit Purpose", "Internal Purpose", "Financial Reporting", "Acquisition", "Disposal",
+    ],
     "community": [
         "Downtown Dubai", "Dubai Marina", "Jumeirah Village Circle (JVC)", "Business Bay", "Palm Jumeirah",
         "Dubai Hills Estate", "Arabian Ranches", "Jumeirah Lake Towers (JLT)", "DIFC", "Dubai Sports City",
@@ -52,7 +54,7 @@ PRESETS = {
     ],
     "capacity_of_valuer": ["External", "Internal"],
     # Values must match InspectionData.INSPECTION_TYPE_CHOICES.
-    "inspection_type": ["Full", "Desktop", "Drive-by", "Previous inspection"],
+    "inspection_type": ["Full", "Desktop", "Drive-by", "Previous inspection", "External inspection"],
     "roof": ["Reinforced concrete", "Metal sheeting"],
     "external_walls": [
         "Rendered over blockwork", "Glass cladding", "Stone cladding", "Curtain wall glazing", "Panel cladding",

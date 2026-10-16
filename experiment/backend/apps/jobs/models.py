@@ -32,6 +32,8 @@ class Property(SoftDeleteModel):
 
     unit_number = models.CharField(max_length=100, blank=True)
     building_name = models.CharField(max_length=255, blank=True)
+    # Between building and community (e.g. The Views); the report's address uses it.
+    development = models.CharField(max_length=255, blank=True)
     community_name = models.CharField(max_length=255, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -586,7 +588,7 @@ class InspectionData(JobTabData):
     # API accepts, so a new preset value needs adding here too.
     INSPECTION_TYPE_CHOICES = [
         ("full", "Full"), ("desktop", "Desktop"), ("drive_by", "Drive-by"),
-        ("previous_inspection", "Previous inspection"),
+        ("previous_inspection", "Previous inspection"), ("external_inspection", "External inspection"),
     ]
     UTILITY_STATUS_CHOICES = [
         ("connected", "Connected"), ("not_connected", "Not connected"), ("assumed_connected", "Assumed connected"),
@@ -598,8 +600,6 @@ class InspectionData(JobTabData):
         ("under_construction", "Under construction"),
         ("not_applicable_under_construction", "Not applicable – under construction"),
     ]
-    # Occupancies with a tenancy: the report values subject to it and shows the rent.
-    TENANTED_OCCUPANCIES = {"tenanted", "multi_tenanted", "tenanted_short_term"}
 
     job = models.OneToOneField(Job, on_delete=models.CASCADE, related_name="inspection")
     inspection_date = models.DateField(null=True, blank=True)
@@ -624,6 +624,8 @@ class InspectionData(JobTabData):
     accommodation_first_floor = models.JSONField(default=list, blank=True)
     occupancy = models.CharField(max_length=40, choices=OCCUPANCY_CHOICES, blank=True)
     rent_if_any = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    tenant_name = models.CharField(max_length=255, blank=True)
+    tenancy_expiry = models.DateField(null=True, blank=True)
     sale_price_if_any = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     front_views = models.CharField(max_length=255, blank=True)
     rear_views = models.CharField(max_length=255, blank=True)
@@ -703,10 +705,14 @@ class ValuationData(JobTabData):
     valuation_approach = models.CharField(max_length=255, default="Market approach – Comparable method")
     valuation_commentary = models.TextField(blank=True)
     market_value = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    # The report states one annual figure; the low/high range is no longer
+    # entered but kept for jobs that have it.
+    market_rent = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     market_rent_low = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     market_rent_high = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     forced_sale_discount_pct = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     reinstatement_value = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    reinstatement_note = models.TextField(blank=True)
 
     construction_cost = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     completion_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)

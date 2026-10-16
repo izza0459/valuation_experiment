@@ -33,12 +33,21 @@ class TestStructure:
 
 
 class TestConditionalRules:
-    def test_service_charge_keys_off_the_bank_master_not_a_bank_name(self):
-        """Regression: this matched the literal string 'Abu Dhabi Islamic
-        Bank', so renaming the bank silently dropped the field."""
-        rule = find_field("inspection", "service_charge")["visible_if"]
-        assert rule["field"] == "bank.rules.requires_service_charge"
-        assert rule["op"] == "is_true"
+    @pytest.mark.parametrize("tab_key,field_key", [
+        ("checklist", "land_rate_applied"), ("instructions", "contact_for_access"),
+        ("instructions", "report_template"), ("summary", "type_of_property"),
+        ("inspection", "service_charge"), ("location", "coastline_distance_km"),
+        ("location", "property_age_band"), ("valuation", "forced_sale_value"),
+        ("valuation", "as_is_value"), ("valuation", "market_rent_low"),
+    ])
+    def test_fields_outside_the_sheet_and_report_are_hidden(self, tab_key, field_key):
+        """Only what the field dictionary or the report template uses is on
+        the form (the columns stay, so existing data is kept)."""
+        assert field_key not in [f["key"] for f in get_tab(tab_key)["fields"]]
+
+    def test_tenancy_details_follow_a_tenanted_occupancy(self):
+        rule = find_field("inspection", "tenant_name")["visible_if"]
+        assert rule["op"] == "in" and "multi_tenanted" in rule["value"]
 
     @pytest.mark.parametrize(
         "tab_key,field_key",

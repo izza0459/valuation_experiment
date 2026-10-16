@@ -64,6 +64,18 @@ def exact_age(built_date: date, as_of: date | None = None) -> int | None:
     return max(years, 0)
 
 
+def age_years_months(built_date: date, as_of: date | None = None) -> str:
+    """The report's "years.months" age: built 1 Mar 2019, valued 15 Oct 2026 -> "07.07"."""
+    if built_date is None:
+        return ""
+    as_of = as_of or date.today()
+    months = (as_of.year - built_date.year) * 12 + as_of.month - built_date.month
+    if as_of.day < built_date.day:
+        months -= 1
+    months = max(months, 0)
+    return f"{months // 12:02d}.{months % 12:02d}"
+
+
 def age_from_year(built_year: int, as_of: date | None = None) -> int | None:
     if not built_year:
         return None

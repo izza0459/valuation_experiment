@@ -104,11 +104,6 @@ class TestVisibilityAndCompletion:
         context = {"summary": {"property_category": category}}
         assert tabs.is_field_visible(self.field("summary", "plot_area_sqft"), context) is visible
 
-    def test_bank_rule_drives_service_charge(self):
-        service_charge = self.field("inspection", "service_charge")
-        assert tabs.is_field_visible(service_charge, {"bank": {"rules": {"requires_service_charge": True}}})
-        assert not tabs.is_field_visible(service_charge, {"bank": {"rules": {}}})
-
     def test_hidden_required_fields_do_not_count(self, monkeypatch):
         tab = {"fields": [
             {"key": "a", "label": "A", "required": True, "visible_if": None},
@@ -462,14 +457,11 @@ class TestBillingAddress:
         job.refresh_from_db()
         assert job.billing_address == ""
 
-    def test_changing_bank_changes_which_rules_apply(self, bank, dan):
+    def test_changing_bank_is_saved(self, bank, dan):
         job = Job.objects.create(bank=bank, property=Property.objects.create(), valuer=dan)
         adib = Bank.objects.create(name="ADIB", rules={"requires_service_charge": True})
         res = patch(client_for(dan), job, "instructions", {"bank": adib.pk}).json()
         assert res["values"]["bank"] == adib.pk
-        service_charge = next(f for f in get_tab("inspection")["fields"] if f["key"] == "service_charge")
-        job.refresh_from_db()
-        assert tabs.is_field_visible(service_charge, tabs.visibility_context(job))
 
 
 class TestExactAgeAndDates:
@@ -618,17 +610,16 @@ class TestReportFields:
 
     def test_the_new_fields_save_and_come_back(self, job, dan):
         client = client_for(dan)
-        res = patch(client, job, "location", {"coastline_distance_km": "15.5", "remaining_economic_life_years": 55})
+        res = patch(client, job, "location", {"remaining_economic_life_years": 55})
         assert res.status_code == 200
         assert patch(client, job, "summary", {"total_floors": 12}).status_code == 200
+        assert patch(client, job, "address", {"development": "The Views"}).status_code == 200
         job.refresh_from_db()
-        assert str(job.location.coastline_distance_km) == "15.50"
+        assert job.property.development == "The Views"
         assert job.location.remaining_economic_life_years == 55
         assert job.summary.total_floors == 12
 
     @pytest.mark.parametrize("tab,key,value", [
-        ("location", "coastline_distance_km", "-1"),
-        ("location", "coastline_distance_km", "1000000"),
         ("location", "remaining_economic_life_years", 500),
         ("location", "remaining_economic_life_years", "lots"),
         ("summary", "total_floors", 201),
@@ -659,11 +650,12 @@ class TestReportFields:
 
     def test_a_revision_carries_the_new_fields_forward(self, job, dan):
         client = client_for(dan)
-        patch(client, job, "location", {"coastline_distance_km": "3.2", "remaining_economic_life_years": 40})
+        patch(client, job, "location", {"remaining_economic_life_years": 40})
         patch(client, job, "summary", {"total_floors": 9})
+        patch(client, job, "inspection", {"occupancy": "tenanted", "tenant_name": "T. Tenant"})
         Job.objects.filter(pk=job.pk).update(is_locked=True, status=JobStatus.ISSUED)
         revision = Job.objects.get(pk=job.pk).create_revision(by=dan)
-        assert str(revision.location.coastline_distance_km) == "3.20"
+        assert revision.inspection.tenant_name == "T. Tenant"
         assert revision.location.remaining_economic_life_years == 40
         assert revision.summary.total_floors == 9
 

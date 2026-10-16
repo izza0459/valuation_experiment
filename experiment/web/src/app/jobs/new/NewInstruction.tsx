@@ -31,9 +31,9 @@ const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
   },
   {
     title: "Property",
-    keys: ["property_category", "unit_number", "building_name", "community_name", "latitude", "longitude"],
+    keys: ["property_category", "unit_number", "building_name", "development", "community_name", "latitude", "longitude"],
   },
-  { title: "Parties", keys: ["applicant_name", "ownership_name", "contact_for_access"] },
+  { title: "Parties", keys: ["applicant_name", "ownership_name"] },
   {
     title: "Team",
     sub: "Who works on this job. These can be changed later on the Check List.",

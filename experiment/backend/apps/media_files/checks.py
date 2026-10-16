@@ -45,7 +45,7 @@ def _photo_requirements(job) -> list[tuple[str, bool]]:
                 len(general) >= EXEC_SUMMARY_PHOTOS,
             )
         )
-    elif inspection_type == "drive_by":
+    elif inspection_type in ("drive_by", "external_inspection"):
         needs.append((f"At least 1 general photograph included in the report ({len(general)} so far)", bool(general)))
 
     for slot, name, rule, checklist_flag in (

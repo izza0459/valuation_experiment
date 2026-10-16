@@ -18,9 +18,8 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.jobs import calculations
-from apps.jobs.constants import PLOT_BEARING_CATEGORIES
+from apps.jobs.constants import PLOT_BEARING_CATEGORIES, TENANTED_OCCUPANCIES
 from apps.jobs.field_config import TABS, get_tab
-from apps.jobs.models import InspectionData
 from apps.jobs.tabs import tab_completion, visibility_context
 from apps.media_files.checks import exec_summary_photos, media_blockers
 from apps.presets.models import PresetOption
@@ -185,7 +184,6 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     before it locks the job."""
     labels = Labels()
     bank = job.bank
-    rules = bank.rules or {}
     prop = job.property
     summary, inspection, location = job.summary, job.inspection, job.location
     valuation, checklist = job.valuation, job.checklist
@@ -199,27 +197,63 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     address_inspected = _join(
         f"Unit {prop.unit_number}" if prop.unit_number else "",
         prop.building_name,
+        prop.development,
         prop.community_name,
         prop.title_doc_emirate,
     )
     coordinates = ""
     if prop.latitude is not None and prop.longitude is not None:
-        coordinates = f"{prop.gps_dms} ({prop.latitude}, {prop.longitude})"
+        coordinates = f"Latitude {prop.latitude}, Longitude {prop.longitude}"
 
     interest = labels("summary", "interest_valued", summary.interest_valued)
     category = labels("summary", "property_category", summary.property_category)
     occupancy = labels("inspection", "occupancy", inspection.occupancy)
-    if inspection.occupancy in InspectionData.TENANTED_OCCUPANCIES and inspection.rent_if_any:
+    tenanted = inspection.occupancy in TENANTED_OCCUPANCIES
+    if tenanted and inspection.rent_if_any:
         occupancy = f"{occupancy} (passing rent {fmt_aed(inspection.rent_if_any)} p.a.)"
 
-    if under_construction:
-        year_or_completion = (
-            f"Under construction – {fmt_number(valuation.completion_pct)}% complete"
-            if valuation.completion_pct is not None
-            else "Under construction"
+    year_built = "Under construction" if under_construction else (
+        str(location.built_about) if location.built_about else ""
+    )
+    # Years.months from the built date when there is one, else whole years.
+    if location.built_date:
+        age = calculations.age_years_months(location.built_date, as_of=valuation.valuation_date)
+    else:
+        age = fmt_number(location.exact_age, " years") if location.exact_age is not None else ""
+
+    beds = summary.no_of_bedrooms
+    type_of_property = f"{beds} Bedroom {category.lower()}" if beds and category else category
+
+    tenancy = ""
+    if tenanted:
+        tenancy = "The property is let"
+        if inspection.tenant_name:
+            tenancy += f" to {inspection.tenant_name}"
+        if inspection.rent_if_any:
+            tenancy += f" at {fmt_aed(inspection.rent_if_any)} per annum"
+        if inspection.tenancy_expiry:
+            tenancy += f", expiring {fmt_date(inspection.tenancy_expiry)}"
+        tenancy += "."
+    elif inspection.occupancy == "vacant":
+        tenancy = "The subject property is currently vacant."
+    elif inspection.occupancy == "assumed_vacant":
+        tenancy = "We have assumed that the subject property is vacant."
+    elif inspection.occupancy == "owner_occupied":
+        tenancy = "The subject property is owner occupied."
+
+    if valuation.reinstatement_note:
+        reinstatement = valuation.reinstatement_note
+    elif plot_bearing:
+        reinstatement = (
+            f"The estimated reinstatement value for insurance purposes is {fmt_aed(valuation.reinstatement_value)}."
+            if valuation.reinstatement_value else ""
         )
     else:
-        year_or_completion = str(location.built_about) if location.built_about else ""
+        reinstatement = (
+            "The property forms part of a larger structure and it is therefore not possible to provide a "
+            "reinstatement cost estimate for the individual unit. We assume the building is fully insured "
+            "against fire and the usual perils."
+        )
 
     upgrades = ""
     if inspection.upgraded:
@@ -244,6 +278,9 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         {"floor": "First floor",
          "rooms": labels.many("inspection", "accommodation_first_floor", inspection.accommodation_first_floor)}
         if plot_bearing and inspection.accommodation_first_floor else None,
+        {"floor": "Designated parking spaces",
+         "rooms": [f"Parking for {summary.no_of_parkings} car{'s' if summary.no_of_parkings != 1 else ''}"]}
+        if summary.parking and summary.no_of_parkings else None,
     )
 
     property_details = _rows(
@@ -254,31 +291,24 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         _row("GPS coordinates", coordinates),
         _row("Address (as inspected)", address_inspected),
         _row("Address (as per title document)", prop.address_as_per_document),
-        _row("Plot no.", prop.title_doc_plot_no),
-        _row("Building", prop.building_name),
-        _row("Community", prop.community_name),
         _row("Built-up area", bua_text),
         _row("Plot area", (plot_text or EMPTY) if plot_bearing else NOT_APPLICABLE),
         _row("Floor", summary.property_floor_no),
-        _row("Total floors", str(summary.total_floors) if summary.total_floors else ""),
-        _row("Ground elevation", fmt_number(summary.ground_elevation, " m above sea level")),
-        _row("Distance from coastline", fmt_number(location.coastline_distance_km, " km")),
+        _row("Total no. of floors", f"G + {summary.total_floors} Floors" if summary.total_floors else ""),
+        _row("Elevation above sea level",
+             f"Approximately {fmt_number(summary.ground_elevation)} m" if summary.ground_elevation is not None else ""),
         _row("Interest valued", interest),
         _row("Lease expiry", fmt_date(summary.lease_expiry), always=False) if long_leasehold else None,
         _row("Acquisition method", labels("summary", "acquisition_method", summary.acquisition_method)),
-        _row("Type of property", summary.type_of_property or category),
+        _row("Type of property", type_of_property),
         _row("Views", inspection.views_summary),
         _row("Developer", location.developer),
-        _row("Year built / completion", year_or_completion),
-        _row("Age band", location.property_age_band, always=False),
-        _row("Exact age", f"{location.exact_age} years" if location.exact_age is not None else "")
-        if rules.get("requires_exact_age") else None,
-        _row("Remaining economic life", fmt_number(location.remaining_economic_life_years, " years")),
+        _row("Year built", year_built),
+        _row("Age of the property", age),
+        _row("Remaining economic life",
+             f"Circa {fmt_number(location.remaining_economic_life_years, ' years')}"
+             if location.remaining_economic_life_years else ""),
         _row("Utilities", inspection.utilities_summary),
-        # Only for banks that ask for it (the ADIB rule lives in Bank.rules).
-        # TODO: the unit (AED per sqft or per year) isn't captured; confirm
-        # with the first target bank before this goes on a real report.
-        _row("Service charge", fmt_aed(inspection.service_charge)) if rules.get("requires_service_charge") else None,
         _row("Upgrades / modifications", upgrades),
         _row("Occupancy", occupancy),
     )
@@ -290,29 +320,18 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         _row("Standards", STANDARDS),
         _row("Date of instruction", fmt_date(job.date_of_instruction)),
         _row("Date of inspection", fmt_date(inspection.inspection_date)),
+        _row("Type of inspection", labels("inspection", "inspection_type", inspection.inspection_type)),
         _row("Date of valuation", fmt_date(valuation.valuation_date)),
         _row("Date of report", fmt_date(valuation.report_date)),
         _row("Market Value", fmt_aed(market_value)),
         _row("Market Value in words", calculations.amount_in_words(market_value) if market_value else ""),
         _row("Market Value rate", f"{fmt_aed(valuation.market_value_rate_per_sqft)} / sqft"
              if valuation.market_value_rate_per_sqft else ""),
-        _row("Estimated rental range",
-             f"{fmt_aed(valuation.market_rent_low)} – {fmt_aed(valuation.market_rent_high)} p.a."
-             if valuation.market_rent_low and valuation.market_rent_high else "", always=False),
-        _row("Forced sale value", f"{fmt_aed(valuation.forced_sale_value)} "
-             f"(Market Value less {fmt_number(valuation.effective_forced_sale_discount_pct)}%)")
-        if rules.get("requires_forced_sale_value") and market_value else None,
+        _row("Market Rent", f"{fmt_aed(valuation.market_rent)} per annum" if valuation.market_rent else "",
+             always=False),
         _row("Capacity of valuer", labels("summary", "capacity_of_valuer", summary.capacity_of_valuer)),
         _row("Departures", summary.departures),
     )
-
-    under_construction_rows = _rows(
-        _row("Construction cost", fmt_aed(valuation.construction_cost)),
-        _row("Completion", f"{fmt_number(valuation.completion_pct)}%" if valuation.completion_pct is not None else ""),
-        _row("Land cost / land-only value", fmt_aed(valuation.land_cost)),
-        _row("As-is value", fmt_aed(valuation.as_is_value)),
-        _row("Assumed complete value", fmt_aed(valuation.assumed_complete_value)),
-    ) if under_construction else []
 
     areas = _rows(
         _row("Built-up area", bua_text),
@@ -373,7 +392,6 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         },
         "property_details": property_details,
         "valuation_summary": valuation_summary,
-        "under_construction": under_construction_rows,
         "areas": areas,
         "bua_assumed_note": (
             "The built-up area is taken from the sale and purchase agreement and is assumed to be correct."
@@ -386,6 +404,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         "information_provided": labels.many("summary", "information_provided", summary.information_provided),
         "inspection_type": labels("inspection", "inspection_type", inspection.inspection_type),
         "inspection_date": fmt_date(inspection.inspection_date),
+        "inspector": str(job.inspected_by) if job.inspected_by else "",
         "text": {
             "disclosure": summary.disclosure,
             "assumptions": summary.assumptions,
@@ -400,9 +419,9 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             "condition": location.property_condition,
             "repairs": inspection.repairs,
         },
-        "reinstatement": (
-            fmt_aed(valuation.reinstatement_value) if plot_bearing and valuation.reinstatement_value else ""
-        ),
+        "reinstatement": reinstatement,
+        "tenancy": tenancy,
+        "tenanted": tenanted,
         "plot_bearing": plot_bearing,
         "valuation": {
             "market_value": fmt_aed(market_value),
