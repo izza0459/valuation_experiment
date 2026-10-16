@@ -21,7 +21,7 @@ from apps.accounts.models import Role
 from apps.accounts.permissions import is_platform_admin, roles_on_job
 from apps.audit.middleware import acting_as
 
-from .field_config import TABS, stage_tabs
+from .field_config import TABS, stage_tabs, where
 from .models import Job, JobTransition
 from .tabs import MEDIA_TABS, NotPermitted, TabError, media_completion, tab_completion, visibility_context
 from .workflow import (
@@ -95,7 +95,7 @@ def review_ready(job) -> list[str]:
             continue
         missing = tab_completion(tab["key"], context)["missing"]
         if missing:
-            blockers.append(f"{tab['label']}: {', '.join(missing)}")
+            blockers.append(f"{where(tab['key'])}: {', '.join(missing)}")
 
     from apps.media_files.checks import media_blockers  # the media app depends on this one
 

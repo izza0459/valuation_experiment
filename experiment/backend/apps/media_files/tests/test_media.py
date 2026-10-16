@@ -456,7 +456,7 @@ class TestRequirements:
         Job.objects.filter(pk=job.pk).update(status=JobStatus.VALUATION_IN_PROGRESS)
         res = client_for(dan).get(f"/api/jobs/{job.pk}/")
         review = next(a for a in res.json()["available_actions"] if a["to"] == "peer_review")
-        assert review["enabled"] is False and any(b.startswith("Photos:") for b in review["blockers"])
+        assert review["enabled"] is False and any(b.startswith("Inspection › Photos:") for b in review["blockers"])
 
 
 # --- revisions and reports --------------------------------------------------------------------

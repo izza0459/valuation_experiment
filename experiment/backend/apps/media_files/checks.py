@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from django.core.files.storage import default_storage
 
+from apps.jobs.field_config import where
+
 # The executive summary shows three photographs (CLAUDE.md §5).
 EXEC_SUMMARY_PHOTOS = 3
 
@@ -63,7 +65,7 @@ def _photo_requirements(job) -> list[tuple[str, bool]]:
 def media_blockers(job) -> list[str]:
     """What is still needed before review, worded for the blocker list."""
     return [
-        f"{LABELS[tab]}: {label}"
+        f"{where(tab)}: {label}"
         for tab in ("photos", "documents")
         for label, met in requirements(job, tab)
         if not met

@@ -2,6 +2,8 @@
 if/else — mirrors Carforce's config-driven flow stages (CLAUDE.md §8).
 """
 
+from django.conf import settings
+
 from apps.accounts.models import Role
 
 
@@ -164,8 +166,9 @@ def validate_issue_preconditions(job) -> list[str]:
     elif not job.countersigned_at or job.countersigned_by_id != job.counter_signatory_id:
         errors.append("The counter-signatory has not counter-signed the report.")
 
-    errors.extend(_licence_errors(job.registered_valuer, "Signing valuer"))
-    if job.counter_signatory_id:
-        errors.extend(_licence_errors(job.counter_signatory, "Counter-signatory"))
+    if not settings.DEMO_MODE:  # demo: licences needn't be on file yet
+        errors.extend(_licence_errors(job.registered_valuer, "Signing valuer"))
+        if job.counter_signatory_id:
+            errors.extend(_licence_errors(job.counter_signatory, "Counter-signatory"))
 
     return errors

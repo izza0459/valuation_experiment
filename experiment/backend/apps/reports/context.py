@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from apps.jobs import calculations
 from apps.jobs.constants import PLOT_BEARING_CATEGORIES, TENANTED_OCCUPANCIES
-from apps.jobs.field_config import TABS, get_tab
+from apps.jobs.field_config import TABS, get_tab, where
 from apps.jobs.tabs import tab_completion, visibility_context
 from apps.media_files.checks import exec_summary_photos, media_blockers
 from apps.presets.models import PresetOption
@@ -140,7 +140,7 @@ def outstanding_items(job) -> list[str]:
         if tab["fields"]:
             missing = tab_completion(tab["key"], context)["missing"]
             if missing:
-                items.append(f"{tab['label']}: {', '.join(missing)}")
+                items.append(f"{where(tab['key'])}: {', '.join(missing)}")
     return items + media_blockers(job)
 
 

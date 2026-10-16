@@ -281,6 +281,13 @@ def get_tab(key: str) -> dict:
     raise KeyError(key)
 
 
+def where(tab_key: str) -> str:
+    """'Setup › Summary': how a missing item is placed for the user."""
+    tab = get_tab(tab_key)
+    stage = next(s["label"] for s in STAGES if s["key"] == tab["stage"])
+    return f"{stage} › {tab['label']}"
+
+
 def stage_tabs(stage: str) -> list[str]:
     return [tab["key"] for tab in TABS if tab["stage"] == stage]
 

@@ -364,3 +364,11 @@ class TestStagesFollowTheTabs:
 
         sync_stage(job, dan)
         assert job.status == S.PEER_REVIEW
+
+
+class TestMissingItemsNameTheirStage:
+    def test_review_blockers_say_which_stage_and_section(self, job, dan):
+        blockers = client_for(dan).get(f"/api/jobs/{job.pk}/").json()["available_actions"]
+        review = next(a for a in blockers if a["to"] == S.PEER_REVIEW)["blockers"]
+        assert any(b.startswith("Setup › Summary: ") for b in review)
+        assert any(b.startswith("Valuation › Documents: ") for b in review)

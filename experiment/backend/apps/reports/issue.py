@@ -19,6 +19,7 @@ import html as htmllib
 import json
 import re
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -71,7 +72,7 @@ def _blockers(job, html: str) -> list[str]:
     # The rendered text is the only reliable place to find placeholders: they
     # can come from the template, the text library, or be left in free text
     # by a valuer.
-    found = placeholders_in(html)
+    found = [] if settings.DEMO_MODE else placeholders_in(html)  # demo: wording can wait
     if found:
         shown = ", ".join(found[:SHOWN_PLACEHOLDERS])
         more = f" and {len(found) - SHOWN_PLACEHOLDERS} more" if len(found) > SHOWN_PLACEHOLDERS else ""

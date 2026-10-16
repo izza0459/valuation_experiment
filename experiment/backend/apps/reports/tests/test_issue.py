@@ -377,3 +377,21 @@ class TestSignOff:
         assert res.status_code == 422
         job = Job.objects.get(pk=in_review.pk)
         assert job.status == JobStatus.PEER_REVIEW and job.counter_signatory is None
+
+
+class TestDemoMode:
+    def test_licences_and_placeholder_wording_dont_block_in_a_demo(self, approved, settings):
+        settings.REPORT_FIRM_LEGAL_NAME = ""  # leaves a placeholder in the shipped template
+        ReportTemplate.objects.update(active=False)
+        ValuerProfile.objects.update(rera_licence_expiry=datetime.date(2020, 1, 1))
+        job = Job.objects.get(pk=approved.pk)  # sees the template change
+        blockers = issue_blockers(job)
+        assert any("licence" in b for b in blockers) and any("placeholder" in b for b in blockers)
+        settings.DEMO_MODE = True
+        assert issue_blockers(job) == []
+
+    def test_missing_fields_still_block_in_a_demo(self, approved, settings):
+        settings.DEMO_MODE = True
+        approved.valuation.market_value = None
+        approved.valuation.save()
+        assert any("Market Value" in b for b in issue_blockers(Job.objects.get(pk=approved.pk)))
