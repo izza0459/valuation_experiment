@@ -229,9 +229,21 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         # the inspection has actually been recorded.
         upgrades = "No"
 
-    bua_text = calculations.format_area(summary.bua_sqm) if summary.bua_sqm is not None else ""
+    bua_text = calculations.format_area(summary.bua_sqft) if summary.bua_sqft is not None else ""
     plot_text = (
-        calculations.format_area(summary.plot_area_sqm) if plot_bearing and summary.plot_area_sqm is not None else ""
+        calculations.format_area(summary.plot_area_sqft)
+        if plot_bearing and summary.plot_area_sqft is not None else ""
+    )
+
+    # One row per floor: the ground floor (or the unit, named by its floor),
+    # then a villa's or townhouse's first floor.
+    accommodation = _rows(
+        {"floor": labels("inspection", "occupancy_title", inspection.occupancy_title)
+                  or ("Ground floor" if plot_bearing else ""),
+         "rooms": labels.many("inspection", "accommodation_details", inspection.accommodation_details)},
+        {"floor": "First floor",
+         "rooms": labels.many("inspection", "accommodation_first_floor", inspection.accommodation_first_floor)}
+        if plot_bearing and inspection.accommodation_first_floor else None,
     )
 
     property_details = _rows(
@@ -317,7 +329,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         _row("Lighting", ", ".join(labels.many("inspection", "lighting", inspection.lighting)), always=False),
         _row("Utilities", inspection.utilities_summary, always=False),
         _row("Air conditioning",
-             labels("inspection", "air_conditioning", inspection.air_conditioning), always=False),
+             ", ".join(labels.many("inspection", "air_conditioning", inspection.air_conditioning)), always=False),
     )
 
     valuer = person_block(job.registered_valuer)
@@ -370,10 +382,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         "bua_source": labels("summary", "bua_source", summary.bua_source),
         "plot_source": labels("summary", "plot_area_source", summary.plot_area_source) if plot_bearing else "",
         "building_specification": building_specification,
-        "accommodation": {
-            "floor": labels("inspection", "occupancy_title", inspection.occupancy_title),
-            "rooms": labels.many("inspection", "accommodation_details", inspection.accommodation_details),
-        },
+        "accommodation": accommodation,
         "information_provided": labels.many("summary", "information_provided", summary.information_provided),
         "inspection_type": labels("inspection", "inspection_type", inspection.inspection_type),
         "inspection_date": fmt_date(inspection.inspection_date),
@@ -386,7 +395,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             "valuation_commentary": valuation.valuation_commentary,
             "sub_community": location.sub_community,
             "location": location.location,
-            "amenities": location.amenities,
+            "amenities": ", ".join(labels.many("location", "amenities", location.amenities)),
             "specification": location.property_specification,
             "condition": location.property_condition,
             "repairs": inspection.repairs,

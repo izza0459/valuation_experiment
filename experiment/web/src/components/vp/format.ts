@@ -59,17 +59,17 @@ export function inWords(amount: number | string | null | undefined): string {
 
 export const SQFT_PER_SQM = 10.76391;
 
-export const toSqft = (sqm: number | string | null | undefined): number | null => {
-  if (sqm === null || sqm === undefined || sqm === "") return null;
-  const n = Number(sqm);
-  return Number.isNaN(n) ? null : Math.round(n * SQFT_PER_SQM * 100) / 100;
+export const toSqm = (sqft: number | string | null | undefined): number | null => {
+  if (sqft === null || sqft === undefined || sqft === "") return null;
+  const n = Number(sqft);
+  return Number.isNaN(n) ? null : Math.round((n / SQFT_PER_SQM) * 100) / 100;
 };
 
-/** `48.20 sqm (519 sqft)` (CLAUDE.md §2). */
-export function formatArea(sqm: number | string | null | undefined): string {
-  const sqft = toSqft(sqm);
-  if (sqft === null) return "Not Applicable";
-  return `${Number(sqm).toFixed(2)} sqm (${Math.round(sqft)} sqft)`;
+/** Areas are entered in sqft (field dictionary): `519 sqft (48.22 sqm)`. */
+export function formatArea(sqft: number | string | null | undefined): string {
+  const sqm = toSqm(sqft);
+  if (sqm === null) return "Not Applicable";
+  return `${Number(sqft).toLocaleString("en-US")} sqft (${sqm.toFixed(2)} sqm)`;
 }
 
 /** `26 Aug 2026` (design brief §4). */

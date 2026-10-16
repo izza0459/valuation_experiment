@@ -24,8 +24,9 @@ class TestAreaConversion:
         assert c.sqm_to_sqft(empty) is None
 
     def test_format_area_matches_report_style(self):
-        # CLAUDE.md §2: `48.20 sqm (519 sqft)`
-        assert c.format_area(Decimal("48.20")) == "48.20 sqm (519 sqft)"
+        # Entered in sqft (field dictionary), sqm alongside.
+        assert c.format_area(Decimal("519")) == "519 sqft (48.22 sqm)"
+        assert c.format_area(Decimal("5381.95")) == "5,381.95 sqft (500.00 sqm)"
 
     def test_format_area_not_applicable_when_missing(self):
         assert c.format_area(None) == "Not Applicable"

@@ -88,7 +88,7 @@ class TestFieldConfigStorage:
     def test_fields_route_to_the_row_that_stores_them(self):
         assert tabs.resolve_storage("checklist", "valuer")[0] == "job"
         assert tabs.resolve_storage("checklist", "makani_photo")[0] == "tab"
-        assert tabs.resolve_storage("instructions", "unit_number")[0] == "property"
+        assert tabs.resolve_storage("address", "unit_number")[0] == "property"
         assert tabs.resolve_storage("instructions", "bank_reference_no")[0] == "job"
         assert tabs.resolve_storage("valuation", "market_value")[0] == "tab"
 
@@ -102,7 +102,7 @@ class TestVisibilityAndCompletion:
     ])
     def test_plot_fields_follow_property_category(self, category, visible):
         context = {"summary": {"property_category": category}}
-        assert tabs.is_field_visible(self.field("summary", "plot_area_sqm"), context) is visible
+        assert tabs.is_field_visible(self.field("summary", "plot_area_sqft"), context) is visible
 
     def test_bank_rule_drives_service_charge(self):
         service_charge = self.field("inspection", "service_charge")
@@ -144,10 +144,10 @@ class TestPatch:
         assert job.checklist.makani_photo is True
         assert job.peer_reviewer_id == dan.pk
 
-    def test_instructions_span_job_and_property(self, job, dan):
-        res = patch(client_for(dan), job, "instructions", {
-            "bank_reference_no": "DIB-1", "unit_number": "312", "applicant_name": "A. Suwaidi",
-        })
+    def test_instructions_and_address_store_on_job_and_property(self, job, dan):
+        client = client_for(dan)
+        assert patch(client, job, "instructions", {"bank_reference_no": "DIB-1"}).status_code == 200
+        res = patch(client, job, "address", {"unit_number": "312", "applicant_name": "A. Suwaidi"})
         assert res.status_code == 200, res.json()
         job.refresh_from_db()
         assert job.bank_reference_no == "DIB-1"
@@ -161,23 +161,23 @@ class TestPatch:
         assert (job.summary.makani_number, job.summary.dewa_number) == ("123", "456")
 
     def test_returns_server_computed_values(self, job, dan):
-        res = patch(client_for(dan), job, "summary", {"bua_sqm": "48.20"}).json()
-        assert res["computed"]["summary"]["bua_sqft"] == "518.82"
-        assert res["values"]["bua_sqm"] == "48.20"
+        res = patch(client_for(dan), job, "summary", {"bua_sqft": "519"}).json()
+        assert res["computed"]["summary"]["bua_sqm"] == "48.22"
+        assert res["values"]["bua_sqft"] == "519.00"
 
     def test_a_change_on_one_tab_updates_computed_values_on_another(self, job, dan):
         """Rate/sqft is on Valuation but depends on the BUA from Summary."""
         client = client_for(dan)
         patch(client, job, "valuation", {"market_value": "725000"})
-        res = patch(client, job, "summary", {"bua_sqm": "48.20"}).json()
+        res = patch(client, job, "summary", {"bua_sqft": "519"}).json()
         valuation = res["computed"]["valuation"]
-        assert valuation["market_value_rate_per_sqft"] == "1397.40"  # 725,000 / 518.82 sqft
+        assert valuation["market_value_rate_per_sqft"] == "1396.92"  # 725,000 / 519 sqft
         assert valuation["market_value_in_words"] == "Seven Hundred and Twenty-Five Thousand UAE Dirhams"
 
     def test_completion_is_returned_for_every_tab(self, job, dan):
-        res = patch(client_for(dan), job, "summary", {"bua_sqm": "48.20"}).json()
+        res = patch(client_for(dan), job, "summary", {"bua_sqft": "519"}).json()
         assert set(res["completion"]) == {t["key"] for t in TABS}
-        assert "BUA (sqm)" not in res["completion"]["summary"]["missing"]
+        assert "BUA (sqft)" not in res["completion"]["summary"]["missing"]
 
     def test_bad_requests(self, job, dan):
         client = client_for(dan)
@@ -196,15 +196,15 @@ class TestValidation:
         return res.json()["errors"]
 
     def test_unknown_and_calculated_fields_are_refused(self, job, dan):
-        errors = self.errors(client_for(dan), job, "summary", {"nope": 1, "bua_sqft": "10"})
+        errors = self.errors(client_for(dan), job, "summary", {"nope": 1, "bua_sqm": "10"})
         assert errors["nope"] == "Unknown field."
-        assert "Calculated" in errors["bua_sqft"]
+        assert "Calculated" in errors["bua_sqm"]
 
     def test_a_field_from_another_tab_is_refused(self, job, dan):
         assert "Unknown" in self.errors(client_for(dan), job, "summary", {"market_value": "1"})["market_value"]
 
     def test_nothing_is_written_if_any_field_is_invalid(self, job, dan):
-        res = patch(client_for(dan), job, "summary", {"makani_number": "999", "bua_sqm": "abc"})
+        res = patch(client_for(dan), job, "summary", {"makani_number": "999", "bua_sqft": "abc"})
         assert res.status_code == 400
         job.refresh_from_db()
         assert job.summary.makani_number == ""
@@ -220,14 +220,14 @@ class TestValidation:
         assert "decimal places" in errors["market_value"]
 
     def test_coordinates_are_rounded_to_what_the_column_keeps(self, job, dan):
-        res = patch(client_for(dan), job, "instructions", {"latitude": "25.04030429", "longitude": "55.28623161"})
+        res = patch(client_for(dan), job, "address", {"latitude": "25.04030429", "longitude": "55.28623161"})
         assert res.status_code == 200, res.json()
         job.refresh_from_db()
         assert str(job.property.latitude) == "25.040304"
 
     @pytest.mark.parametrize("key,value", [("latitude", "91"), ("longitude", "-181")])
     def test_coordinates_are_range_checked(self, job, dan, key, value):
-        assert key in self.errors(client_for(dan), job, "instructions", {key: value})
+        assert key in self.errors(client_for(dan), job, "address", {key: value})
 
     def test_percentages_are_bounded(self, job, dan):
         assert "completion_pct" in self.errors(client_for(dan), job, "valuation", {"completion_pct": "101"})
@@ -275,7 +275,7 @@ class TestValidation:
         assert patch(client_for(dan), job, "summary", {"interest_valued": "anything"}).status_code == 200
 
     def test_free_text_fields_accept_text_outside_the_suggestions(self, job, dan, presets):
-        res = patch(client_for(dan), job, "instructions", {"community_name": "Brand New Community"})
+        res = patch(client_for(dan), job, "address", {"community_name": "Brand New Community"})
         assert res.status_code == 200
 
     def test_people_and_masters_must_exist_and_be_active(self, job, dan):
@@ -342,7 +342,7 @@ class TestFirstEditWins:
 
     def test_a_rejected_save_does_not_consume_a_version(self, job, dan):
         client = client_for(dan)
-        patch(client, job, "summary", {"bua_sqm": "abc"})
+        patch(client, job, "summary", {"bua_sqft": "abc"})
         assert patch(client, job, "summary", {"makani_number": "1"}, base_version=0).status_code == 200
 
 
@@ -423,7 +423,7 @@ class TestAudit:
         assert (entry.old_value, entry.new_value) == ("", "777")
 
     def test_property_edits_are_audited_too(self, job, dan):
-        patch(client_for(dan), job, "instructions", {"unit_number": "312"})
+        patch(client_for(dan), job, "address", {"unit_number": "312"})
         entry = AuditLog.objects.get(model_name="Property", field_name="unit_number")
         assert entry.job == job and entry.changed_by == dan
 
@@ -506,7 +506,7 @@ class TestPropertyOfIssuedJobs:
         assert revision.property_id != issued.property_id
         assert revision.property.unit_number == "100"
 
-        res = patch(client_for(dan), revision, "instructions", {"unit_number": "200"})
+        res = patch(client_for(dan), revision, "address", {"unit_number": "200"})
         assert res.status_code == 200, res.json()
         issued.refresh_from_db()
         assert issued.property.unit_number == "100"
@@ -523,7 +523,7 @@ class TestEndpoints:
         assert set(data["tabs"]) == {t["key"] for t in TABS}
         assert data["tabs"]["summary"]["version"] == 1
         assert data["tabs"]["summary"]["values"]["makani_number"] == "1"
-        assert "bua_sqft" in data["tabs"]["summary"]["computed"]
+        assert "bua_sqm" in data["tabs"]["summary"]["computed"]
 
     def test_get_one_tab(self, job, dan):
         res = client_for(dan).get(f"/api/jobs/{job.pk}/tabs/inspection/")
@@ -639,6 +639,7 @@ class TestReportFields:
         assert res.status_code == 400 and key in res.json()["errors"]
 
     def test_views_and_utilities_summaries_follow_what_the_inspector_recorded(self, job, dan, presets):
+        patch(client_for(dan), job, "summary", {"property_category": "villa"})
         res = patch(client_for(dan), job, "inspection", {
             "front_views": "Marina", "rear_views": "Road",
             "electrical_services": "connected", "water": "connected", "sewerage": "connected",
@@ -646,6 +647,11 @@ class TestReportFields:
         computed = res["computed"]["inspection"]
         assert computed["views_summary"] == "Front: Marina; Rear: Road"
         assert computed["utilities_summary"] == "Electricity, water and sewerage: connected."
+
+    def test_rear_views_are_left_out_for_an_apartment(self, job, dan):
+        patch(client_for(dan), job, "summary", {"property_category": "apartment"})
+        res = patch(client_for(dan), job, "inspection", {"front_views": "Marina", "rear_views": "Road"}).json()
+        assert res["computed"]["inspection"]["views_summary"] == "Front: Marina"
 
     def test_summaries_cannot_be_written_directly(self, job, dan):
         res = patch(client_for(dan), job, "inspection", {"views_summary": "x", "utilities_summary": "y"})
@@ -684,3 +690,23 @@ class TestExactAge:
         today = date.today()
         expected = today.year - 2019 - ((today.month, today.day) < (3, 1))
         assert self.age(job, dan, "2019-03-01", None) == expected
+
+    def test_a_built_year_gives_valuation_year_minus_built_year(self, job, dan):
+        client = client_for(dan)
+        patch(client, job, "location", {"built_about": 2015, "built_date": "2015-12-31"})
+        patch(client, job, "valuation", {"valuation_date": "2026-01-02"})
+        job.refresh_from_db()
+        assert job.location.exact_age == 11
+
+
+class TestAddressTab:
+    def test_the_document_names_override_the_address_ones_when_given(self, job, dan):
+        client = client_for(dan)
+        res = patch(client, job, "address", {
+            "building_name": "One Central", "community_name": "Trade Centre", "title_doc_plot_no": "100",
+        }).json()
+        assert res["computed"]["address"]["address_as_per_document"] == (
+            "Plot No. 100, One Central, Trade Centre, Dubai, United Arab Emirates"
+        )
+        res = patch(client, job, "address", {"title_doc_community_name": "Trade Center 1"}, base_version=1).json()
+        assert "One Central, Trade Center 1, Dubai" in res["computed"]["address"]["address_as_per_document"]

@@ -67,7 +67,7 @@ def library_options(options_key: str) -> list[dict]:
 
 
 def options_for(options_key: str, *, free_text: bool = False) -> list[dict]:
-    if options_key in LIBRARY_CATEGORIES or options_key in {"sub_community", "location"}:
+    if options_key in LIBRARY_CATEGORIES or options_key in {"sub_community", "location", "disclosure"}:
         return library_options(options_key)
     if options_key in RECORD_KEYS:
         return record_options(options_key)

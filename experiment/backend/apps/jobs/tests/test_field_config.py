@@ -20,9 +20,9 @@ def find_field(tab_key, field_key):
 
 
 class TestStructure:
-    def test_tabs_match_the_nine_in_the_spec(self):
+    def test_tabs_match_the_spec(self):
         assert [tab["key"] for tab in serialize_config()] == [
-            "checklist", "instructions", "summary", "inspection",
+            "checklist", "instructions", "address", "summary", "inspection",
             "location", "valuation", "photos", "documents", "evidence",
         ]
 
@@ -45,6 +45,8 @@ class TestConditionalRules:
         [
             ("checklist", "satellite_measurement"),
             ("summary", "plot_area_sqm"),
+            ("inspection", "accommodation_first_floor"),
+            ("inspection", "rear_views"),
             # Regression: these two were left always-visible, so an apartment
             # showed a plot-area source and a calculated plot sqft.
             ("summary", "plot_area_sqft"),

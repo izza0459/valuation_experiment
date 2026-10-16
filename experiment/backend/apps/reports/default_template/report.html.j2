@@ -199,7 +199,9 @@
   <h3>Accommodation</h3>
   <table class="grid">
     <tr><th>Floor</th><th>Accommodation</th></tr>
-    <tr><td>{{ accommodation.floor or "—" }}</td><td>{{ accommodation.rooms | join(", ") or "—" }}</td></tr>
+    {% for row in accommodation %}
+    <tr><td>{{ row.floor or "—" }}</td><td>{{ row.rooms | join(", ") or "—" }}</td></tr>
+    {% endfor %}
   </table>
 
   <h3>Building specification</h3>

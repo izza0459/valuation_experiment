@@ -17,12 +17,22 @@ def sqm_to_sqft(sqm) -> Decimal:
     )
 
 
-def format_area(sqm) -> str:
-    """CLAUDE.md §2: `48.20 sqm (519 sqft)`."""
-    if sqm in (None, ""):
+def sqft_to_sqm(sqft) -> Decimal:
+    if sqft in (None, ""):
+        return None
+    return (Decimal(sqft) / Decimal(str(settings.SQFT_PER_SQM))).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+
+def format_area(sqft) -> str:
+    """Areas are entered in sqft (field dictionary): `519 sqft (48.22 sqm)`."""
+    if sqft in (None, ""):
         return "Not Applicable"
-    sqft = sqm_to_sqft(sqm)
-    return f"{Decimal(sqm):.2f} sqm ({sqft:.0f} sqft)"
+    sqft = Decimal(sqft)
+    whole = sqft == sqft.to_integral_value()
+    return f"{sqft:,.0f} sqft ({sqft_to_sqm(sqft):,.2f} sqm)" if whole else \
+        f"{sqft:,.2f} sqft ({sqft_to_sqm(sqft):,.2f} sqm)"
 
 
 def decimal_to_dms(value: float, is_lat: bool) -> str:
@@ -52,6 +62,12 @@ def exact_age(built_date: date, as_of: date | None = None) -> int | None:
     if (as_of.month, as_of.day) < (built_date.month, built_date.day):
         years -= 1
     return max(years, 0)
+
+
+def age_from_year(built_year: int, as_of: date | None = None) -> int | None:
+    if not built_year:
+        return None
+    return max((as_of or date.today()).year - built_year, 0)
 
 
 def views_summary(front_views: str, rear_views: str) -> str:

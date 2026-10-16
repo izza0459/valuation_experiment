@@ -64,7 +64,7 @@ def fill_everything(job):
     job.property.save()
     for model, values in (
         (job.summary, {"interest_valued": "international_freehold", "property_category": "apartment",
-                       "bua_sqm": "48.20"}),
+                       "bua_sqft": "519", "disclosure": "No conflicts."}),
         (job.inspection, {"inspection_date": datetime.date(2026, 8, 26), "inspection_type": "full"}),
         (job.location, {"property_status": "complete"}),
         (job.valuation, {"valuation_date": datetime.date(2026, 8, 26), "report_date": datetime.date(2026, 8, 28),

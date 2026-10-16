@@ -163,7 +163,7 @@ class TestLockOnIssue:
         assert issued_job.status == JobStatus.ISSUED
 
     def test_revision_carries_tab_data_forward(self, job):
-        job.summary.bua_sqm = 48.20
+        job.summary.bua_sqft = 519
         job.summary.property_category = "apartment"
         job.summary.save()
 
@@ -175,7 +175,7 @@ class TestLockOnIssue:
         job.issue()
 
         revision = job.create_revision()
-        assert revision.summary.bua_sqm == Decimal("48.20")
+        assert revision.summary.bua_sqft == Decimal("519")
         assert revision.summary.property_category == "apartment"
 
 

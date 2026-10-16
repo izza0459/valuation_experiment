@@ -101,6 +101,26 @@ PRESETS = {
         # (label, value): the stored key predates the preset and is kept.
         ("Market Value (Assuming Transferable Title)", "market_value_transferable_title"),
     ],
+    "amenities": [
+        "Gym", "Swimming pool", "Walkways", "Retail shops", "Restaurants", "Jogging trails", "Mosques", "Schools",
+        "Children's play area", "Barbecue area",
+    ],
+}
+
+# Options that carry report text: field key -> [(label, report_text)]. The
+# disclosure statements are the field dictionary's three, as written.
+PRESET_TEXT = {
+    "disclosure": [
+        ("Existing relationship; not previously valued",
+         "The Signatory to this Valuation Report confirms that they have an existing relationship with the "
+         "Client and that they have not previously valued the subject property."),
+        ("No existing relationship; previously valued",
+         "The Signatory to this Valuation Report confirms that they do not have an existing relationship with "
+         "the Client and that they have previously valued the subject property."),
+        ("Existing relationship; previously valued",
+         "The Signatory to this Valuation Report confirms that they have an existing relationship with the "
+         "Client and that they have previously valued the subject property."),
+    ],
 }
 
 # category -> titles (CLAUDE.md §4). Bodies are placeholders; see module docstring.
@@ -147,6 +167,14 @@ class Command(BaseCommand):
                     field_key=field_key,
                     value=value,
                     defaults={"label": label, "order": order},
+                )
+                made_presets += created
+        for field_key, entries in PRESET_TEXT.items():
+            for order, (label, text) in enumerate(entries):
+                _, created = PresetOption.objects.get_or_create(
+                    field_key=field_key,
+                    value=_slug(label),
+                    defaults={"label": label, "order": order, "report_text": text},
                 )
                 made_presets += created
         for category, titles in LIBRARY.items():

@@ -56,7 +56,7 @@ export function useFieldConfig() {
   });
 }
 
-/** Walks a dotted path like "summary.bua_sqm" or
+/** Walks a dotted path like "summary.bua_sqft" or
  * "bank.rules.requires_service_charge" through a nested values object. */
 function resolvePath(path: string, values: Record<string, unknown>): unknown {
   return path.split(".").reduce<unknown>((current, segment) => {

@@ -21,8 +21,11 @@ from .tabs import TabError, ValidationFailed, patch_tab
 INTAKE_FIELDS = {
     "instructions": {
         "bank", "bank_reference_no", "purpose", "date_time_request_received", "date_of_instruction",
+        "contact_for_access", "registered_valuer",
+    },
+    "address": {
         "unit_number", "building_name", "community_name", "latitude", "longitude",
-        "applicant_name", "ownership_name", "contact_for_access", "registered_valuer",
+        "applicant_name", "ownership_name",
     },
     "checklist": {"inspected_by", "valuer", "peer_reviewer", "counter_signatory"},
     "summary": {"property_category"},

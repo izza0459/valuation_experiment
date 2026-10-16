@@ -353,6 +353,7 @@ function displayValue(field: FieldDef, value: unknown, choices: Option[]): strin
 export function formatComputed(key: string, value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   if (key.endsWith("_sqft") && !key.includes("rate")) return `${Number(value).toLocaleString("en-US")} sqft`;
+  if (key.endsWith("_sqm")) return `${Number(value).toLocaleString("en-US")} sqm`;
   if (key === "market_value_rate_per_sqft") {
     const rate = Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return `AED ${rate} / sqft`;

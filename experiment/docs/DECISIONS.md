@@ -100,6 +100,12 @@ Reasons for the older decisions are reconstructed from the code, its comments an
 | 5.18 | **Issuing runs in a Celery task.** The request records it and returns 202; the PDF is rendered once, with no lock held; then the report, lock and log are written under the row lock, after checking nothing changed during the render. Without a worker (dev.sh, tests) it runs inline | Spec: PDF rendering in Celery. Keeps a slow render from holding the job's lock | You (audit fix #8) + Me (how) |
 | 5.19 | Evidence (chosen comparables, AVM runs, and comparables an issued report cites) is **frozen with the job**. A revision carries the chosen comparables forward, but not AVM runs | Evidence is part of what was signed; AVM runs are per version (spec §6) | You (audit fix #6) + Me (how) |
 | 5.20 | Turnaround is measured from **request received**, else the instruction date, else when the job was keyed in | Spec §7: instruction → issue | You (audit fix #10) |
+| 5.21 | **BUA and plot area are entered in sqft**; sqm is calculated. The report shows `519 sqft (48.22 sqm)`. Existing values were converted (migration 0011). This replaces CLAUDE.md §2's sqm entry | Field dictionary: "must always be in sqft" | You (16 Oct 2026) |
+| 5.22 | **Custom Villa keeps plot area and satellite measurement**, like villas, although the field dictionary marks them N/A | Custom villas sit on plots; the sheet looked wrong | You (16 Oct 2026) |
+| 5.23 | **Disclosure** is inserted from the field dictionary's three statements, as written, then editable. It has no default and is required | Field dictionary | You (16 Oct 2026) |
+| 5.24 | **Property Address is its own tab** (between Instructions and Summary), holding the address, parties and title-document fields. Registered valuer and contact for access stay on Instructions | Field dictionary Tab 3; the valuer is about signing, not the address | You (the move) + Me (what stays) |
+| 5.25 | **Exact age = valuation year − built year**, falling back to the built date when no year is entered, and to today until there's a valuation date | Field dictionary: "current year − built year"; the valuation year keeps a regenerated report stable | You (sheet) + Me (valuation year) |
+| 5.26 | First-floor accommodation, and rear views, apply to villas, townhouses and custom villas only; a rear view typed before the category changed isn't reported | Field dictionary | Spec (sheet) + Me (custom villa, per 5.22) |
 
 ---
 

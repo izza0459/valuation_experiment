@@ -58,6 +58,9 @@ class Property(SoftDeleteModel):
     title_doc_plot_no = models.CharField(max_length=100, blank=True)
     title_doc_municipality_no = models.CharField(max_length=100, blank=True)
     title_doc_building_no = models.CharField(max_length=100, blank=True)
+    # The document's own spelling, when it differs from the address above.
+    title_doc_building_name = models.CharField(max_length=255, blank=True)
+    title_doc_community_name = models.CharField(max_length=255, blank=True)
     title_doc_emirate = models.CharField(max_length=50, default="Dubai")
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -95,8 +98,8 @@ class Property(SoftDeleteModel):
             self.title_doc_plot_no,
             self.title_doc_municipality_no,
             self.title_doc_building_no,
-            self.building_name,
-            self.community_name,
+            self.title_doc_building_name or self.building_name,
+            self.title_doc_community_name or self.community_name,
             self.title_doc_emirate,
         )
 
@@ -535,23 +538,25 @@ class SummaryData(JobTabData):
     parking = models.BooleanField(default=False)
     no_of_parkings = models.PositiveSmallIntegerField(null=True, blank=True)
 
-    bua_sqm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Entered in sqft, as the valuers work (field dictionary); sqm is derived.
+    bua_sqft = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     BUA_SOURCE_CHOICES = [
         ("title_deed", "Title Deed"),
         ("site_affection_plan", "Site Affection Plan"),
         ("initial_certificate_of_sale", "Initial Certificate of Sale"),
         ("spa", "SPA"),
+        ("initial_contract_of_sale", "Initial Contract of Sale"),
+        ("usufruct_certificate", "Usufruct Certificate"),
+        ("floor_plan", "Floor Plan"),
+        ("unit_plan", "Unit Plan"),
     ]
     bua_source = models.CharField(max_length=40, choices=BUA_SOURCE_CHOICES, blank=True)
 
-    plot_area_sqm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    plot_area_sqft = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     plot_area_source = models.CharField(max_length=40, blank=True)
 
-    disclosure = models.TextField(
-        blank=True,
-        default="The signatories confirm they have no existing relationship with the "
-                "client/applicant and have not previously valued the property.",
-    )
+    # One of the standard statements (the `disclosure` presets), then edited.
+    disclosure = models.TextField(blank=True)
     capacity_of_valuer = models.CharField(max_length=20, choices=CAPACITY_CHOICES, default="external")
     departures = models.TextField(default="None", blank=True)
     assumptions = models.TextField(blank=True)
@@ -559,17 +564,17 @@ class SummaryData(JobTabData):
     other_matters = models.JSONField(default=list, blank=True, help_text="[{title, body}]")
 
     @property
-    def bua_sqft(self):
-        return calculations.sqm_to_sqft(self.bua_sqm)
+    def bua_sqm(self):
+        return calculations.sqft_to_sqm(self.bua_sqft)
 
     @property
-    def plot_area_sqft(self):
+    def plot_area_sqm(self):
         if self.property_category not in PLOT_BEARING_CATEGORIES:
             return None
-        return calculations.sqm_to_sqft(self.plot_area_sqm)
+        return calculations.sqft_to_sqm(self.plot_area_sqft)
 
     @property
-    def bua_sqm_requires_spa_caveat(self) -> bool:
+    def bua_requires_spa_caveat(self) -> bool:
         return self.bua_source == "spa"
 
     def __str__(self):
@@ -611,9 +616,12 @@ class InspectionData(JobTabData):
     electrical_services = models.CharField(max_length=20, choices=UTILITY_STATUS_CHOICES, blank=True)
     water = models.CharField(max_length=20, choices=UTILITY_STATUS_CHOICES, blank=True)
     sewerage = models.CharField(max_length=20, choices=UTILITY_STATUS_CHOICES, blank=True)
-    air_conditioning = models.CharField(max_length=40, blank=True)
+    air_conditioning = models.JSONField(default=list, blank=True)
     occupancy_title = models.CharField(max_length=40, blank=True, help_text="Floor, e.g. Ground, 1st, Mezzanine.")
+    # Rooms on the ground floor (or in the unit), and on the first floor of
+    # a villa or townhouse.
     accommodation_details = models.JSONField(default=list, blank=True)
+    accommodation_first_floor = models.JSONField(default=list, blank=True)
     occupancy = models.CharField(max_length=40, choices=OCCUPANCY_CHOICES, blank=True)
     rent_if_any = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     sale_price_if_any = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
@@ -625,7 +633,11 @@ class InspectionData(JobTabData):
 
     @property
     def views_summary(self):
-        return calculations.views_summary(self.front_views, self.rear_views)
+        # Rear views apply to villas and townhouses only; one typed before the
+        # category changed is not reported.
+        summary = getattr(self.job, "summary", None) if self.job_id else None
+        plot_bearing = getattr(summary, "property_category", None) in PLOT_BEARING_CATEGORIES
+        return calculations.views_summary(self.front_views, self.rear_views if plot_bearing else "")
 
     @property
     def utilities_summary(self):
@@ -654,18 +666,22 @@ class LocationData(JobTabData):
     )
     sub_community = models.TextField(blank=True)
     location = models.TextField(blank=True)
-    amenities = models.TextField(blank=True)
+    amenities = models.JSONField(default=list, blank=True)
     # The job's own editable copy of a library paragraph, not a short key.
     property_specification = models.TextField(blank=True)
     property_condition = models.TextField(blank=True)
 
     @property
     def exact_age(self):
-        """Age as at the valuation date, so a report regenerated later still
-        states the age it was valued at. Falls back to today until a
-        valuation date has been entered."""
+        """Valuation year minus built year (field dictionary). As at the
+        valuation date, so a report regenerated later still states the age it
+        was valued at; falls back to today until a valuation date is entered.
+        Without a built year, the built date is used."""
         valuation = getattr(self.job, "valuation", None) if self.job_id else None
-        return calculations.exact_age(self.built_date, as_of=getattr(valuation, "valuation_date", None))
+        as_of = getattr(valuation, "valuation_date", None)
+        if self.built_about:
+            return calculations.age_from_year(self.built_about, as_of=as_of)
+        return calculations.exact_age(self.built_date, as_of=as_of)
 
     def __str__(self):
         return f"LocationData<{self.job}>"

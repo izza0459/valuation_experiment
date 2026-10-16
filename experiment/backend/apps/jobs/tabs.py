@@ -1,10 +1,10 @@
 """Reading and writing a job's tabs through the field config.
 
-`field_config.TABS` is the single description of the nine tabs. This module
+`field_config.TABS` is the single description of the tabs. This module
 is what makes it authoritative on the server as well as in the UI:
 
 * **Storage routing** — a tab is not a model. Check List mixes its own row
-  with role FKs on `Job`; Instructions is `Job` + `Property`. Where each
+  with role FKs on `Job`; Instructions is `Job`, Property Address is `Property`. Where each
   field lives is derived from the config, never hand-listed per field.
 * **Visibility and completion** — the same `visible_if` / `required` rules
   the form uses, evaluated here, so "is this tab complete?" has one answer.
@@ -64,6 +64,7 @@ TAB_MODELS = {
 TAB_EDIT_ROLES = {
     "checklist": {Role.INSPECTOR, Role.VALUER},
     "instructions": {Role.ADMIN, Role.VALUER},
+    "address": {Role.ADMIN, Role.VALUER},
     "summary": {Role.VALUER},
     "inspection": {Role.INSPECTOR, Role.VALUER},
     "location": {Role.VALUER},

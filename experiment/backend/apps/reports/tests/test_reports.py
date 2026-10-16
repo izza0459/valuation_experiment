@@ -60,7 +60,7 @@ def job(dan):
     )
     j.summary.property_category = "apartment"
     j.summary.interest_valued = "international_freehold"
-    j.summary.bua_sqm = "48.20"
+    j.summary.bua_sqft = "519"
     j.summary.save()
     j.valuation.market_value = "725000"
     j.valuation.valuation_date = datetime.date(2026, 8, 26)
@@ -88,8 +88,8 @@ class TestContent:
         summary = rows(build_context(job), "valuation_summary")
         assert summary["Market Value"] == "AED 725,000"
         assert summary["Market Value in words"] == "Seven Hundred and Twenty-Five Thousand UAE Dirhams"
-        assert summary["Market Value rate"] == "AED 1,397.40 / sqft"
-        assert rows(build_context(job), "property_details")["Built-up area"] == "48.20 sqm (519 sqft)"
+        assert summary["Market Value rate"] == "AED 1,396.92 / sqft"
+        assert rows(build_context(job), "property_details")["Built-up area"] == "519 sqft (48.22 sqm)"
 
     def test_fractional_values_are_not_rounded_away(self, job):
         job.valuation.market_value = "725000.60"
@@ -102,10 +102,10 @@ class TestContent:
     def test_plot_area_is_not_applicable_for_an_apartment_and_shown_for_a_villa(self, job):
         assert rows(build_context(job), "property_details")["Plot area"] == "Not Applicable"
         job.summary.property_category = "villa"
-        job.summary.plot_area_sqm = "300"
+        job.summary.plot_area_sqft = "3229"
         job.summary.save()
         job.refresh_from_db()
-        assert rows(build_context(job), "property_details")["Plot area"].startswith("300.00 sqm")
+        assert rows(build_context(job), "property_details")["Plot area"].startswith("3,229 sqft")
 
     def test_a_villa_without_a_plot_area_shows_a_dash_not_not_applicable(self, job):
         job.summary.property_category = "custom_villa"
@@ -402,3 +402,26 @@ class TestApi:
         res = client_for(dan).get(f"/api/jobs/{job.pk}/report/{version.pk}/pdf/")
         assert res.status_code == 200 and res["Content-Type"] == "application/pdf"
         assert b"".join(res.streaming_content).startswith(b"%PDF")
+
+
+class TestFieldDictionaryChanges:
+    def test_a_villa_lists_each_floor_and_an_apartment_one(self, job):
+        job.inspection.occupancy_title = ""
+        job.inspection.accommodation_details = ["kitchen"]
+        job.inspection.accommodation_first_floor = ["bedroom"]
+        job.inspection.save()
+        rooms = [row["floor"] for row in build_context(Job.objects.get(pk=job.pk))["accommodation"]]
+        assert rooms == [""]  # apartment: first floor ignored
+        job.summary.property_category = "villa"
+        job.summary.save()
+        rooms = [row["floor"] for row in build_context(Job.objects.get(pk=job.pk))["accommodation"]]
+        assert rooms == ["Ground floor", "First floor"]
+
+    def test_multi_selects_read_as_lists(self, job):
+        job.inspection.air_conditioning = ["central", "district_cooling"]
+        job.inspection.save()
+        job.location.amenities = ["gym", "swimming_pool"]
+        job.location.save()
+        context = build_context(Job.objects.get(pk=job.pk))
+        assert rows(context, "building_specification")["Air conditioning"] == "Central, District cooling"
+        assert context["text"]["amenities"] == "Gym, Swimming pool"
