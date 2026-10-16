@@ -20,9 +20,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   // Typography and page background come from the design system's tokens
   // (--font-sans is Outfit, --surface-page the light grey), so no font or
   // colour classes are set here.
+  // suppressHydrationWarning: browser extensions (Grammarly and the like) add
+  // attributes to <html>/<body> before React loads. It applies to these two
+  // tags' own attributes only, not to anything rendered inside them.
   return (
-    <html lang="en" className={`${outfit.variable} h-full antialiased`}>
-      <body className="min-h-full">
+    <html lang="en" className={`${outfit.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="min-h-full" suppressHydrationWarning>
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
