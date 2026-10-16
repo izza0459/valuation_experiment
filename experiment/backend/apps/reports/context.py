@@ -20,6 +20,7 @@ from django.utils import timezone
 from apps.jobs import calculations
 from apps.jobs.constants import PLOT_BEARING_CATEGORIES
 from apps.jobs.field_config import TABS, get_tab
+from apps.jobs.models import InspectionData
 from apps.jobs.tabs import tab_completion, visibility_context
 from apps.media_files.checks import exec_summary_photos, media_blockers
 from apps.presets.models import PresetOption
@@ -208,7 +209,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     interest = labels("summary", "interest_valued", summary.interest_valued)
     category = labels("summary", "property_category", summary.property_category)
     occupancy = labels("inspection", "occupancy", inspection.occupancy)
-    if inspection.occupancy == "tenanted" and inspection.rent_if_any:
+    if inspection.occupancy in InspectionData.TENANTED_OCCUPANCIES and inspection.rent_if_any:
         occupancy = f"{occupancy} (passing rent {fmt_aed(inspection.rent_if_any)} p.a.)"
 
     if under_construction:

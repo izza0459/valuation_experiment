@@ -577,14 +577,24 @@ class SummaryData(JobTabData):
 
 
 class InspectionData(JobTabData):
-    INSPECTION_TYPE_CHOICES = [("full", "Full"), ("desktop", "Desktop"), ("drive_by", "Drive-by")]
+    # The dropdowns come from presets (seed_presets); these lists are what the
+    # API accepts, so a new preset value needs adding here too.
+    INSPECTION_TYPE_CHOICES = [
+        ("full", "Full"), ("desktop", "Desktop"), ("drive_by", "Drive-by"),
+        ("previous_inspection", "Previous inspection"),
+    ]
     UTILITY_STATUS_CHOICES = [
         ("connected", "Connected"), ("not_connected", "Not connected"), ("assumed_connected", "Assumed connected"),
     ]
     OCCUPANCY_CHOICES = [
         ("vacant", "Vacant"), ("owner_occupied", "Owner occupied"), ("tenanted", "Tenanted"),
-        ("not_applicable", "Not applicable"),
+        ("not_applicable", "Not applicable"), ("assumed_vacant", "Assumed vacant"),
+        ("multi_tenanted", "Multi-tenanted"), ("tenanted_short_term", "Tenanted (short-term rental)"),
+        ("under_construction", "Under construction"),
+        ("not_applicable_under_construction", "Not applicable – under construction"),
     ]
+    # Occupancies with a tenancy: the report values subject to it and shows the rent.
+    TENANTED_OCCUPANCIES = {"tenanted", "multi_tenanted", "tenanted_short_term"}
 
     job = models.OneToOneField(Job, on_delete=models.CASCADE, related_name="inspection")
     inspection_date = models.DateField(null=True, blank=True)
@@ -604,7 +614,7 @@ class InspectionData(JobTabData):
     air_conditioning = models.CharField(max_length=40, blank=True)
     occupancy_title = models.CharField(max_length=40, blank=True, help_text="Floor, e.g. Ground, 1st, Mezzanine.")
     accommodation_details = models.JSONField(default=list, blank=True)
-    occupancy = models.CharField(max_length=20, choices=OCCUPANCY_CHOICES, blank=True)
+    occupancy = models.CharField(max_length=40, choices=OCCUPANCY_CHOICES, blank=True)
     rent_if_any = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     sale_price_if_any = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     front_views = models.CharField(max_length=255, blank=True)
