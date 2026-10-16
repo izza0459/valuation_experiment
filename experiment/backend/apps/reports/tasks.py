@@ -56,3 +56,18 @@ def request_issue(job_id: int, user):
         run_issue(job_id, user_id)
     else:
         issue_job.delay(job_id, user_id)
+
+
+@shared_task(name="reports.send_delivery")
+def send_delivery_task(delivery_id: int):
+    from .delivery import send_delivery
+
+    send_delivery(delivery_id)
+
+
+def request_send(delivery_id: int):
+    """Emails a recorded delivery: inline with no worker, else via Celery."""
+    if settings.CELERY_TASK_ALWAYS_EAGER:
+        send_delivery_task(delivery_id)
+    else:
+        send_delivery_task.delay(delivery_id)

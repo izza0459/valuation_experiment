@@ -176,6 +176,23 @@ CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=DEBUG)
 # and may be requested again.
 ISSUE_TASK_TIMEOUT_SECONDS = env.int("ISSUE_TASK_TIMEOUT_SECONDS", default=600)
 
+# Outgoing email (the report sent to the bank). With no EMAIL_HOST_USER the
+# message is printed to the server log instead of being sent. For Gmail use
+# smtp.gmail.com:587 and an app password (not the account password).
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST_USER
+    else "django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "valuations@localhost")
+# Optional: always copy this address (e.g. the sender's own mailbox) on reports sent to a bank.
+REPORT_EMAIL_BCC = env.list("REPORT_EMAIL_BCC", default=[])
+
 # S3 storage (UAE region per CLAUDE.md). Left unconfigured for local dev;
 # uploads fall back to local filesystem until AWS credentials are supplied.
 AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")

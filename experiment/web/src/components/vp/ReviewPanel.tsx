@@ -153,8 +153,7 @@ export function SendPanel({ job, jobId }: { job: JobDetail; jobId: string }) {
   );
 }
 
-/** Send the issued report to someone at the bank. Only the request is
- * recorded for now; the email itself is wired in later. */
+/** Send the issued report to someone at the bank by email. */
 function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
   const qc = useQueryClient();
   const contacts = job.bank_contacts ?? [];
@@ -164,18 +163,26 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
 
   const email = choice === "other" ? other.trim() : choice;
 
   async function send() {
     setBusy(true);
     setError(null);
+    setFailure(null);
     try {
-      await apiFetch(`/api/jobs/${jobId}/report/send/`, {
+      const delivery = await apiFetch<{ status: string; error: string }>(`/api/jobs/${jobId}/report/send/`, {
         method: "POST",
         body: JSON.stringify({ email, message }),
       });
-      setSentTo(email);
+      if (delivery.status === "failed") {
+        setSentTo(null);
+        setFailure(delivery.error || "The email could not be sent.");
+      } else {
+        setSentTo(email);
+        setFailure(null);
+      }
       setMessage("");
       setOther("");
       await qc.invalidateQueries({ queryKey: ["jobs", jobId] });
@@ -232,9 +239,10 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
             <Textarea rows={3} value={message} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)} />
           </div>
           {error && <div style={{ fontSize: 13, color: "var(--text-error)" }}>{error}</div>}
-          {sentTo && !error && (
+          {failure && !error && <div style={{ fontSize: 13, color: "var(--text-error)" }}>Not sent: {failure}</div>}
+          {sentTo && !error && !failure && (
             <Banner tone="green" icon="check">
-              Queued for {sentTo}. Sending by email is being set up, so it shows as queued for now.
+              Report sent to {sentTo}.
             </Banner>
           )}
           <div>

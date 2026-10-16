@@ -31,12 +31,26 @@ def issued(approved, boss):
 
 
 class TestSendToBank:
-    def test_the_admin_who_created_the_job_sends_it_to_a_bank_contact(self, issued, boss):
+    def test_the_admin_who_created_the_job_sends_it_to_a_bank_contact(self, issued, boss, mailoutbox):
         res = send(boss, issued, email="rana@bank.example", message="Please find attached.")
         assert res.status_code == 201, res.json()
         delivery = ReportDelivery.objects.get()
-        assert (delivery.recipient_name, delivery.status) == ("Rana", "queued")
+        assert (delivery.recipient_name, delivery.status) == ("Rana", "sent")
+        assert delivery.sent_at is not None
         assert delivery.report_version.issued_at is not None
+        (mail,) = mailoutbox
+        assert mail.to == ["rana@bank.example"]
+        assert [a[0] for a in mail.attachments] == [f"{issued.file_stem}.pdf"]
+
+    def test_a_failed_send_is_logged_not_raised(self, issued, boss, mailoutbox, monkeypatch):
+        def boom(self, fail_silently=False):
+            raise OSError("smtp down")
+
+        monkeypatch.setattr("django.core.mail.EmailMessage.send", boom)
+        res = send(boss, issued, email="rana@bank.example")
+        assert res.status_code == 201
+        delivery = ReportDelivery.objects.get()
+        assert (delivery.status, delivery.error) == ("failed", "smtp down")
 
     def test_the_job_offers_the_bank_contacts_and_the_log(self, issued, boss):
         send(boss, issued, email="rana@bank.example")

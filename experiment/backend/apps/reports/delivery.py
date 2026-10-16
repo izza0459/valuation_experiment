@@ -1,18 +1,28 @@
 """Sending an issued report to the bank from the app (Review & Send tab).
 
-For now a request is recorded and shown as queued; the email itself (AWS SES,
-CLAUDE.md §8) is wired in later and fills in `sent_at`, or `error` if it fails.
+A request is recorded as queued, then `send_delivery` emails the issued PDF
+(SMTP, configured through the EMAIL_* settings) and fills in `sent_at`, or
+`error` if it fails.
 """
 
 from __future__ import annotations
 
+import logging
+
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
+from django.core.mail import EmailMessage
 from django.core.validators import validate_email
+from django.utils import timezone
 
 from apps.accounts.permissions import is_platform_admin
 from apps.jobs.tabs import TabError
 
 from .models import ReportDelivery
+
+
+logger = logging.getLogger(__name__)
 
 
 class DeliveryError(TabError):
@@ -77,4 +87,41 @@ def describe_delivery(delivery: ReportDelivery) -> dict:
         "requested_by": str(delivery.requested_by) if delivery.requested_by else "",
         "requested_at": delivery.requested_at,
         "sent_at": delivery.sent_at,
+        "error": delivery.error,
     }
+
+
+def send_delivery(delivery_id: int) -> ReportDelivery:
+    """Emails the delivery's report PDF and records the outcome on the log."""
+    delivery = ReportDelivery.objects.select_related("job", "report_version", "requested_by").get(pk=delivery_id)
+    if delivery.status == ReportDelivery.SENT:
+        return delivery
+    job, version = delivery.job, delivery.report_version
+    firm = settings.REPORT_FIRM_NAME
+    ref = job.bayut_internal_reference_no
+    greeting = f"Dear {delivery.recipient_name}," if delivery.recipient_name else "Dear Sir/Madam,"
+    note = f"{delivery.message}\n\n" if delivery.message else ""
+    their_ref = f" (your ref. {job.bank_reference_no})" if job.bank_reference_no else ""
+    body = (
+        f"{greeting}\n\n{note}Please find attached our valuation report, ref. {ref}{their_ref}."
+        f"\n\nKind regards,\n{firm}\n"
+    )
+    try:
+        email = EmailMessage(
+            subject=f"Valuation report {ref}" + (f" / {job.bank_reference_no}" if job.bank_reference_no else ""),
+            body=body,
+            to=[delivery.recipient_email],
+            bcc=settings.REPORT_EMAIL_BCC,
+            reply_to=[delivery.requested_by.email] if delivery.requested_by and delivery.requested_by.email else None,
+        )
+        with default_storage.open(version.pdf_s3_key) as pdf:
+            email.attach(f"{job.file_stem}.pdf", pdf.read(), "application/pdf")
+        email.send(fail_silently=False)
+    except Exception as exc:
+        logger.exception("Sending report %s to %s failed", ref, delivery.recipient_email)
+        delivery.status, delivery.error = ReportDelivery.FAILED, str(exc)[:1000]
+        delivery.save(update_fields=["status", "error"])
+        return delivery
+    delivery.status, delivery.error, delivery.sent_at = ReportDelivery.SENT, "", timezone.now()
+    delivery.save(update_fields=["status", "error", "sent_at"])
+    return delivery

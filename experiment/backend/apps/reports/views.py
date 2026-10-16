@@ -10,6 +10,7 @@ from apps.jobs.models import Job
 from apps.jobs.tabs import TabError
 
 from .delivery import describe_delivery, request_delivery
+from .tasks import request_send
 from .generate import generate_report, preview_html
 from .models import ReportVersion
 from .render import PdfEngineUnavailable
@@ -100,4 +101,6 @@ class ReportDeliveryView(_JobReportView):
             delivery = request_delivery(job, request.user, body.get("email"), body.get("name"), body.get("message"))
         except TabError as exc:  # not allowed, not issued yet, or a bad address
             return Response(exc.payload(), status=exc.status)
+        request_send(delivery.pk)
+        delivery.refresh_from_db()
         return Response(describe_delivery(delivery), status=201)
