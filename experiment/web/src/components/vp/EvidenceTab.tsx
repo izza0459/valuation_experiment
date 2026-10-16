@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import { ApiError, apiFetch } from "@/lib/api";
+import { DldFinder } from "./DldFinder";
 import { aed, formatDate } from "./format";
 import { Banner, Conf } from "./ui";
 
@@ -91,7 +92,13 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
     queryKey: key,
     queryFn: () => apiFetch<EvidenceState>(`/api/jobs/${jobId}/evidence/`),
   });
-  const [adding, setAdding] = useState(false);
+  const [mode, setMode] = useState<null | "dld" | "paste" | "manual">(null);
+  const [prefill, setPrefill] = useState<{ values: Record<string, string>; found: string[] } | null>(null);
+  const adding = mode === "manual";
+  const close = () => {
+    setMode(null);
+    setPrefill(null);
+  };
   const [error, setError] = useState<string | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: key });
@@ -134,28 +141,52 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
               Ticked ones go into the report&apos;s comparables table and the AVM.
             </div>
           </div>
-          {canEdit && !adding && (
-            <Button size="sm" icon={<Icon name="plus" size={16} />} onClick={() => setAdding(true)}>
-              Add comparable
-            </Button>
+          {canEdit && mode === null && (
+            <div className="row" style={{ gap: 8 }}>
+              <Button size="sm" icon={<Icon name="search" size={16} />} onClick={() => setMode("dld")}>
+                Find DLD sales
+              </Button>
+              <Button size="sm" variant="outline" icon={<Icon name="clipboard" size={16} />} onClick={() => setMode("paste")}>
+                Paste a listing
+              </Button>
+              <Button size="sm" variant="outline" icon={<Icon name="plus" size={16} />} onClick={() => setMode("manual")}>
+                Add manually
+              </Button>
+            </div>
           )}
         </div>
 
+        {mode === "dld" && <DldFinder jobId={jobId} canEdit={canEdit} onClose={close} />}
+
+        {mode === "paste" && (
+          <PasteListing
+            jobId={jobId}
+            onRead={(values, found) => {
+              setPrefill({ values, found });
+              setMode("manual");
+            }}
+            onCancel={close}
+          />
+        )}
+
         {adding && (
           <AddForm
+            key={prefill ? "prefilled" : "blank"}
             jobId={jobId}
             sources={data.sources}
+            initial={prefill?.values}
+            found={prefill?.found}
             onDone={() => {
-              setAdding(false);
+              close();
               void refresh();
             }}
-            onCancel={() => setAdding(false)}
+            onCancel={close}
           />
         )}
 
         {data.comparables.length === 0 && !adding ? (
           <div style={{ fontSize: 14, color: "var(--text-muted)", padding: "18px 0" }}>
-            No comparables yet. Add sales or asking prices from DLD, Bayut, Property Finder, Property Monitor or an agent.
+            No comparables yet. Find DLD sales, paste a listing from Bayut, Property Finder or Property Monitor, or add one by hand.
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -236,18 +267,90 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
   );
 }
 
+const FOUND_LABELS: Record<string, string> = {
+  price_aed: "price",
+  bua_sqft: "size",
+  beds: "bedrooms",
+  property_type: "type",
+  building_name: "building",
+  community_name: "community",
+};
+
+/** Paste a listing copied from a portal (select all, copy) with its link; the
+ * server reads what it can to prefill the form. Nothing is fetched from the
+ * portal. */
+function PasteListing({
+  jobId,
+  onRead,
+  onCancel,
+}: {
+  jobId: string;
+  onRead: (values: Record<string, string>, found: string[]) => void;
+  onCancel: () => void;
+}) {
+  const [link, setLink] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function read() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch<Record<string, unknown>>(`/api/jobs/${jobId}/evidence/parse/`, {
+        method: "POST",
+        body: JSON.stringify({ text, link }),
+      });
+      const values: Record<string, string> = {};
+      for (const [k, v] of Object.entries(res)) if (k !== "found" && v !== null && v !== undefined) values[k] = String(v);
+      onRead(values, (res.found as string[]) ?? []);
+    } catch (err) {
+      setError(failure(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: 18, marginBottom: 14, display: "grid", gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 16 }}>Paste a listing</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+          Open the listing on Bayut, Property Finder or Property Monitor, select everything on the page (Ctrl+A), copy it
+          (Ctrl+C) and paste it below with the page&apos;s link. The form fills in for you to check.
+        </div>
+      </div>
+      <Input value={link} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLink(e.target.value)} placeholder="https://www.bayut.com/property/details-…" />
+      <Textarea rows={6} value={text} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)} placeholder="Paste the listing's text here" />
+      {error && <div style={{ fontSize: 13, color: "var(--text-error)" }}>{error}</div>}
+      <div className="row" style={{ gap: 10, justifyContent: "flex-end" }}>
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={busy || !text.trim()} onClick={() => void read()}>
+          {busy ? "Reading…" : "Fill in the details"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function AddForm({
   jobId,
   sources,
+  initial,
+  found,
   onDone,
   onCancel,
 }: {
   jobId: string;
   sources: { value: string; label: string }[];
+  initial?: Record<string, string>;
+  found?: string[];
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState<Record<string, string>>(BLANK);
+  const [form, setForm] = useState<Record<string, string>>({ ...BLANK, ...(initial ?? {}) });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -287,6 +390,13 @@ function AddForm({
 
   return (
     <div className="card" style={{ padding: 18, marginBottom: 14, display: "grid", gap: 14 }}>
+      {found && (
+        <Banner tone={found.length >= 3 ? "green" : "amber"} icon={found.length >= 3 ? "check" : "alert-triangle"}>
+          {found.length === 0
+            ? "Couldn't read anything from that text. Fill the details in below."
+            : `Read from the listing: ${found.map((k) => FOUND_LABELS[k] ?? k).join(", ")}. Check everything before adding.`}
+        </Banner>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14 }}>
         {field("source", "Source *", <Select value={form.source} onChange={set("source")} placeholder="Choose…" options={sources} />)}
         {field("link", "Link", <Input value={form.link} onChange={set("link")} placeholder="https://www.bayut.com/…" />, 3)}

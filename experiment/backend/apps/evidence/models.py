@@ -162,3 +162,33 @@ class AVMRun(JobEvidence):
         if not self.suggested_value or final_value is None:
             return None
         return abs(final_value - self.suggested_value) / self.suggested_value * 100
+
+
+class DldTransaction(models.Model):
+    """One registered sale from DLD's open data (CLAUDE.md §6: "DLD open data
+    imported into our own table"). Loaded from DLD's downloadable transactions
+    file and searched locally; a sale a valuer picks becomes a `Comparable`
+    with source "dld"."""
+
+    transaction_number = models.CharField(max_length=60, unique=True)
+    date = models.DateField(db_index=True)
+    procedure = models.CharField(max_length=120, blank=True)
+    is_offplan = models.BooleanField(null=True)
+    usage = models.CharField(max_length=60, blank=True)
+    area_name = models.CharField(max_length=120, blank=True, db_index=True, help_text="DLD area, e.g. Marsa Dubai.")
+    master_project = models.CharField(max_length=200, blank=True)
+    project_name = models.CharField(max_length=200, blank=True)
+    building_name = models.CharField(max_length=200, blank=True)
+    property_type = models.CharField(max_length=60, blank=True, help_text="Unit, Villa, Land, Building.")
+    property_sub_type = models.CharField(max_length=60, blank=True, help_text="Flat, Villa, Office, Shop ...")
+    rooms = models.CharField(max_length=40, blank=True, help_text='As DLD writes it, e.g. "1 B/R", "Studio".')
+    beds = models.PositiveSmallIntegerField(null=True, blank=True, help_text="0 for a studio.")
+    size_sqm = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    price_aed = models.DecimalField(max_digits=16, decimal_places=2)
+    imported_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"DLD {self.transaction_number}: {self.project_name or self.area_name} AED {self.price_aed}"
