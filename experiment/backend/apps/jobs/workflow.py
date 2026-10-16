@@ -29,11 +29,22 @@ class JobStatus:
 
 # Allowed forward/back transitions (CLAUDE.md §3). Peer review can bounce
 # the job back to valuation_in_progress with comments.
+# Stages before review: the job moves through these as their tabs are filled in
+# (transitions.sync_stage), and can be sent for review from any of them —
+# nothing is locked by stage.
+PRE_REVIEW_STATUSES = [
+    JobStatus.INSTRUCTION_RECEIVED,
+    JobStatus.SETUP,
+    JobStatus.INSPECTION_SCHEDULED,
+    JobStatus.INSPECTED,
+    JobStatus.VALUATION_IN_PROGRESS,
+]
+
 ALLOWED_TRANSITIONS = {
-    JobStatus.INSTRUCTION_RECEIVED: {JobStatus.SETUP},
-    JobStatus.SETUP: {JobStatus.INSPECTION_SCHEDULED},
-    JobStatus.INSPECTION_SCHEDULED: {JobStatus.INSPECTED},
-    JobStatus.INSPECTED: {JobStatus.VALUATION_IN_PROGRESS},
+    JobStatus.INSTRUCTION_RECEIVED: {JobStatus.SETUP, JobStatus.PEER_REVIEW},
+    JobStatus.SETUP: {JobStatus.INSPECTION_SCHEDULED, JobStatus.PEER_REVIEW},
+    JobStatus.INSPECTION_SCHEDULED: {JobStatus.INSPECTED, JobStatus.PEER_REVIEW},
+    JobStatus.INSPECTED: {JobStatus.VALUATION_IN_PROGRESS, JobStatus.PEER_REVIEW},
     JobStatus.VALUATION_IN_PROGRESS: {JobStatus.PEER_REVIEW},
     JobStatus.PEER_REVIEW: {JobStatus.VALUATION_IN_PROGRESS, JobStatus.APPROVED_SIGNED},
     # Reopen: sign-off froze the data (see FROZEN_STATUSES), so without a way
@@ -77,12 +88,14 @@ TRANSITION_RULES = {
         TransitionRule("Mark inspected", {Role.INSPECTOR, Role.VALUER}),
     (JobStatus.INSPECTED, JobStatus.VALUATION_IN_PROGRESS):
         TransitionRule("Start valuation", {Role.VALUER}),
-    (JobStatus.VALUATION_IN_PROGRESS, JobStatus.PEER_REVIEW):
-        TransitionRule("Send for review", {Role.VALUER}, gate="review_ready"),
+    **{
+        (status, JobStatus.PEER_REVIEW): TransitionRule("Send for review", {Role.VALUER}, gate="review_ready")
+        for status in PRE_REVIEW_STATUSES
+    },
     (JobStatus.PEER_REVIEW, JobStatus.VALUATION_IN_PROGRESS):
         TransitionRule("Return to valuer", {Role.PEER_REVIEWER}, comments_required=True, tone="outline"),
     (JobStatus.PEER_REVIEW, JobStatus.APPROVED_SIGNED):
-        TransitionRule("Approve", {Role.PEER_REVIEWER}, gate="approval_ready"),
+        TransitionRule("Good to go", {Role.PEER_REVIEWER}, gate="approval_ready"),
     # The second signature (CLAUDE.md §3: no issue without counter-signature).
     # Only the assigned counter-signatory can give it; admins can't stand in.
     (JobStatus.APPROVED_SIGNED, JobStatus.APPROVED_SIGNED):

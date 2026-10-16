@@ -215,7 +215,9 @@ function LibraryField({
 
   const insert = (o: Option) => {
     if (asList) onChange([...entries, { title: o.label, body: o.report_text ?? "" }]);
-    else onChange(str(value) ? `${str(value)}\n\n${o.report_text ?? ""}` : (o.report_text ?? ""));
+    // One answer per field (a property is an apartment or a villa, not both):
+    // choosing replaces the text rather than adding to it.
+    else onChange(o.report_text ?? "");
     setOpen(false);
     setQuery("");
   };
@@ -254,7 +256,7 @@ function LibraryField({
           icon={<Icon name={open ? "chevron-up" : "book-open"} size={16} />}
           onClick={() => setOpen(!open)}
         >
-          {asList ? "Add from library" : "Insert from library"}
+          {asList ? "Add from library" : str(value) ? "Replace from library" : "Choose from library"}
         </Button>
       </div>
 

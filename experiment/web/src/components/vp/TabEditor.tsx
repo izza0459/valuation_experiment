@@ -29,10 +29,6 @@ type Props = {
 /** Fields that need the full width: long text and pick-lists. */
 const WIDE = new Set(["textarea", "library", "multiselect"]);
 
-const PENDING: Record<string, string> = {
-  evidence: "Comparables and the AVM arrive with build-order step 7.",
-};
-
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function TabEditor({ jobId, tab, state, allValues }: Props) {
@@ -47,7 +43,7 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
   if (tab.fields.length === 0) {
     return (
       <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>
-        {PENDING[tab.key] ?? "Nothing to enter on this tab yet."}
+        Nothing to enter on this tab yet.
       </p>
     );
   }

@@ -178,6 +178,25 @@ def _media_context(job, summary) -> dict:
     }
 
 
+def _comparables(job) -> list[dict]:
+    """The comparables the valuer ticked, as the report's table shows them."""
+    rows = []
+    for link in job.job_comparables.select_related("comparable").filter(selected=True):
+        c = link.comparable
+        when = c.transaction_date.strftime("%b-%y") if c.transaction_date else ""
+        rows.append({
+            "district": _join(c.building_name, c.community_name) or EMPTY,
+            "views": c.view or EMPTY,
+            "floor": c.floor or EMPTY,
+            "bua_sqft": fmt_number(c.bua_sqft) or EMPTY,
+            "type": _join(f"{c.beds} BR" if c.beds is not None else "", c.property_type, sep=" ") or EMPTY,
+            "price": fmt_number(c.price_aed) or EMPTY,
+            "rate": fmt_number(c.price_per_sqft.quantize(Decimal("1"))) if c.price_per_sqft else EMPTY,
+            "transaction": _join(c.get_status_display(), when, sep=" "),
+        })
+    return rows
+
+
 def build_context(job, *, issued: bool | None = None) -> dict:
     """`issued` renders the job as a final report. It defaults to the job's
     lock; the issue flow passes True because it builds the final report
@@ -433,7 +452,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         },
         "valuer": valuer,
         "counter_signatory": counter_signatory,
-        "comparables": [],  # evidence arrives with build-order step 7
+        "comparables": _comparables(job),
         **_media_context(job, summary),
         "checklist": {
             "makani_photo": checklist.makani_photo,

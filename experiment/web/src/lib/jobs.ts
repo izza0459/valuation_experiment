@@ -73,7 +73,25 @@ export type JobDetail = JobListItem & {
   countersigned_by_name?: string | null;
   countersigned_at?: string | null;
   bank_rules?: Record<string, unknown>;
+  /** Issued, and this user is the admin who created the job (or a platform admin). */
+  can_send_report?: boolean;
+  /** The bank master's contacts with an email address. */
+  bank_contacts?: { name: string; email: string }[];
+  /** Where the issued report has been sent. */
+  deliveries?: Delivery[];
 } & Record<string, unknown>;
+
+export type Delivery = {
+  id: number;
+  recipient_name: string;
+  recipient_email: string;
+  message: string;
+  status: "queued" | "sent" | "failed";
+  status_label: string;
+  requested_by: string;
+  requested_at: string;
+  sent_at: string | null;
+};
 
 /** DRF PageNumberPagination envelope. */
 export type Paginated<T> = {

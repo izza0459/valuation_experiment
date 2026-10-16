@@ -24,6 +24,8 @@ export type SaveStatus = "idle" | "saving" | "saved" | "error" | "conflict" | "b
 
 type PatchResponse = {
   tab: string;
+  /** The job's status after the save: completing a stage's tabs moves it on. */
+  status: string;
   values: Record<string, unknown>;
   version: number;
   computed: Record<string, Record<string, unknown>>;
@@ -162,7 +164,8 @@ export function useTabAutosave(jobId: string, tabKey: string, tab: TabState) {
       setStatus("saved");
       saved = true;
       qc.invalidateQueries({ queryKey: ["job-activity", jobId] });
-      if (pending.some(([key]) => NEEDS_JOB_REFRESH.has(key))) {
+      const statusBefore = qc.getQueryData<JobDetail>(["jobs", jobId])?.status;
+      if (pending.some(([key]) => NEEDS_JOB_REFRESH.has(key)) || (res.status && res.status !== statusBefore)) {
         qc.invalidateQueries({ queryKey: ["jobs", jobId] });
       }
     } catch (err) {

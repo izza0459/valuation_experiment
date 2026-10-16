@@ -4,7 +4,8 @@
  * Job workspace — design brief S3.
  *
  * Ported from the prototype's `job-workspace-and-review.jsx`: job header,
- * status stepper, 9-tab rail with completion rings, and the right panel.
+ * stage progress, the tab rail grouped by stage with completion rings,
+ * previous/next buttons, and the right panel.
  *
  * Tabs are edited in place through `TabEditor`, which renders each tab from
  * the shared field config and autosaves via the per-tab PATCH endpoint.
@@ -18,33 +19,36 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Avatar, Icon } from "@/design-system";
+import { Avatar, Button, Icon } from "@/design-system";
 import { Banner, Ring, Shell, StatusChip } from "@/components/vp/ui";
+import { EvidenceTab } from "@/components/vp/EvidenceTab";
+import { ReportActions } from "@/components/vp/ReportActions";
+import { ReviewPanel } from "@/components/vp/ReviewPanel";
 import { RightPanel } from "@/components/vp/RightPanel";
 import { TabEditor } from "@/components/vp/TabEditor";
-import { TransitionBar } from "@/components/vp/TransitionBar";
-import { useFieldConfig } from "@/lib/fieldConfig";
+import { STAGES, useFieldConfig, type StageKey } from "@/lib/fieldConfig";
 import { buildTabValues, useJob } from "@/lib/jobs";
 
-/** The workflow's eight states collapsed onto the brief's seven steps. */
-const STEPS = ["Received", "Setup", "Inspection", "Valuation", "Peer review", "Signed", "Issued"];
-const STEP_FOR_STATUS: Record<string, number> = {
-  instruction_received: 0,
-  setup: 1,
-  inspection_scheduled: 2,
-  inspected: 2,
-  valuation_in_progress: 3,
-  peer_review: 4,
-  approved_signed: 5,
-  issued: 6,
+/** Which stage the job's status sits in. The stages before review move on by
+ * themselves as their tabs are completed (server: transitions.sync_stage). */
+const STAGE_FOR_STATUS: Record<string, StageKey> = {
+  instruction_received: "setup",
+  setup: "setup",
+  inspection_scheduled: "inspection",
+  inspected: "inspection",
+  valuation_in_progress: "valuation",
+  peer_review: "review",
+  approved_signed: "review",
+  issued: "review",
 };
+const REVIEW_PROGRESS: Record<string, number> = { peer_review: 33, approved_signed: 66, issued: 100 };
 
 type Assignee = { id: number; name: string; roles: string[] };
 
 export function JobDetailClient({ id }: { id: string }) {
   const { data: job, isLoading: jobLoading, isError } = useJob(id);
   const { data: tabs, isLoading: tabsLoading } = useFieldConfig();
-  const [activeTab, setActiveTab] = useState("checklist");
+  const [activeTab, setActiveTab] = useState<string | null>(null);
 
   if (jobLoading || tabsLoading) {
     return (
@@ -71,11 +75,28 @@ export function JobDetailClient({ id }: { id: string }) {
 
   const allValues = buildTabValues(job);
   const orderedTabs = [...(tabs ?? [])].sort((a, b) => a.order - b.order);
-  const currentTab = orderedTabs.find((t) => t.key === activeTab) ?? orderedTabs[0];
+  const currentStage = STAGE_FOR_STATUS[job.status] ?? "setup";
+  // A job under review or issued opens on Review & Send; otherwise on the first tab.
+  const defaultTab = currentStage === "review" ? "review" : orderedTabs[0]?.key;
+  const currentTab = orderedTabs.find((t) => t.key === (activeTab ?? defaultTab)) ?? orderedTabs[0];
+  const index = orderedTabs.findIndex((t) => t.key === currentTab?.key);
+  const prevTab = index > 0 ? orderedTabs[index - 1] : null;
+  const nextTab = index >= 0 && index < orderedTabs.length - 1 ? orderedTabs[index + 1] : null;
+  const stageLabel = (key: StageKey) => STAGES.find((s) => s.key === key)?.label ?? key;
+  const go = (key: string) => {
+    setActiveTab(key);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const stagePct = (key: StageKey) => {
+    if (key === "review") return REVIEW_PROGRESS[job.status] ?? 0;
+    const inStage = orderedTabs.filter((t) => t.stage === key);
+    if (!inStage.length) return 0;
+    return Math.round(inStage.reduce((sum, t) => sum + (job.tabs[t.key]?.completion.pct ?? 0), 0) / inStage.length);
+  };
 
   const property = (job.property ?? {}) as Record<string, string>;
   const assignees = (job.assignees ?? []) as Assignee[];
-  const step = STEP_FOR_STATUS[job.status] ?? 0;
   const isLocked = job.is_locked;
 
   return (
@@ -126,31 +147,42 @@ export function JobDetailClient({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* --- status stepper --------------------------------------- */}
-        <div className="row" style={{ gap: 6, marginTop: 16 }}>
-          {STEPS.map((label, i) => (
-            <div key={label} style={{ flex: 1 }}>
-              <div
-                style={{
-                  height: 4,
-                  borderRadius: 2,
-                  background: i < step ? "var(--red-200)" : i === step ? "var(--action-primary)" : "var(--gray-200)",
-                }}
-              />
-              <div
-                style={{
-                  fontSize: 13,
-                  marginTop: 6,
-                  color: i === step ? "var(--text-accent)" : i < step ? "var(--text-secondary)" : "var(--text-muted)",
-                }}
+        {/* --- stages: each fills as its tabs are completed ----------- */}
+        <div className="row" style={{ gap: 10, marginTop: 16 }}>
+          {STAGES.map((stage) => {
+            const pct = stagePct(stage.key);
+            const on = stage.key === currentStage;
+            const first = orderedTabs.find((t) => t.stage === stage.key);
+            return (
+              <button
+                key={stage.key}
+                type="button"
+                onClick={() => first && go(first.key)}
+                style={{ flex: 1, border: 0, background: "none", padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}
               >
-                {label}
-              </div>
-            </div>
-          ))}
+                <div style={{ height: 4, borderRadius: 2, background: "var(--gray-200)", overflow: "hidden" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: pct === 100 ? "var(--green-600)" : "var(--action-primary)" }} />
+                </div>
+                <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginTop: 6 }}>
+                  <span style={{ color: on ? "var(--text-accent)" : "var(--text-secondary)", fontWeight: on ? 500 : 400 }}>
+                    {stage.label}
+                  </span>
+                  <span className="num" style={{ color: "var(--text-muted)" }}>{pct}%</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        <TransitionBar job={job} jobId={id} />
+        {/* The Review & Send tab has these itself. */}
+        {!isLocked && currentTab?.key !== "review" && (
+          <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-divider)" }}>
+            <ReportActions jobId={id} />
+            <Button size="sm" variant="soft" icon={<Icon name="send" size={16} />} onClick={() => go("review")}>
+              Review &amp; Send
+            </Button>
+          </div>
+        )}
       </div>
 
       {job.issue_in_progress && (
@@ -185,19 +217,41 @@ export function JobDetailClient({ id }: { id: string }) {
 
       {/* --- tab rail ----------------------------------------------- */}
       <div className="card" style={{ padding: "0 8px", marginBottom: 16, display: "flex", overflowX: "auto" }}>
-        {orderedTabs.map((tab) => {
+        {orderedTabs.map((tab, i) => {
           const { pct, missing } = job.tabs[tab.key]?.completion ?? { pct: 0, missing: [] };
           const on = tab.key === currentTab?.key;
+          const startsStage = i === 0 || orderedTabs[i - 1].stage !== tab.stage;
           return (
-            <button
+            <div
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                borderLeft: startsStage && i > 0 ? "1px solid var(--border-divider)" : undefined,
+                paddingLeft: startsStage && i > 0 ? 6 : 0,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: ".04em",
+                  textTransform: "uppercase",
+                  color: "var(--text-muted)",
+                  padding: "8px 14px 0",
+                  visibility: startsStage ? "visible" : "hidden",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {stageLabel(tab.stage)}
+              </div>
+            <button
+              onClick={() => go(tab.key)}
               title={missing.length ? `Missing: ${missing.join(", ")}` : undefined}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                padding: "14px 14px",
+                padding: "6px 14px 12px",
                 border: 0,
                 background: "none",
                 fontFamily: "inherit",
@@ -212,6 +266,7 @@ export function JobDetailClient({ id }: { id: string }) {
               {tab.label}
               {missing.length > 0 && <i className="dot" style={{ background: "var(--amber-600)" }} />}
             </button>
+            </div>
           );
         })}
       </div>
@@ -220,17 +275,54 @@ export function JobDetailClient({ id }: { id: string }) {
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="card">
-            {currentTab && job.tabs[currentTab.key] && (
-              // Keyed so each tab gets its own autosave state, and leaving a
-              // tab flushes whatever was typed last.
-              <TabEditor
-                key={currentTab.key}
+            {currentTab?.key === "review" ? (
+              <ReviewPanel job={job} jobId={id} />
+            ) : currentTab?.key === "evidence" ? (
+              <EvidenceTab
                 jobId={id}
-                tab={currentTab}
-                state={job.tabs[currentTab.key]}
-                allValues={allValues}
+                canEdit={Boolean(job.tabs.evidence?.can_edit)}
+                readOnlyReason={job.tabs.evidence?.read_only_reason ?? ""}
               />
+            ) : (
+              currentTab &&
+              job.tabs[currentTab.key] && (
+                // Keyed so each tab gets its own autosave state, and leaving a
+                // tab flushes whatever was typed last.
+                <TabEditor
+                  key={currentTab.key}
+                  jobId={id}
+                  tab={currentTab}
+                  state={job.tabs[currentTab.key]}
+                  allValues={allValues}
+                />
+              )
             )}
+
+            {/* --- previous / next tab, across stages ----------------- */}
+            <div
+              className="row"
+              style={{ justifyContent: "space-between", marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-divider)" }}
+            >
+              {prevTab ? (
+                <Button variant="outline" size="sm" icon={<Icon name="chevron-left" size={16} />} onClick={() => go(prevTab.key)}>
+                  {prevTab.stage === currentTab?.stage || prevTab.label === stageLabel(prevTab.stage)
+                    ? prevTab.label
+                    : `${stageLabel(prevTab.stage)}: ${prevTab.label}`}
+                </Button>
+              ) : (
+                <span />
+              )}
+              {nextTab && (
+                <Button size="sm" onClick={() => go(nextTab.key)}>
+                  {nextTab.stage === currentTab?.stage
+                    ? `Next: ${nextTab.label}`
+                    : nextTab.label === stageLabel(nextTab.stage)
+                      ? `Next stage: ${nextTab.label}`
+                      : `Next stage: ${stageLabel(nextTab.stage)} · ${nextTab.label}`}
+                  <Icon name="chevron-right" size={16} />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
         <RightPanel jobId={id} />

@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * Workspace right panel (design brief S3): AVM snapshot, comments and the
- * activity/audit log.
+ * Workspace right panel (design brief S3): the latest AVM result and review
+ * comments.
  *
- * Activity reads the audit trail and Comments reads the lifecycle log. The
- * AVM shows what it is waiting on rather than prototype sample data: it has
- * no endpoint yet (build order step 7).
+ * Every field change is still recorded in the audit trail (DLD / RICS need
+ * it, and the Django admin shows it); it just isn't listed here.
  */
 
 import { useState } from "react";
@@ -14,28 +13,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Icon, Tabs } from "@/design-system";
 import { apiFetch } from "@/lib/api";
 import { useTransitions } from "@/lib/jobs";
-import { formatDateTime } from "./format";
+import { aed, formatDateTime } from "./format";
+import { Conf } from "./ui";
 
-type ActivityEntry = {
-  id: number;
-  who: string;
-  model: string;
-  field: string;
-  old_value: string | null;
-  new_value: string | null;
-  at: string;
+type AvmSummary = {
+  suggested_value: string;
+  low_value: string;
+  high_value: string;
+  aed_per_sqft: string;
+  confidence: "high" | "medium" | "low";
+  created_at: string;
 };
 
-function useActivity(jobId: string) {
-  return useQuery({
-    queryKey: ["job-activity", jobId],
-    queryFn: () => apiFetch<ActivityEntry[]>(`/api/jobs/${jobId}/activity/`),
-    enabled: Boolean(jobId),
-  });
-}
-
 export function RightPanel({ jobId }: { jobId: string }) {
-  const [sub, setSub] = useState("Activity");
+  const [sub, setSub] = useState("AVM");
 
   return (
     <aside
@@ -52,21 +43,10 @@ export function RightPanel({ jobId }: { jobId: string }) {
       }}
     >
       <div className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <Tabs
-          size="sm"
-          items={["AVM", "Comments", "Activity"]}
-          active={sub}
-          onChange={setSub}
-          style={{ gap: 22, padding: "0 18px" }}
-        />
+        <Tabs size="sm" items={["AVM", "Comments"]} active={sub} onChange={setSub} style={{ gap: 22, padding: "0 18px" }} />
         <div style={{ padding: 18, overflowY: "auto" }}>
-          {sub === "AVM" && <PendingFeature
-            icon="scale"
-            title="No AVM run yet"
-            body="The automated valuation model runs off selected comparables. Evidence and AVM are build-order step 7."
-          />}
+          {sub === "AVM" && <Avm jobId={jobId} />}
           {sub === "Comments" && <Comments jobId={jobId} />}
-          {sub === "Activity" && <Activity jobId={jobId} />}
         </div>
       </div>
     </aside>
@@ -81,6 +61,42 @@ function PendingFeature({ icon, title, body }: { icon: string; title: string; bo
       </div>
       <div style={{ fontSize: 15, marginBottom: 4 }}>{title}</div>
       <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>{body}</div>
+    </div>
+  );
+}
+
+/** The latest AVM run, from the Evidence tab. */
+function Avm({ jobId }: { jobId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["job-evidence", jobId],
+    queryFn: () => apiFetch<{ avm: AvmSummary | null }>(`/api/jobs/${jobId}/evidence/`),
+  });
+  if (isLoading) return <div className="skel" style={{ height: 60 }} />;
+  const run = data?.avm;
+  if (!run) {
+    return (
+      <PendingFeature
+        icon="scale"
+        title="No AVM run yet"
+        body="Add comparables on the Evidence tab, tick the ones to use, and run the AVM there."
+      />
+    );
+  }
+  const level = (run.confidence[0].toUpperCase() + run.confidence.slice(1)) as "High" | "Medium" | "Low";
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>SUGGESTED VALUE</div>
+        <div style={{ fontSize: 22 }}>{aed(run.suggested_value)}</div>
+      </div>
+      <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+        {aed(run.low_value)} – {aed(run.high_value)}
+      </div>
+      <div className="row" style={{ justifyContent: "space-between", fontSize: 14 }}>
+        <span>AED {Number(run.aed_per_sqft).toLocaleString("en-US", { maximumFractionDigits: 0 })} / sqft</span>
+        <Conf l={level} />
+      </div>
+      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Run {formatDateTime(run.created_at)}</div>
     </div>
   );
 }
@@ -112,45 +128,3 @@ function Comments({ jobId }: { jobId: string }) {
     </div>
   );
 }
-
-function Activity({ jobId }: { jobId: string }) {
-  const { data, isLoading, isError } = useActivity(jobId);
-
-  if (isLoading) {
-    return (
-      <div>
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="skel" style={{ height: 34, marginBottom: 10 }} />
-        ))}
-      </div>
-    );
-  }
-  if (isError) return <div style={{ fontSize: 14, color: "var(--text-error)" }}>Could not load activity.</div>;
-  if (!data?.length) {
-    return <PendingFeature icon="clock" title="Nothing yet" body="Field changes appear here as the job is worked on." />;
-  }
-
-  return (
-    <div style={{ display: "grid", gap: 14 }}>
-      {data.map((e) => (
-        <div key={e.id} style={{ fontSize: 14, lineHeight: 1.45 }}>
-          <div>
-            <span style={{ fontWeight: 500 }}>{e.who}</span>{" "}
-            <span style={{ color: "var(--text-secondary)" }}>
-              set {humanise(e.field)}
-              {e.new_value ? (
-                <>
-                  {" "}to <span className="num">{truncate(e.new_value)}</span>
-                </>
-              ) : null}
-            </span>
-          </div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDateTime(e.at)}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const humanise = (field: string) => field.replace(/_/g, " ");
-const truncate = (value: string) => (value.length > 40 ? value.slice(0, 40) + "…" : value);

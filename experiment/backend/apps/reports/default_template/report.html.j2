@@ -230,9 +230,9 @@
   <h3>Comparable evidence</h3>
   {% if comparables %}
   <table class="grid">
-    <tr><th>District</th><th>Views</th><th>BUA (sqft)</th><th>Type</th><th>Net price (AED)</th><th>Transaction</th></tr>
+    <tr><th>Building / district</th><th>Views</th><th>Floor</th><th>BUA (sqft)</th><th>Type</th><th>Price (AED)</th><th>AED / sqft</th><th>Date / status</th></tr>
     {% for c in comparables %}
-    <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.bua_sqft }}</td><td>{{ c.type }}</td><td>{{ c.price }}</td><td>{{ c.transaction }}</td></tr>
+    <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.floor }}</td><td>{{ c.bua_sqft }}</td><td>{{ c.type }}</td><td>{{ c.price }}</td><td>{{ c.rate }}</td><td>{{ c.transaction }}</td></tr>
     {% endfor %}
   </table>
   {% else %}

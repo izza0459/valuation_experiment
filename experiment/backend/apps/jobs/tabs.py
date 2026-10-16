@@ -73,9 +73,13 @@ TAB_EDIT_ROLES = {
     # ordering are checked against the same rules (see apps/media_files).
     "photos": {Role.INSPECTOR, Role.VALUER},
     "documents": {Role.ADMIN, Role.VALUER},
+    # Comparables the valuer enters and picks for the report (apps/evidence).
+    "evidence": {Role.VALUER},
 }
 
 MEDIA_TABS = ("photos", "documents")
+# Tabs without form fields that still hold editable records.
+RECORD_TABS = (*MEDIA_TABS, "evidence")
 
 # Fields that decide who works on the job. Sitting on the inspector's Check
 # List tab must not let the inspector reassign the valuer.
@@ -315,7 +319,7 @@ def job_tab_state(job, user=None) -> dict:
     }
     if user is not None:
         for key, tab_state in state.items():
-            has_form = bool(get_tab(key)["fields"]) or key in MEDIA_TABS
+            has_form = bool(get_tab(key)["fields"]) or key in RECORD_TABS
             denial = edit_denial(user, job, key) if has_form else None
             tab_state["can_edit"] = has_form and denial is None
             tab_state["read_only_reason"] = denial.detail if denial else ""
@@ -656,10 +660,16 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int) 
         version.version += 1
         version.save(update_fields=["version"])
 
+        from .transitions import sync_stage  # transitions imports this module
+
+        sync_stage(job, user)
+
         state = job_tab_state(Job.objects.get(pk=job_id))
 
     return {
         "tab": tab_key,
+        # Completing a stage's tabs can move the job on (transitions.sync_stage).
+        "status": job.status,
         "values": state[tab_key]["values"],
         "version": state[tab_key]["version"],
         "computed": {k: v["computed"] for k, v in state.items()},

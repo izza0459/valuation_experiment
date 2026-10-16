@@ -45,7 +45,7 @@ class TestCreate:
         assert res.status_code == 201, res.json()
         job = Job.objects.get(pk=res.json()["id"])
         assert job.bayut_internal_reference_no == res.json()["bayut_internal_reference_no"]
-        assert job.status == JobStatus.INSTRUCTION_RECEIVED
+        assert job.status == JobStatus.SETUP  # entering the instruction starts setup
         assert (job.bank_reference_no, job.property.unit_number, job.property.applicant_name) == (
             "DIB-1", "312", "A. Applicant")
         assert job.summary and job.inspection and job.location and job.valuation and job.checklist

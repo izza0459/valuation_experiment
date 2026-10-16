@@ -55,13 +55,19 @@ class Comparable(models.Model):
     New sources (DLD, Bayut, Property Monitor) are just connectors that
     write rows here with their own `source` + `source_ref`."""
 
+    # Where the evidence comes from. A valuer entering one by hand picks the
+    # source; connectors (DLD, Bayut, Property Monitor) will write the same rows.
     SOURCE_CHOICES = [
+        ("dld", "DLD transaction"),
+        ("bayut", "Bayut"),
+        ("property_finder", "Property Finder"),
+        ("property_monitor", "Property Monitor"),
+        ("agent", "Agent / broker"),
+        ("other", "Other"),
         ("manual", "Manual"),
         ("csv", "CSV/Excel upload"),
-        ("dld", "DLD open data"),
-        ("bayut", "Bayut listings"),
-        ("property_monitor", "Property Monitor"),
     ]
+    ENTRY_SOURCES = ["dld", "bayut", "property_finder", "property_monitor", "agent", "other"]
     STATUS_CHOICES = [("sold", "Sold"), ("asking", "Asking")]
 
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
@@ -79,6 +85,9 @@ class Comparable(models.Model):
     transaction_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="asking")
     raw_data = models.JSONField(default=dict, blank=True, help_text="Original payload from the source connector.")
+    link = models.URLField(max_length=1000, blank=True, help_text="The listing or record this came from.")
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         ordering = ["-transaction_date"]

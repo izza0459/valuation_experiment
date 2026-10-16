@@ -48,3 +48,31 @@ class ReportVersion(SoftDeleteModel):
 
     def __str__(self):
         return f"ReportVersion<{self.job} v{self.job_version}>"
+
+
+class ReportDelivery(models.Model):
+    """A request to send an issued report to someone at the bank (CLAUDE.md §7:
+    "email delivery of the issued PDF with a delivery log").
+
+    Only the request is recorded for now; the email itself (AWS SES) is wired
+    in later, which fills in `sent_at` or `error`."""
+
+    QUEUED, SENT, FAILED = "queued", "sent", "failed"
+    STATUS_CHOICES = [(QUEUED, "Queued"), (SENT, "Sent"), (FAILED, "Failed")]
+
+    job = models.ForeignKey("jobs.Job", on_delete=models.CASCADE, related_name="deliveries")
+    report_version = models.ForeignKey(ReportVersion, on_delete=models.PROTECT, related_name="deliveries")
+    recipient_name = models.CharField(max_length=255, blank=True)
+    recipient_email = models.EmailField()
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=QUEUED)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+
+    def __str__(self):
+        return f"ReportDelivery<{self.job} to {self.recipient_email}>"

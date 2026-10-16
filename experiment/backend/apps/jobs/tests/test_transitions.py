@@ -144,10 +144,19 @@ class TestEarlyStages:
         assert entry.changed_by == dan and entry.new_value == S.SETUP
 
     def test_cannot_skip_a_stage(self, job, dan):
-        res = move(client_for(dan), job, S.PEER_REVIEW)
+        res = move(client_for(dan), job, S.INSPECTED)
         assert res.status_code == 409 and res.json()["code"] == "not_allowed"
         job.refresh_from_db()
         assert job.status == S.INSTRUCTION_RECEIVED
+
+    def test_review_can_be_asked_for_from_any_stage_once_everything_is_in(self, job, dan):
+        """Stages don't lock anything; only the review gate (every required
+        field and the media) decides."""
+        res = move(client_for(dan), job, S.PEER_REVIEW)
+        assert res.status_code == 422 and res.json()["code"] == "blocked"
+        fill_everything(job)
+        res = move(client_for(dan), job, S.PEER_REVIEW)
+        assert res.status_code == 200, res.json()
 
     def test_an_out_of_date_screen_is_refused(self, job, dan):
         client = client_for(dan)
@@ -270,7 +279,7 @@ class TestReview:
     def test_reviewer_sees_approve_and_return_the_valuer_sees_neither(self, in_review, pat, dan):
         as_reviewer = client_for(pat).get(f"/api/jobs/{in_review.pk}/").json()["available_actions"]
         as_valuer = client_for(dan).get(f"/api/jobs/{in_review.pk}/").json()["available_actions"]
-        assert {a["label"] for a in as_reviewer} == {"Approve", "Return to valuer"}
+        assert {a["label"] for a in as_reviewer} == {"Good to go", "Return to valuer"}
         assert as_valuer == []
 
 
@@ -324,3 +333,36 @@ class TestRolesAndLocks:
     def test_unauthenticated_is_refused(self, job):
         res = APIClient().post(f"/api/jobs/{job.pk}/transitions/", {"from": "a", "to": "b"}, format="json")
         assert res.status_code in (401, 403)
+
+
+class TestStagesFollowTheTabs:
+    def patch(self, user, job, tab, values):
+        version = client_for(user).get(f"/api/jobs/{job.pk}/").json()["tabs"][tab]["version"]
+        res = client_for(user).patch(
+            f"/api/jobs/{job.pk}/tabs/{tab}/", {"values": values, "base_version": version}, format="json"
+        )
+        assert res.status_code == 200, res.json()
+        job.refresh_from_db()
+        return job.status
+
+    def test_any_edit_starts_setup(self, job, dan):
+        assert self.patch(dan, job, "summary", {"makani_number": "1"}) == S.SETUP
+
+    def test_a_complete_setup_stage_moves_on_to_inspection(self, job, dan):
+        job.date_of_instruction = datetime.date(2026, 8, 26)
+        job.save()
+        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.SETUP
+        summary = {"interest_valued": "international_freehold", "property_category": "apartment",
+                   "bua_sqft": "519", "disclosure": "No conflicts."}
+        assert self.patch(dan, job, "summary", summary) == S.INSPECTION_SCHEDULED
+        moves = list(JobTransition.objects.filter(job=job).order_by("id").values_list("to_status", flat=True))
+        assert moves == [S.SETUP, S.INSPECTION_SCHEDULED]
+
+    def test_it_never_moves_a_job_back_or_out_of_review(self, job, dan):
+        fill_everything(job)
+        Job.objects.filter(pk=job.pk).update(status=S.PEER_REVIEW)
+        job.refresh_from_db()
+        from apps.jobs.transitions import sync_stage
+
+        sync_stage(job, dan)
+        assert job.status == S.PEER_REVIEW

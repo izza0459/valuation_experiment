@@ -21,6 +21,10 @@ import { Banner } from "./ui";
 
 type Failure = { message: string; blockers: string[] };
 
+const EARLY_STEPS = new Set(["setup", "inspection_scheduled", "inspected", "valuation_in_progress"]);
+/** From these, a move back to valuation is a return or reopen, which stays. */
+const REVIEWING = new Set(["peer_review", "approved_signed"]);
+
 function describe(err: unknown): Failure {
   if (err instanceof ApiError) {
     const blockers = Array.isArray(err.body?.blockers) ? (err.body?.blockers as string[]) : [];
@@ -38,7 +42,9 @@ export function TransitionBar({ job, jobId }: { job: JobDetail; jobId: string })
   const [failure, setFailure] = useState<Failure | null>(null);
   const [confirming, setConfirming] = useState<JobAction | null>(null);
 
-  const actions = job.available_actions ?? [];
+  // The stages before review move on by themselves as their tabs fill in, so
+  // their manual steps ("Start setup" and the like) aren't offered here.
+  const actions = (job.available_actions ?? []).filter((a) => !EARLY_STEPS.has(a.to) || REVIEWING.has(job.status));
   const blocked = actions.filter((a) => !a.enabled);
 
   // Issuing finishes in the background (the job query polls meanwhile); when

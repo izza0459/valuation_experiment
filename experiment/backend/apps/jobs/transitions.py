@@ -21,10 +21,11 @@ from apps.accounts.models import Role
 from apps.accounts.permissions import is_platform_admin, roles_on_job
 from apps.audit.middleware import acting_as
 
-from .field_config import TABS
+from .field_config import TABS, stage_tabs
 from .models import Job, JobTransition
-from .tabs import NotPermitted, TabError, tab_completion, visibility_context
+from .tabs import MEDIA_TABS, NotPermitted, TabError, media_completion, tab_completion, visibility_context
 from .workflow import (
+    PRE_REVIEW_STATUSES,
     TRANSITION_RULES,
     IssueBlockedError,
     JobLockedError,
@@ -196,6 +197,44 @@ def transition_log(job) -> list[dict]:
         }
         for t in job.transitions.select_related("by")
     ]
+
+
+# --- stages follow the tabs -------------------------------------------------------------
+
+# The status a job reaches once a stage's tabs are all complete.
+STAGE_REACHES = [
+    ("setup", JobStatus.INSPECTION_SCHEDULED),
+    ("inspection", JobStatus.VALUATION_IN_PROGRESS),
+]
+
+
+def _stage_complete(job, stage, context) -> bool:
+    for key in stage_tabs(stage):
+        done = media_completion(job, key) if key in MEDIA_TABS else tab_completion(key, context)
+        if done["pct"] < 100:
+            return False
+    return True
+
+
+def sync_stage(job, user) -> None:
+    """Moves a job forward through the stages before review as their tabs are
+    filled in: any edit starts setup, a complete Setup stage schedules the
+    inspection, a complete Inspection stage starts the valuation. It only ever
+    moves forward, and only before review; nothing is locked by stage (a job
+    can be sent for review from any of them). Each step is logged like a
+    manual one."""
+    if job.status not in PRE_REVIEW_STATUSES:
+        return
+    order = PRE_REVIEW_STATUSES
+    target = max(order.index(job.status), order.index(JobStatus.SETUP))
+    context = visibility_context(job)
+    for stage, status in STAGE_REACHES:
+        if _stage_complete(job, stage, context):
+            target = max(target, order.index(status))
+    while order.index(job.status) < target:
+        from_status = job.status
+        job.transition_to(order[order.index(from_status) + 1])
+        JobTransition.objects.create(job=job, from_status=from_status, to_status=job.status, by=user)
 
 
 # --- doing -----------------------------------------------------------------------------

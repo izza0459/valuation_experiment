@@ -44,9 +44,21 @@ export type FieldDef = {
 export type TabDef = {
   key: string;
   label: string;
+  /** The workspace groups tabs under stages (field_config.STAGES). */
+  stage: StageKey;
   order: number;
   fields: FieldDef[];
 };
+
+export type StageKey = "setup" | "inspection" | "valuation" | "review";
+
+/** Mirrors field_config.STAGES: the stages the tabs are grouped under. */
+export const STAGES: { key: StageKey; label: string }[] = [
+  { key: "setup", label: "Setup" },
+  { key: "inspection", label: "Inspection" },
+  { key: "valuation", label: "Valuation" },
+  { key: "review", label: "Review & Send" },
+];
 
 export function useFieldConfig() {
   return useQuery({

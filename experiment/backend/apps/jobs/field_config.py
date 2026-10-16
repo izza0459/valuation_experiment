@@ -46,6 +46,7 @@ TABS = [
     {
         "key": "checklist",
         "label": "Check List",
+        "stage": "setup",
         "order": 1,
         "fields": [
             field("inspected_by", "Inspected By", "user", required=True),
@@ -67,6 +68,7 @@ TABS = [
     {
         "key": "instructions",
         "label": "Instructions",
+        "stage": "setup",
         "order": 2,
         "fields": [
             field("bank_reference_no", "Bank Reference No.", "text"),
@@ -83,6 +85,7 @@ TABS = [
     {
         "key": "address",
         "label": "Property Address",
+        "stage": "setup",
         "order": 3,
         "fields": [
             field("unit_number", "Unit Number", "text"),
@@ -114,6 +117,7 @@ TABS = [
     {
         "key": "summary",
         "label": "Summary",
+        "stage": "setup",
         "order": 4,
         "fields": [
             field("interest_valued", "Interest Valued", "select", required=True, options_key="interest_valued"),
@@ -159,6 +163,7 @@ TABS = [
     {
         "key": "inspection",
         "label": "Inspection",
+        "stage": "inspection",
         "order": 5,
         "fields": [
             field("inspection_date", "Inspection Date", "date", required=True),
@@ -202,10 +207,12 @@ TABS = [
             field("repairs", "Repairs (if any)", "textarea"),
         ],
     },
+    {"key": "photos", "label": "Photos", "stage": "inspection", "order": 6, "fields": []},
     {
         "key": "location",
         "label": "Location & Description",
-        "order": 6,
+        "stage": "valuation",
+        "order": 7,
         "fields": [
             field("property_status", "Property Status", "select", required=True, options_key="property_status"),
             field("built_about", "Built Year", "number"),
@@ -226,7 +233,8 @@ TABS = [
     {
         "key": "valuation",
         "label": "Valuation",
-        "order": 7,
+        "stage": "valuation",
+        "order": 8,
         "fields": [
             field("valuation_date", "Valuation Date", "date", required=True,
                   help_text="Usually the inspection date."),
@@ -251,9 +259,20 @@ TABS = [
                   visible_if={"field": "valuation.material_valuation_uncertainty", "op": "eq", "value": True}),
         ],
     },
-    {"key": "photos", "label": "Photos", "order": 8, "fields": []},
-    {"key": "documents", "label": "Documents", "order": 9, "fields": []},
-    {"key": "evidence", "label": "Evidence", "order": 10, "fields": []},
+    {"key": "documents", "label": "Documents", "stage": "valuation", "order": 9, "fields": []},
+    {"key": "evidence", "label": "Evidence", "stage": "valuation", "order": 10, "fields": []},
+    # Sending for review, the reviewer's sign-off, the counter-signature,
+    # issuing and sending to the bank, all in one place.
+    {"key": "review", "label": "Review & Send", "stage": "review", "order": 11, "fields": []},
+]
+
+# The workspace groups its tabs under these stages. Filling in a stage's tabs
+# moves the job on (see transitions.sync_stage); nothing is locked by stage.
+STAGES = [
+    {"key": "setup", "label": "Setup"},
+    {"key": "inspection", "label": "Inspection"},
+    {"key": "valuation", "label": "Valuation"},
+    {"key": "review", "label": "Review & Send"},
 ]
 
 
@@ -262,6 +281,10 @@ def get_tab(key: str) -> dict:
         if tab["key"] == key:
             return tab
     raise KeyError(key)
+
+
+def stage_tabs(stage: str) -> list[str]:
+    return [tab["key"] for tab in TABS if tab["stage"] == stage]
 
 
 def serialize_config() -> list:

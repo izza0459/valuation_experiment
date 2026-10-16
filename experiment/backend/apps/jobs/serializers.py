@@ -97,6 +97,11 @@ class JobDetailSerializer(serializers.ModelSerializer):
     # Issuing runs in the background; the screen polls while this is true.
     issue_in_progress = serializers.BooleanField(read_only=True)
     countersigned_by_name = serializers.SerializerMethodField()
+    # Review & Send tab: whether this user may send the issued report to the
+    # bank, who at the bank it can go to, and where it has been sent.
+    can_send_report = serializers.SerializerMethodField()
+    bank_contacts = serializers.SerializerMethodField()
+    deliveries = serializers.SerializerMethodField()
     checklist = ChecklistDataSerializer(read_only=True)
     summary = SummaryDataSerializer(read_only=True)
     inspection = InspectionDataSerializer(read_only=True)
@@ -116,6 +121,21 @@ class JobDetailSerializer(serializers.ModelSerializer):
         from .transitions import available_actions
 
         return available_actions(job, self.context["request"].user)
+
+    def get_can_send_report(self, job) -> bool:
+        from apps.reports.delivery import may_send
+
+        return job.is_locked and may_send(self.context["request"].user, job)
+
+    def get_bank_contacts(self, job) -> list:
+        from apps.reports.delivery import bank_contacts
+
+        return bank_contacts(job)
+
+    def get_deliveries(self, job) -> list:
+        from apps.reports.delivery import describe_delivery
+
+        return [describe_delivery(d) for d in job.deliveries.select_related("requested_by")]
 
     def get_countersigned_by_name(self, job):
         return str(job.countersigned_by) if job.countersigned_by_id else None
@@ -148,5 +168,5 @@ class JobDetailSerializer(serializers.ModelSerializer):
                 next(p for p in people if p["id"] == user.id)["roles"].append(role)
                 continue
             seen.add(user.id)
-            people.append({"id": user.id, "name": str(user), "roles": [role]})
+            people.append({"id": user.id, "name": str(user), "email": user.email, "roles": [role]})
         return people

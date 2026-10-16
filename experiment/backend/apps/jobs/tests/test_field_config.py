@@ -22,9 +22,24 @@ def find_field(tab_key, field_key):
 class TestStructure:
     def test_tabs_match_the_spec(self):
         assert [tab["key"] for tab in serialize_config()] == [
-            "checklist", "instructions", "address", "summary", "inspection",
-            "location", "valuation", "photos", "documents", "evidence",
+            "checklist", "instructions", "address", "summary", "inspection", "photos",
+            "location", "valuation", "documents", "evidence", "review",
         ]
+        assert [tab["order"] for tab in TABS] == sorted(tab["order"] for tab in TABS)
+
+    def test_every_tab_belongs_to_a_stage(self):
+        from apps.jobs.field_config import STAGES
+
+        stages = {s["key"] for s in STAGES}
+        assert all(tab["stage"] in stages for tab in TABS)
+
+    def test_a_stages_tabs_sit_together(self):
+        """The workspace groups the tab bar by stage."""
+        seen = []
+        for tab in TABS:
+            if not seen or seen[-1] != tab["stage"]:
+                assert tab["stage"] not in seen, f"{tab['key']} splits the {tab['stage']} stage"
+                seen.append(tab["stage"])
 
     def test_every_field_key_is_unique_within_its_tab(self):
         for tab in TABS:

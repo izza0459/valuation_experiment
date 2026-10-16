@@ -53,6 +53,17 @@ def describe(item, job) -> dict:
     return data
 
 
+def _sync_stage(job_id, user):
+    """Photos complete the Inspection stage, so an upload can move the job on."""
+    from django.db import transaction
+
+    from apps.audit.middleware import acting_as
+    from apps.jobs.transitions import sync_stage
+
+    with acting_as(user), transaction.atomic():
+        sync_stage(Job.objects.select_for_update().get(pk=job_id), user)
+
+
 class _MediaView(APIView):
     permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
@@ -112,6 +123,8 @@ class MediaListView(_MediaView):
         except TabError as exc:
             return self._fail(exc, job)
         body = {"created": [describe(i, job) for i in result.created], "rejected": result.rejected}
+        if result.created:
+            _sync_stage(job.pk, request.user)
         if not result.created:
             body.update(code="rejected", detail="None of the files could be added.")
             return Response(body, status=400)
