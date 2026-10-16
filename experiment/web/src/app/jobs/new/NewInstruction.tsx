@@ -37,7 +37,7 @@ const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
   {
     title: "Team",
     sub: "Who works on this job. These can be changed later on the Check List.",
-    keys: ["valuer", "registered_valuer", "inspected_by", "peer_reviewer", "counter_signatory"],
+    keys: ["valuer", "registered_valuer", "inspected_by", "peer_reviewer"],
   },
 ];
 

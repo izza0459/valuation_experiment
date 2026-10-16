@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * The Review & Send tab: everything after the data is in, in one place.
+ * The Review & Send tab. It shows only what matters at the job's point:
  *
- *   1. Send for review (the valuer)
- *   2. Peer review: "Good to go" or return, only by the assigned reviewer
- *   3. Counter-signature, only by the assigned counter-signatory
- *   4. Issue (the admin)
- *   5. Download the final PDF and send it to the bank
+ *   - Before review: send it to the peer reviewer.
+ *   - In review: the report, with "Sign off" and "Return to valuer" for the
+ *     assigned reviewer only. Their sign-off is the second signature and
+ *     produces the final report.
+ *   - Signed off: download it and send it to the bank (the admin who created
+ *     the job).
  *
  * The buttons come from `job.available_actions` (TransitionBar), which the
- * server computes from the rules it enforces, so this screen never offers a
- * step the server would refuse.
+ * server computes from the rules it enforces.
  */
 
 import { useState } from "react";
@@ -25,122 +25,136 @@ import { Banner } from "./ui";
 
 type Person = { id: number; name: string; email?: string; roles: string[] };
 
-const REVIEW_STATUSES = ["peer_review", "approved_signed", "issued"];
-
 function personFor(job: JobDetail, role: string): Person | undefined {
   return ((job.assignees ?? []) as Person[]).find((p) => p.roles.includes(role));
 }
 
-const who = (p?: Person) => (p ? `${p.name}${p.email ? ` (${p.email})` : ""}` : "not assigned yet");
+const who = (p?: Person) => (p ? `${p.name}${p.email && p.email !== p.name ? ` (${p.email})` : ""}` : "");
 
-export function ReviewPanel({ job, jobId }: { job: JobDetail; jobId: string }) {
-  const reviewer = personFor(job, "peer_reviewer");
-  const counter = personFor(job, "counter_signatory");
-  const admin = personFor(job, "admin");
-
-  const sent = REVIEW_STATUSES.includes(job.status);
-  const approved = job.status === "approved_signed" || job.status === "issued";
-  const countersigned = Boolean(job.countersigned_at) || job.status === "issued";
-  const issued = job.status === "issued";
-
-  const steps = [
-    { title: "Send for review", done: sent, current: !sent, detail: "The valuer sends the finished job to the peer reviewer." },
-    {
-      title: "Peer review",
-      done: approved,
-      current: job.status === "peer_review",
-      detail: `Only ${who(reviewer)} can say it's good to go, or return it with comments.`,
-    },
-    {
-      title: "Counter-signature",
-      done: countersigned,
-      current: job.status === "approved_signed" && !countersigned,
-      detail: `Signed by ${who(counter)}.`,
-    },
-    {
-      title: "Issue",
-      done: issued,
-      current: job.status === "approved_signed" && countersigned,
-      detail: `Issued by ${who(admin)}, which locks the job and stores the final PDF.`,
-    },
-    {
-      title: "Send to the bank",
-      done: (job.deliveries ?? []).length > 0,
-      current: issued,
-      detail: `${who(admin)} downloads the report and sends it to the bank from here.`,
-    },
-  ];
-
+function Heading({ title, sub }: { title: string; sub?: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gap: 18 }}>
-      <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
-        {steps.map((s, i) => (
-          <li
-            key={s.title}
-            className="row"
-            style={{
-              gap: 12,
-              alignItems: "flex-start",
-              padding: "12px 14px",
-              borderRadius: 8,
-              border: "1px solid " + (s.current ? "var(--action-primary)" : "var(--border-subtle)"),
-              background: s.current ? "var(--surface-subtle)" : "transparent",
-            }}
-          >
-            <span
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 12,
-                flexShrink: 0,
-                display: "grid",
-                placeItems: "center",
-                fontSize: 13,
-                color: s.done ? "#fff" : "var(--text-secondary)",
-                background: s.done ? "var(--green-600)" : "var(--gray-150)",
-              }}
-            >
-              {s.done ? <Icon name="check" size={14} color="#fff" /> : i + 1}
-            </span>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: s.current ? 500 : 400 }}>{s.title}</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{s.detail}</div>
-            </div>
-          </li>
-        ))}
-      </ol>
-
-      {/* The buttons for whatever this user can do now, with what blocks them. */}
-      <TransitionBar job={job} jobId={jobId} />
-
-      {job.status === "peer_review" && (
-        <div>
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 15 }}>The report as it stands</span>
-            <Button
-              size="sm"
-              variant="outline"
-              icon={<Icon name="external-link" size={16} />}
-              onClick={() => window.open(apiUrl(`/api/jobs/${jobId}/report/preview/`), "_blank", "noopener")}
-            >
-              Open in a new window
-            </Button>
-          </div>
-          <iframe
-            title="Report for review"
-            src={apiUrl(`/api/jobs/${jobId}/report/preview/`)}
-            style={{ width: "100%", height: 640, border: "1px solid var(--border-subtle)", borderRadius: 8, background: "#fff" }}
-          />
-        </div>
-      )}
-
-      {issued && <SendToBank job={job} jobId={jobId} />}
+    <div>
+      <div style={{ fontSize: 18 }}>{title}</div>
+      {sub && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
 
-/** The issued PDF, and a request to send it to someone at the bank. Only the
- * request is recorded for now; the email itself is wired in later. */
+function ReportFrame({ jobId }: { jobId: string }) {
+  const src = apiUrl(`/api/jobs/${jobId}/report/preview/`);
+  return (
+    <div>
+      <div className="row" style={{ justifyContent: "flex-end", marginBottom: 8 }}>
+        <Button size="sm" variant="outline" icon={<Icon name="external-link" size={16} />} onClick={() => window.open(src, "_blank", "noopener")}>
+          Open in a new window
+        </Button>
+      </div>
+      <iframe
+        title="Report for review"
+        src={src}
+        style={{ width: "100%", height: 640, border: "1px solid var(--border-subtle)", borderRadius: 8, background: "#fff" }}
+      />
+    </div>
+  );
+}
+
+export function ReviewPanel({ job, jobId, onSend }: { job: JobDetail; jobId: string; onSend: () => void }) {
+  const reviewer = personFor(job, "peer_reviewer");
+  const canSignOff = (job.available_actions ?? []).some((a) => a.to === "issued" && job.status === "peer_review");
+
+  // Signed off and issued: on to sending it.
+  if (job.status === "issued") {
+    return (
+      <div style={{ display: "grid", gap: 18 }}>
+        <Heading
+          title="Signed off"
+          sub={`${job.countersigned_by_name || reviewer?.name || "The peer reviewer"} signed it off. The final report is ready to send to the bank.`}
+        />
+        <div>
+          <Button icon={<Icon name="send" size={16} />} onClick={onSend}>
+            Go to Send to bank
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Signed off; the final report is being produced (or needs another try).
+  if (job.status === "approved_signed") {
+    return (
+      <div style={{ display: "grid", gap: 18 }}>
+        <Heading
+          title="Signed off"
+          sub={
+            job.issue_in_progress
+              ? "The final report is being produced. The send-to-bank option appears here when it's ready."
+              : "The final report hasn't been produced yet. An admin can try again below."
+          }
+        />
+        <TransitionBar job={job} jobId={jobId} />
+      </div>
+    );
+  }
+
+  // With the reviewer.
+  if (job.status === "peer_review") {
+    return (
+      <div style={{ display: "grid", gap: 18 }}>
+        {canSignOff ? (
+          <Heading
+            title="Review and sign off"
+            sub="Read the report below. Signing off is the second signature: the final PDF is produced and the job is locked. Or return it to the valuer with your comments."
+          />
+        ) : (
+          <Heading
+            title={`Waiting for ${reviewer?.name ?? "the peer reviewer"} to sign off`}
+            sub={`Only ${who(reviewer) || "the assigned peer reviewer"} can sign it off or return it. The job can't be edited meanwhile.`}
+          />
+        )}
+        <TransitionBar job={job} jobId={jobId} />
+        {canSignOff && <ReportFrame jobId={jobId} />}
+      </div>
+    );
+  }
+
+  // Still being worked on.
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <Heading
+        title="Send for review"
+        sub={
+          reviewer
+            ? `${who(reviewer)} reviews it and signs it off. Once they do, you can download the report and send it to the bank here.`
+            : "Assign a peer reviewer on the Check List first."
+        }
+      />
+      <TransitionBar job={job} jobId={jobId} />
+    </div>
+  );
+}
+
+/** The Send to bank stage: the issued report, and sending it. */
+export function SendPanel({ job, jobId }: { job: JobDetail; jobId: string }) {
+  const reviewer = personFor(job, "peer_reviewer");
+  if (job.status !== "issued") {
+    return (
+      <Heading
+        title="Send to bank"
+        sub={`This opens once ${reviewer?.name ?? "the peer reviewer"} has signed the report off.`}
+      />
+    );
+  }
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <Heading title="Send to bank" sub="Download the signed-off report, or send it to the bank from here." />
+      <TransitionBar job={job} jobId={jobId} />
+      <SendToBank job={job} jobId={jobId} />
+    </div>
+  );
+}
+
+/** Send the issued report to someone at the bank. Only the request is
+ * recorded for now; the email itself is wired in later. */
 function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
   const qc = useQueryClient();
   const contacts = job.bank_contacts ?? [];
@@ -175,23 +189,11 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
 
   return (
     <div className="card" style={{ padding: 18, display: "grid", gap: 14 }}>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 16 }}>Send the report to the bank</div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-            {job.bank_name as string} · the issued PDF goes as an attachment
-          </div>
+      <div>
+        <div style={{ fontSize: 16 }}>Send the report</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+          {job.bank_name as string} · the issued PDF goes as an attachment
         </div>
-        {job.issued_report && (
-          <Button
-            size="sm"
-            variant="outline"
-            icon={<Icon name="download" size={16} />}
-            onClick={() => window.open(apiUrl(`/api/jobs/${jobId}/report/${job.issued_report!.id}/pdf/`), "_blank", "noopener")}
-          >
-            Download PDF
-          </Button>
-        )}
       </div>
 
       {job.can_send_report ? (
@@ -211,7 +213,12 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
             {choice === "other" && (
               <div>
                 <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 6 }}>Email address</div>
-                <Input type="email" value={other} placeholder="name@bank.ae" onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOther(e.target.value)} />
+                <Input
+                  type="email"
+                  value={other}
+                  placeholder="name@bank.ae"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOther(e.target.value)}
+                />
               </div>
             )}
           </div>

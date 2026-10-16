@@ -94,17 +94,26 @@ TRANSITION_RULES = {
     },
     (JobStatus.PEER_REVIEW, JobStatus.VALUATION_IN_PROGRESS):
         TransitionRule("Return to valuer", {Role.PEER_REVIEWER}, comments_required=True, tone="outline"),
-    (JobStatus.PEER_REVIEW, JobStatus.APPROVED_SIGNED):
-        TransitionRule("Good to go", {Role.PEER_REVIEWER}, gate="approval_ready"),
-    # The second signature (CLAUDE.md §3: no issue without counter-signature).
-    # Only the assigned counter-signatory can give it; admins can't stand in.
+    # The reviewer's sign-off is the second signature and finalises the report
+    # in one step: approved, counter-signed by the reviewer, then issued
+    # (transitions.perform_transition). Only the assigned reviewer can give it.
+    (JobStatus.PEER_REVIEW, JobStatus.ISSUED):
+        TransitionRule("Sign off", {Role.PEER_REVIEWER}, gate="signoff_ready"),
+    # A separate second signature, for jobs approved before sign-off became
+    # one step. Only the assigned counter-signatory can give it.
     (JobStatus.APPROVED_SIGNED, JobStatus.APPROVED_SIGNED):
         TransitionRule("Counter-sign", {Role.COUNTER_SIGNATORY}, gate="countersign_ready", action="countersign"),
     (JobStatus.APPROVED_SIGNED, JobStatus.VALUATION_IN_PROGRESS):
         TransitionRule("Reopen", {Role.PEER_REVIEWER, Role.ADMIN}, comments_required=True, tone="outline"),
+    # Retrying a sign-off whose report couldn't be produced.
     (JobStatus.APPROVED_SIGNED, JobStatus.ISSUED):
         TransitionRule("Issue report", {Role.ADMIN}, gate="issue_ready"),
 }
+
+
+# Sign-off moves peer_review -> approved_signed -> issued in one request; it
+# is the one rule that isn't a single allowed move.
+SIGN_OFF = (JobStatus.PEER_REVIEW, JobStatus.ISSUED)
 
 
 class TransitionError(Exception):

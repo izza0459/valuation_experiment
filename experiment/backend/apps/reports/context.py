@@ -371,7 +371,9 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     )
 
     valuer = person_block(job.registered_valuer)
-    counter_signatory = person_block(job.counter_signatory)
+    # The peer reviewer's sign-off is the second signature (they become the
+    # counter-signatory when they sign off), so a draft shows them already.
+    counter_signatory = person_block(job.counter_signatory or job.peer_reviewer)
     if issued is None:
         issued = job.is_locked
 

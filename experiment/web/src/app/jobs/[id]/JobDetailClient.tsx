@@ -3,18 +3,21 @@
 /**
  * Job workspace — design brief S3.
  *
- * Ported from the prototype's `job-workspace-and-review.jsx`: job header,
- * stage progress, the tab rail grouped by stage with completion rings,
- * previous/next buttons, and the right panel.
+ * The job moves through five stages, shown as the main tabs, each with the
+ * person responsible for it:
  *
- * Tabs are edited in place through `TabEditor`, which renders each tab from
- * the shared field config and autosaves via the per-tab PATCH endpoint.
+ *   Setup (admin) → Inspection (inspector) → Valuation (valuer)
+ *     → Review (peer reviewer) → Send to bank (admin)
+ *
+ * A stage's sections (the data-entry tabs from the field config) sit under
+ * it. Completing a stage's sections moves the job on by itself (server:
+ * transitions.sync_stage); nothing is locked by stage. Previous/next buttons
+ * walk every section in order, across stages.
+ *
+ * Sections are edited in place through `TabEditor`, which renders each one
+ * from the shared field config and autosaves via the per-tab PATCH endpoint.
  * Completion rings come from the server, which evaluates the same
- * required/visible rules, so there is one answer to "is this tab done?".
- *
- * Not built on top of this yet: the prototype's bespoke composites
- * (per-floor accommodation, photo grid, document table, AVM deviation).
- * They need backend that doesn't exist (build order steps 5 and 7).
+ * required/visible rules, so there is one answer to "is this section done?".
  */
 
 import { useState } from "react";
@@ -23,15 +26,25 @@ import { Avatar, Button, Icon } from "@/design-system";
 import { Banner, Ring, Shell, StatusChip } from "@/components/vp/ui";
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { ReportActions } from "@/components/vp/ReportActions";
-import { ReviewPanel } from "@/components/vp/ReviewPanel";
+import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { RightPanel } from "@/components/vp/RightPanel";
 import { TabEditor } from "@/components/vp/TabEditor";
-import { STAGES, useFieldConfig, type StageKey } from "@/lib/fieldConfig";
-import { buildTabValues, useJob } from "@/lib/jobs";
+import { useFieldConfig, type TabDef } from "@/lib/fieldConfig";
+import { buildTabValues, useJob, type JobDetail } from "@/lib/jobs";
 
-/** Which stage the job's status sits in. The stages before review move on by
- * themselves as their tabs are completed (server: transitions.sync_stage). */
-const STAGE_FOR_STATUS: Record<string, StageKey> = {
+type NavStage = "setup" | "inspection" | "valuation" | "review" | "send";
+
+/** The main tabs, and whose stage each is (a role on the job). */
+const NAV: { key: NavStage; label: string; role: string; roleLabel: string }[] = [
+  { key: "setup", label: "Setup", role: "admin", roleLabel: "Admin" },
+  { key: "inspection", label: "Inspection", role: "inspector", roleLabel: "Inspector" },
+  { key: "valuation", label: "Valuation", role: "valuer", roleLabel: "Valuer" },
+  { key: "review", label: "Review", role: "peer_reviewer", roleLabel: "Peer reviewer" },
+  { key: "send", label: "Send to bank", role: "admin", roleLabel: "Admin" },
+];
+
+/** Where the job's status sits among the stages. */
+const STAGE_FOR_STATUS: Record<string, NavStage> = {
   instruction_received: "setup",
   setup: "setup",
   inspection_scheduled: "inspection",
@@ -39,16 +52,23 @@ const STAGE_FOR_STATUS: Record<string, StageKey> = {
   valuation_in_progress: "valuation",
   peer_review: "review",
   approved_signed: "review",
-  issued: "review",
+  issued: "send",
 };
-const REVIEW_PROGRESS: Record<string, number> = { peer_review: 33, approved_signed: 66, issued: 100 };
 
+type Page = { key: string; label: string; stage: NavStage; tab?: TabDef };
 type Assignee = { id: number; name: string; roles: string[] };
+
+function stageDone(stage: NavStage, job: JobDetail, pages: Page[]): boolean {
+  if (stage === "review") return job.status === "approved_signed" || job.status === "issued";
+  if (stage === "send") return (job.deliveries ?? []).length > 0;
+  const inStage = pages.filter((p) => p.stage === stage && p.tab);
+  return inStage.length > 0 && inStage.every((p) => (job.tabs[p.key]?.completion.pct ?? 0) === 100);
+}
 
 export function JobDetailClient({ id }: { id: string }) {
   const { data: job, isLoading: jobLoading, isError } = useJob(id);
   const { data: tabs, isLoading: tabsLoading } = useFieldConfig();
-  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(null);
 
   if (jobLoading || tabsLoading) {
     return (
@@ -65,8 +85,7 @@ export function JobDetailClient({ id }: { id: string }) {
         <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
           <div style={{ fontSize: 17 }}>Could not load this job.</div>
           <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 6 }}>
-            It may not exist, or you may not hold a role on it. SSO isn&apos;t wired up yet — sign in
-            via the Django admin first.
+            It may not exist, or you may not hold a role on it.
           </div>
         </div>
       </Shell>
@@ -74,35 +93,52 @@ export function JobDetailClient({ id }: { id: string }) {
   }
 
   const allValues = buildTabValues(job);
-  const orderedTabs = [...(tabs ?? [])].sort((a, b) => a.order - b.order);
-  const currentStage = STAGE_FOR_STATUS[job.status] ?? "setup";
-  // A job under review or issued opens on Review & Send; otherwise on the first tab.
-  const defaultTab = currentStage === "review" ? "review" : orderedTabs[0]?.key;
-  const currentTab = orderedTabs.find((t) => t.key === (activeTab ?? defaultTab)) ?? orderedTabs[0];
-  const index = orderedTabs.findIndex((t) => t.key === currentTab?.key);
-  const prevTab = index > 0 ? orderedTabs[index - 1] : null;
-  const nextTab = index >= 0 && index < orderedTabs.length - 1 ? orderedTabs[index + 1] : null;
-  const stageLabel = (key: StageKey) => STAGES.find((s) => s.key === key)?.label ?? key;
+  // Every section in order, then the Send to bank page (not a form tab).
+  const pages: Page[] = [
+    ...[...(tabs ?? [])]
+      .sort((a, b) => a.order - b.order)
+      .map((t) => ({ key: t.key, label: t.key === "review" ? "Review & sign off" : t.label, stage: t.stage as NavStage, tab: t })),
+    { key: "send", label: "Send to bank", stage: "send" },
+  ];
+
+  const statusStage = STAGE_FOR_STATUS[job.status] ?? "setup";
+  const defaultPage =
+    pages.find((p) => p.stage === statusStage && p.tab && (job.tabs[p.key]?.completion.pct ?? 100) < 100) ??
+    pages.find((p) => p.stage === statusStage) ??
+    pages[0];
+  const current = pages.find((p) => p.key === active) ?? defaultPage;
+  const index = pages.findIndex((p) => p.key === current.key);
+  const prev = index > 0 ? pages[index - 1] : null;
+  const next = index < pages.length - 1 ? pages[index + 1] : null;
+  const stageLabel = (key: NavStage) => NAV.find((s) => s.key === key)?.label ?? key;
+  const stagePages = pages.filter((p) => p.stage === current.stage);
+
   const go = (key: string) => {
-    setActiveTab(key);
+    setActive(key);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
-  const stagePct = (key: StageKey) => {
-    if (key === "review") return REVIEW_PROGRESS[job.status] ?? 0;
-    const inStage = orderedTabs.filter((t) => t.stage === key);
-    if (!inStage.length) return 0;
-    return Math.round(inStage.reduce((sum, t) => sum + (job.tabs[t.key]?.completion.pct ?? 0), 0) / inStage.length);
+  const goStage = (stage: NavStage) => {
+    const inStage = pages.filter((p) => p.stage === stage);
+    const firstOpen = inStage.find((p) => p.tab && (job.tabs[p.key]?.completion.pct ?? 100) < 100);
+    go((firstOpen ?? inStage[0]).key);
   };
 
   const property = (job.property ?? {}) as Record<string, string>;
   const assignees = (job.assignees ?? []) as Assignee[];
+  const ownerOf = (role: string) => assignees.find((a) => a.roles.includes(role))?.name;
   const isLocked = job.is_locked;
+
+  const nextLabel = (p: Page) =>
+    p.stage === current.stage ? `Next: ${p.label}` : `Next: ${stageLabel(p.stage)}${p.label !== stageLabel(p.stage) && stagePagesCount(p.stage) > 1 ? ` · ${p.label}` : ""}`;
+  const prevLabel = (p: Page) => (p.stage === current.stage ? p.label : `${stageLabel(p.stage)}${stagePagesCount(p.stage) > 1 ? ` · ${p.label}` : ""}`);
+  function stagePagesCount(stage: NavStage) {
+    return pages.filter((p) => p.stage === stage).length;
+  }
 
   return (
     <Shell>
-      {/* --- header ------------------------------------------------- */}
-      <div className="card" style={{ marginBottom: 16, padding: "18px 22px" }}>
+      {/* --- header: the job, then its stages ------------------------- */}
+      <div className="card" style={{ marginBottom: 16, padding: "18px 22px 0" }}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>
@@ -112,13 +148,11 @@ export function JobDetailClient({ id }: { id: string }) {
               › {job.bayut_internal_reference_no}
             </div>
             <div className="row" style={{ gap: 10 }}>
-              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500 }}>{job.property_label}</h1>
-              {isLocked && <Icon name="lock" size={20} color="var(--text-muted)" />}
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 500 }}>{job.property_label}</h1>
+              {isLocked && <Icon name="lock" size={18} color="var(--text-muted)" />}
             </div>
             <div className="row wrap" style={{ gap: "4px 14px", marginTop: 6, fontSize: 14, color: "var(--text-secondary)" }}>
-              <span>
-                {job.property_type || "—"} · {property.title_doc_emirate || "Dubai"}
-              </span>
+              <span>{property.title_doc_emirate || "Dubai"}</span>
               <span>
                 Bayut ref <span className="num">{job.bayut_internal_reference_no}</span>
               </span>
@@ -131,7 +165,8 @@ export function JobDetailClient({ id }: { id: string }) {
             </div>
           </div>
 
-          <div className="row" style={{ gap: 18, flexShrink: 0 }}>
+          <div className="row" style={{ gap: 12, flexShrink: 0 }}>
+            {!isLocked && current.stage !== "review" && current.stage !== "send" && <ReportActions jobId={id} />}
             <StatusChip s={job.status_label as string} />
             <div className="row" style={{ gap: 0 }}>
               {assignees.map((person, i) => (
@@ -140,185 +175,175 @@ export function JobDetailClient({ id }: { id: string }) {
                   title={`${person.name} · ${person.roles.map((r) => r.replace(/_/g, " ")).join(", ")}`}
                   style={{ marginLeft: i ? -8 : 0, boxShadow: "0 0 0 2px #fff", borderRadius: "50%" }}
                 >
-                  <Avatar name={person.name} size={34} />
+                  <Avatar name={person.name} size={32} />
                 </span>
               ))}
             </div>
           </div>
         </div>
 
-        {/* --- stages: each fills as its tabs are completed ----------- */}
-        <div className="row" style={{ gap: 10, marginTop: 16 }}>
-          {STAGES.map((stage) => {
-            const pct = stagePct(stage.key);
-            const on = stage.key === currentStage;
-            const first = orderedTabs.find((t) => t.stage === stage.key);
+        {/* --- the stages, as tabs ------------------------------------ */}
+        <nav aria-label="Stages" style={{ display: "flex", marginTop: 18, borderTop: "1px solid var(--border-divider)" }}>
+          {NAV.map((stage, i) => {
+            const done = stageDone(stage.key, job, pages);
+            const selected = stage.key === current.stage;
+            const now = stage.key === statusStage && !done;
+            const owner = ownerOf(stage.role);
             return (
               <button
                 key={stage.key}
                 type="button"
-                onClick={() => first && go(first.key)}
-                style={{ flex: 1, border: 0, background: "none", padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}
+                onClick={() => goStage(stage.key)}
+                aria-current={selected ? "step" : undefined}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "14px 10px 12px",
+                  border: 0,
+                  borderBottom: `2px solid ${selected ? "var(--action-primary)" : "transparent"}`,
+                  background: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontFamily: "inherit",
+                }}
               >
-                <div style={{ height: 4, borderRadius: 2, background: "var(--gray-200)", overflow: "hidden" }}>
-                  <div style={{ width: `${pct}%`, height: "100%", background: pct === 100 ? "var(--green-600)" : "var(--action-primary)" }} />
-                </div>
-                <div className="row" style={{ justifyContent: "space-between", fontSize: 13, marginTop: 6 }}>
-                  <span style={{ color: on ? "var(--text-accent)" : "var(--text-secondary)", fontWeight: on ? 500 : 400 }}>
+                <span
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    flexShrink: 0,
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 13,
+                    background: done ? "var(--green-600)" : now ? "var(--action-primary)" : "var(--gray-150)",
+                    color: done || now ? "#fff" : "var(--text-secondary)",
+                  }}
+                >
+                  {done ? <Icon name="check" size={14} color="#fff" /> : i + 1}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 14,
+                      fontWeight: selected ? 500 : 400,
+                      color: selected ? "var(--text-accent)" : "var(--text-primary)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
                     {stage.label}
                   </span>
-                  <span className="num" style={{ color: "var(--text-muted)" }}>{pct}%</span>
-                </div>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: "var(--text-muted)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={owner ? `${stage.roleLabel}: ${owner}` : undefined}
+                  >
+                    {owner ?? `${stage.roleLabel} not assigned`}
+                  </span>
+                </span>
               </button>
             );
           })}
-        </div>
-
-        {/* The Review & Send tab has these itself. */}
-        {!isLocked && currentTab?.key !== "review" && (
-          <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-divider)" }}>
-            <ReportActions jobId={id} />
-            <Button size="sm" variant="soft" icon={<Icon name="send" size={16} />} onClick={() => go("review")}>
-              Review &amp; Send
-            </Button>
-          </div>
-        )}
+        </nav>
       </div>
 
       {job.issue_in_progress && (
         <Banner tone="blue" icon="loader">
-          <b style={{ fontWeight: 500 }}>Issuing the final report…</b> This page updates when it&apos;s done.
+          <b style={{ fontWeight: 500 }}>Producing the final report…</b> This page updates when it&apos;s done.
         </Banner>
       )}
 
       {!isLocked && !job.issue_in_progress && job.issue_error && (
         <Banner tone="red" icon="alert-circle">
-          <b style={{ fontWeight: 500 }}>The last attempt to issue failed.</b> {job.issue_error}
+          <b style={{ fontWeight: 500 }}>The final report couldn&apos;t be produced.</b> {job.issue_error}
         </Banner>
       )}
-
-      {job.status === "approved_signed" && !job.issue_in_progress && (
-        <Banner tone={job.countersigned_at ? "green" : "amber"} icon={job.countersigned_at ? "check" : "pen-tool"}>
-          {job.countersigned_at
-            ? `Counter-signed by ${job.countersigned_by_name ?? "the counter-signatory"} on ${new Date(job.countersigned_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}.`
-            : "Waiting for the counter-signatory to counter-sign before the report can be issued."}
-        </Banner>
-      )}
-
-      {isLocked && (
-        <Banner tone="blue" icon="lock">
-          <b style={{ fontWeight: 500 }}>
-            Issued as v{job.version}
-            {job.issued_at ? ` on ${new Date(job.issued_at as string).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}` : ""}.
-          </b>{" "}
-          This job is locked — the server rejects edits. To amend it, create a revision: a new version that keeps this one as signed.
-        </Banner>
-      )}
-
-      {/* --- tab rail ----------------------------------------------- */}
-      <div className="card" style={{ padding: "0 8px", marginBottom: 16, display: "flex", overflowX: "auto" }}>
-        {orderedTabs.map((tab, i) => {
-          const { pct, missing } = job.tabs[tab.key]?.completion ?? { pct: 0, missing: [] };
-          const on = tab.key === currentTab?.key;
-          const startsStage = i === 0 || orderedTabs[i - 1].stage !== tab.stage;
-          return (
-            <div
-              key={tab.key}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                borderLeft: startsStage && i > 0 ? "1px solid var(--border-divider)" : undefined,
-                paddingLeft: startsStage && i > 0 ? 6 : 0,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: ".04em",
-                  textTransform: "uppercase",
-                  color: "var(--text-muted)",
-                  padding: "8px 14px 0",
-                  visibility: startsStage ? "visible" : "hidden",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {stageLabel(tab.stage)}
-              </div>
-            <button
-              onClick={() => go(tab.key)}
-              title={missing.length ? `Missing: ${missing.join(", ")}` : undefined}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 14px 12px",
-                border: 0,
-                background: "none",
-                fontFamily: "inherit",
-                fontSize: 14,
-                whiteSpace: "nowrap",
-                cursor: "pointer",
-                color: on ? "var(--text-accent)" : "var(--text-secondary)",
-                borderBottom: "2px solid " + (on ? "var(--action-primary)" : "transparent"),
-              }}
-            >
-              <Ring pct={pct} warn={missing.length > 0} />
-              {tab.label}
-              {missing.length > 0 && <i className="dot" style={{ background: "var(--amber-600)" }} />}
-            </button>
-            </div>
-          );
-        })}
-      </div>
 
       {/* --- body + right panel -------------------------------------- */}
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="card">
-            {currentTab?.key === "review" ? (
-              <ReviewPanel job={job} jobId={id} />
-            ) : currentTab?.key === "evidence" ? (
+            {/* The stage's sections, when it has more than one. */}
+            {stagePages.length > 1 && (
+              <div className="row wrap" style={{ gap: 6, marginBottom: 20 }}>
+                {stagePages.map((p) => {
+                  const { pct, missing } = job.tabs[p.key]?.completion ?? { pct: 0, missing: [] };
+                  const on = p.key === current.key;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => go(p.key)}
+                      title={missing.length ? `Missing: ${missing.join(", ")}` : undefined}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "7px 12px",
+                        borderRadius: 999,
+                        border: `1px solid ${on ? "var(--action-primary)" : "var(--border-subtle)"}`,
+                        background: on ? "var(--surface-subtle)" : "var(--surface-card)",
+                        color: on ? "var(--text-accent)" : "var(--text-secondary)",
+                        fontFamily: "inherit",
+                        fontSize: 14,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <Ring pct={pct} size={18} warn={missing.length > 0} />
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {current.key === "review" ? (
+              <ReviewPanel job={job} jobId={id} onSend={() => go("send")} />
+            ) : current.key === "send" ? (
+              <SendPanel job={job} jobId={id} />
+            ) : current.key === "evidence" ? (
               <EvidenceTab
                 jobId={id}
                 canEdit={Boolean(job.tabs.evidence?.can_edit)}
                 readOnlyReason={job.tabs.evidence?.read_only_reason ?? ""}
               />
             ) : (
-              currentTab &&
-              job.tabs[currentTab.key] && (
-                // Keyed so each tab gets its own autosave state, and leaving a
-                // tab flushes whatever was typed last.
-                <TabEditor
-                  key={currentTab.key}
-                  jobId={id}
-                  tab={currentTab}
-                  state={job.tabs[currentTab.key]}
-                  allValues={allValues}
-                />
+              current.tab &&
+              job.tabs[current.key] && (
+                // Keyed so each section gets its own autosave state, and
+                // leaving one flushes whatever was typed last.
+                <TabEditor key={current.key} jobId={id} tab={current.tab} state={job.tabs[current.key]} allValues={allValues} />
               )
             )}
 
-            {/* --- previous / next tab, across stages ----------------- */}
+            {/* --- previous / next, across stages ---------------------- */}
             <div
               className="row"
               style={{ justifyContent: "space-between", marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-divider)" }}
             >
-              {prevTab ? (
-                <Button variant="outline" size="sm" icon={<Icon name="chevron-left" size={16} />} onClick={() => go(prevTab.key)}>
-                  {prevTab.stage === currentTab?.stage || prevTab.label === stageLabel(prevTab.stage)
-                    ? prevTab.label
-                    : `${stageLabel(prevTab.stage)}: ${prevTab.label}`}
+              {prev ? (
+                <Button variant="outline" size="sm" icon={<Icon name="chevron-left" size={16} />} onClick={() => go(prev.key)}>
+                  {prevLabel(prev)}
                 </Button>
               ) : (
                 <span />
               )}
-              {nextTab && (
-                <Button size="sm" onClick={() => go(nextTab.key)}>
-                  {nextTab.stage === currentTab?.stage
-                    ? `Next: ${nextTab.label}`
-                    : nextTab.label === stageLabel(nextTab.stage)
-                      ? `Next stage: ${nextTab.label}`
-                      : `Next stage: ${stageLabel(nextTab.stage)} · ${nextTab.label}`}
+              {next && (
+                <Button size="sm" onClick={() => go(next.key)}>
+                  {nextLabel(next)}
                   <Icon name="chevron-right" size={16} />
                 </Button>
               )}

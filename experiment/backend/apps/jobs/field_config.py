@@ -52,8 +52,6 @@ TABS = [
             field("inspected_by", "Inspected By", "user", required=True),
             field("valuer", "Valuer", "user", required=True),
             field("peer_reviewer", "Peer Reviewer", "user"),
-            field("counter_signatory", "Counter-signatory", "user",
-                  help_text="Second signature authorising the report."),
             field("dld_location_checked", "DLD Location checked", "boolean", default=False,
                   help_text="Checked on the Makani website / DDA."),
             field("makani_photo", "Makani Photo", "boolean", default=False),

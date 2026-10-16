@@ -205,7 +205,8 @@ class TestIssuing:
         approved.refresh_from_db()
         assert not approved.is_locked and not ReportVersion.objects.exists()
 
-    def test_the_admin_is_offered_issue_and_sees_what_blocks_it(self, approved, boss):
+    def test_the_admin_is_offered_issue_and_sees_what_blocks_it(self, approved, boss, settings):
+        settings.REPORT_FIRM_LEGAL_NAME = ""  # the shipped template then has a placeholder
         ReportTemplate.objects.update(active=False)
         client = APIClient()
         client.force_authenticate(boss)
@@ -324,3 +325,55 @@ def test_the_real_engine_produces_the_final_pdf(approved, boss, monkeypatch, sto
     assert issue(boss, approved).status_code == 200
     version = ReportVersion.objects.get(job=approved)
     assert (storage / version.pdf_s3_key).read_bytes().startswith(b"%PDF")
+
+
+# --- sign-off: the reviewer's approval is the second signature and finalises the report ---------
+
+
+class TestSignOff:
+    @pytest.fixture
+    def in_review(self, boss, clean_template):
+        dan, pat = make_user("dan"), make_user("pat")
+        job = Job.objects.create(
+            bank=Bank.objects.create(name="Test Bank"),
+            property=Property.objects.create(unit_number="312", building_name="Rukan Residences"),
+            valuer=dan, inspected_by=dan, registered_valuer=dan, peer_reviewer=pat,
+            admin_user=boss, report_template=clean_template,
+        )
+        fill_everything(job)
+        return get_to(Job.objects.get(pk=job.pk), JobStatus.PEER_REVIEW)
+
+    def sign_off(self, user, job, comments=""):
+        client = APIClient()
+        client.force_authenticate(user)
+        return client.post(
+            f"/api/jobs/{job.pk}/transitions/", {"from": "peer_review", "to": "issued", "comments": comments},
+            format="json",
+        )
+
+    def test_the_reviewers_sign_off_issues_the_report_with_them_as_second_signatory(self, in_review):
+        pat = in_review.peer_reviewer
+        res = self.sign_off(pat, in_review, "Happy with the evidence.")
+        assert res.status_code in (200, 202), res.json()
+        job = Job.objects.get(pk=in_review.pk)
+        assert job.is_locked and job.status == JobStatus.ISSUED
+        assert job.counter_signatory == pat and job.countersigned_by == pat
+        version = ReportVersion.objects.get(job=job)
+        assert version.issued_by == pat and version.input_snapshot["counter_signatory"]["name"] == "Pat"
+        steps = list(JobTransition.objects.filter(job=job).order_by("id").values_list("from_status", "to_status"))
+        assert steps[-2:] == [("peer_review", "approved_signed"), ("approved_signed", "issued")]
+        assert JobTransition.objects.filter(job=job, comments="Happy with the evidence.").exists()
+
+    def test_the_draft_already_names_the_reviewer_as_second_signatory(self, in_review):
+        from apps.reports.context import build_context
+
+        assert build_context(in_review)["counter_signatory"]["name"] == "Pat"
+
+    def test_nothing_is_written_while_something_blocks_it(self, in_review):
+        ValuerProfile.objects.filter(user=in_review.peer_reviewer).update(
+            rera_licence_expiry=datetime.date(2020, 1, 1)
+        )
+        res = self.sign_off(in_review.peer_reviewer, in_review)
+        assert res.status_code == 422
+        job = Job.objects.get(pk=in_review.pk)
+        assert job.status == JobStatus.PEER_REVIEW and job.counter_signatory is None

@@ -115,11 +115,24 @@ def countersign_ready(job) -> list[str]:
     return ["Already counter-signed."] if job.countersigned_at else []
 
 
-def approval_ready(job) -> list[str]:
-    blockers = []
-    if not job.counter_signatory_id:
-        blockers.append("Assign a counter-signatory on the Check List before approving.")
-    return blockers
+def _as_signed_off(job) -> Job:
+    """A fresh copy of `job` as it would be once the reviewer signs off, so
+    the final-report checks can run before anything is written."""
+    signed = Job.objects.get(pk=job.pk)
+    signed.status = JobStatus.APPROVED_SIGNED
+    signed.counter_signatory = job.peer_reviewer
+    signed.countersigned_by = job.peer_reviewer
+    signed.countersigned_at = timezone.now()
+    return signed
+
+
+def signoff_ready(job) -> list[str]:
+    """What stops the reviewer signing off, which also finalises the report."""
+    from apps.reports.issue import issue_blockers  # the reports app depends on this one
+
+    if not job.peer_reviewer_id:
+        return ["Assign a peer reviewer on the Check List."]
+    return [b.replace("Counter-signatory", "Peer reviewer") for b in issue_blockers(_as_signed_off(job))]
 
 
 def issue_ready(job) -> list[str]:
@@ -131,7 +144,7 @@ def issue_ready(job) -> list[str]:
 
 GATES = {
     "review_ready": review_ready,
-    "approval_ready": approval_ready,
+    "signoff_ready": signoff_ready,
     "countersign_ready": countersign_ready,
     "issue_ready": issue_ready,
 }
@@ -272,6 +285,17 @@ def perform_transition(job_id: int, user, from_status: str, to_status: str, comm
         if blockers := _blockers(job, rule):
             raise GateBlocked(blockers)
 
+        if to_status == JobStatus.ISSUED and from_status == JobStatus.PEER_REVIEW:
+            # Sign-off: the reviewer approves and gives the second signature,
+            # then the final report is produced as for any issue.
+            job.counter_signatory = user
+            job.transition_to(JobStatus.APPROVED_SIGNED)
+            job.countersigned_by = user
+            job.countersigned_at = timezone.now()
+            JobTransition.objects.create(
+                job=job, from_status=from_status, to_status=JobStatus.APPROVED_SIGNED, by=user,
+                comments=comments,
+            )
         if to_status == JobStatus.ISSUED:
             # The issue task writes the transition record when it succeeds.
             job.issue_requested_at = timezone.now()

@@ -601,7 +601,7 @@ class TestEditability:
         job = Job.objects.create(bank=bank, property=Property.objects.create(), inspected_by=ines, valuer=val)
         as_inspector = client_for(ines).get(f"/api/jobs/{job.pk}/").json()["tabs"]["checklist"]
         as_valuer = client_for(val).get(f"/api/jobs/{job.pk}/").json()["tabs"]["checklist"]
-        assert set(as_inspector["read_only_fields"]) == {"inspected_by", "valuer", "peer_reviewer", "counter_signatory"}
+        assert set(as_inspector["read_only_fields"]) == {"inspected_by", "valuer", "peer_reviewer"}
         assert as_valuer["read_only_fields"] == []
 
 

@@ -143,8 +143,12 @@ export function TransitionBar({ job, jobId }: { job: JobDetail; jobId: string })
 
       <Dialog
         open={confirming !== null}
-        title="Issue this report?"
-        subtitle="This produces the final PDF and locks the job. Changing anything afterwards means creating a new version."
+        title={job.status === "peer_review" ? "Sign off this report?" : "Issue this report?"}
+        subtitle={
+          job.status === "peer_review"
+            ? "Your sign-off is the report's second signature. The final PDF is produced and the job is locked; changing anything afterwards means creating a new version."
+            : "This produces the final PDF and locks the job. Changing anything afterwards means creating a new version."
+        }
         onClose={() => {
           setConfirming(null);
           setFailure(null);
@@ -155,7 +159,7 @@ export function TransitionBar({ job, jobId }: { job: JobDetail; jobId: string })
               Cancel
             </Button>
             <Button disabled={busy} onClick={() => confirming && run(confirming, "")}>
-              {busy ? "Issuing…" : "Issue report"}
+              {busy ? "Working…" : (confirming?.label ?? "Issue report")}
             </Button>
           </>
         }

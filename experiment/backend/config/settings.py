@@ -200,7 +200,9 @@ PEER_REVIEW_REQUIRES_INDEPENDENT_REVIEWER = env.bool("PEER_REVIEW_REQUIRES_INDEP
 REPORT_FIRM_NAME = env("REPORT_FIRM_NAME", default="Bayut Valuation Services")
 # The registered legal name the signatory confirms the report is authorised
 # by. Left empty, the report shows a placeholder and cannot be issued.
-REPORT_FIRM_LEGAL_NAME = env("REPORT_FIRM_LEGAL_NAME", default="")
+# TODO: the firm name stands in until the registered legal name is confirmed
+# (demo only); set REPORT_FIRM_LEGAL_NAME for real reports.
+REPORT_FIRM_LEGAL_NAME = env("REPORT_FIRM_LEGAL_NAME", default=REPORT_FIRM_NAME)
 REPORT_FIRM_ADDRESS = env(
     "REPORT_FIRM_ADDRESS", default="[Firm address – to be confirmed], Dubai, United Arab Emirates"
 )

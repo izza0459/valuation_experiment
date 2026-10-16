@@ -9,7 +9,7 @@ from apps.accounts.models import Role, User
 from apps.audit.models import AuditLog
 from apps.banks.models import Bank
 from apps.jobs.models import Job, JobTransition, Property
-from apps.jobs.workflow import ALLOWED_TRANSITIONS, TRANSITION_RULES, JobStatus
+from apps.jobs.workflow import ALLOWED_TRANSITIONS, SIGN_OFF, TRANSITION_RULES, JobStatus
 from apps.media_files.tests.helpers import attach_media
 
 pytestmark = pytest.mark.django_db
@@ -97,13 +97,14 @@ class TestRulesTable:
     def test_every_allowed_move_has_a_rule(self):
         """A move with no rule could never be made through the API."""
         allowed = {(a, b) for a, targets in ALLOWED_TRANSITIONS.items() for b in targets}
-        assert allowed - set(TRANSITION_RULES) == set()
+        # Approval only happens as part of the reviewer's sign-off.
+        assert allowed - set(TRANSITION_RULES) == {(S.PEER_REVIEW, S.APPROVED_SIGNED)}
 
     def test_every_rule_is_an_allowed_move(self):
         """Or an in-place action, which records something without moving."""
         allowed = {(a, b) for a, targets in ALLOWED_TRANSITIONS.items() for b in targets}
         moves = {key for key, rule in TRANSITION_RULES.items() if not rule.action}
-        assert moves <= allowed
+        assert moves - {SIGN_OFF} <= allowed
         assert all(a == b for (a, b), rule in TRANSITION_RULES.items() if rule.action)
 
     def test_roles_are_real_roles(self):
@@ -111,8 +112,8 @@ class TestRulesTable:
         for rule in TRANSITION_RULES.values():
             assert rule.roles <= valid
 
-    def test_only_the_assigned_reviewer_can_approve_or_return(self):
-        for key in ((S.PEER_REVIEW, S.APPROVED_SIGNED), (S.PEER_REVIEW, S.VALUATION_IN_PROGRESS)):
+    def test_only_the_assigned_reviewer_can_sign_off_or_return(self):
+        for key in (SIGN_OFF, (S.PEER_REVIEW, S.VALUATION_IN_PROGRESS)):
             assert TRANSITION_RULES[key].roles == {Role.PEER_REVIEWER}
 
     def test_returns_and_reopens_need_a_reason(self):
@@ -254,32 +255,29 @@ class TestReview:
         assert [e["comments"] for e in log if e["comments"]] == ["Second pass: still off.", "First pass: see comps."]
         assert log[0]["who"] == "Pat" and log[0]["label"] == "Return to valuer"
 
-    def test_approval_needs_a_counter_signatory(self, in_review, pat):
-        res = move(client_for(pat), in_review, S.APPROVED_SIGNED)
-        assert res.status_code == 422 and "counter-signatory" in " ".join(res.json()["blockers"])
+    def test_sign_off_says_what_still_blocks_the_final_report(self, in_review, pat):
+        """The full sign-off is in apps/reports/tests/test_issue.py; here the
+        reviewer has no RERA licence on file, which the report needs."""
+        res = move(client_for(pat), in_review, S.ISSUED)
+        assert res.status_code == 422
+        assert any("Peer reviewer's RERA licence" in b for b in res.json()["blockers"])
+        in_review.refresh_from_db()
+        assert in_review.status == S.PEER_REVIEW
 
-    def test_the_reviewer_approves(self, in_review, pat, dan):
-        Job.objects.filter(pk=in_review.pk).update(counter_signatory=dan)
-        res = move(client_for(pat), in_review, S.APPROVED_SIGNED, "Happy with the evidence.")
-        assert res.status_code == 200 and res.json()["status"] == S.APPROVED_SIGNED
-        assert JobTransition.objects.filter(job=in_review, comments="Happy with the evidence.").exists()
-
-    def test_the_valuer_cannot_approve_their_own_work(self, in_review, dan):
-        Job.objects.filter(pk=in_review.pk).update(counter_signatory=dan)
-        res = move(client_for(dan), in_review, S.APPROVED_SIGNED)
+    def test_the_valuer_cannot_sign_off_their_own_work(self, in_review, dan):
+        res = move(client_for(dan), in_review, S.ISSUED)
         assert res.status_code == 403 and res.json()["code"] == "forbidden"
 
-    def test_a_platform_admin_cannot_stand_in_for_the_reviewer(self, in_review, dan):
+    def test_a_platform_admin_cannot_stand_in_for_the_reviewer(self, in_review):
         """A review only means something if the assigned person did it."""
-        Job.objects.filter(pk=in_review.pk).update(counter_signatory=dan)
         boss = make_user("boss", roles=[Role.ADMIN])
-        assert move(client_for(boss), in_review, S.APPROVED_SIGNED).status_code == 403
+        assert move(client_for(boss), in_review, S.ISSUED).status_code == 403
         assert move(client_for(boss), in_review, S.VALUATION_IN_PROGRESS, "no").status_code == 403
 
-    def test_reviewer_sees_approve_and_return_the_valuer_sees_neither(self, in_review, pat, dan):
+    def test_reviewer_sees_sign_off_and_return_the_valuer_sees_neither(self, in_review, pat, dan):
         as_reviewer = client_for(pat).get(f"/api/jobs/{in_review.pk}/").json()["available_actions"]
         as_valuer = client_for(dan).get(f"/api/jobs/{in_review.pk}/").json()["available_actions"]
-        assert {a["label"] for a in as_reviewer} == {"Good to go", "Return to valuer"}
+        assert {a["label"] for a in as_reviewer} == {"Sign off", "Return to valuer"}
         assert as_valuer == []
 
 

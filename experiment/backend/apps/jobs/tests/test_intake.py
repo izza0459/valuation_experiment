@@ -55,12 +55,13 @@ class TestCreate:
         assert job.admin_user == admin
 
     def test_assigns_the_team(self, admin, bank):
-        val, ines, pat, cos = (make_user(n) for n in ("val", "ines", "pat", "cos"))
+        val, ines, pat = (make_user(n) for n in ("val", "ines", "pat"))
         res = create(admin, {"bank": bank.pk, "valuer": val.pk, "registered_valuer": val.pk,
-                             "inspected_by": ines.pk, "peer_reviewer": pat.pk, "counter_signatory": cos.pk})
+                             "inspected_by": ines.pk, "peer_reviewer": pat.pk})
         job = Job.objects.get(pk=res.json()["id"])
-        assert (job.valuer, job.registered_valuer, job.inspected_by, job.peer_reviewer, job.counter_signatory) == (
-            val, val, ines, pat, cos)
+        assert (job.valuer, job.registered_valuer, job.inspected_by, job.peer_reviewer) == (val, val, ines, pat)
+        # The reviewer's sign-off is the second signature; nobody is asked for it separately.
+        assert "counter_signatory" in create(admin, {"bank": bank.pk, "counter_signatory": pat.pk}).json()["errors"]
 
     def test_property_category_goes_to_the_summary(self, admin, bank):
         job = Job.objects.get(pk=create(admin, {"bank": bank.pk, "property_category": "villa"}).json()["id"])

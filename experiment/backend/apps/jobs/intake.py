@@ -26,7 +26,7 @@ INTAKE_FIELDS = {
         "unit_number", "building_name", "development", "community_name", "latitude", "longitude",
         "applicant_name", "ownership_name", "registered_valuer",
     },
-    "checklist": {"inspected_by", "valuer", "peer_reviewer", "counter_signatory"},
+    "checklist": {"inspected_by", "valuer", "peer_reviewer"},
     "summary": {"property_category"},
 }
 
