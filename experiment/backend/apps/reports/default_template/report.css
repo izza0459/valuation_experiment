@@ -1,7 +1,7 @@
 /* Standard valuation report. Placeholder branding until the final template
    arrives (CLAUDE.md §11): a text wordmark and a single accent colour. */
 
-:root { --accent: #b3261e; --ink: #1f2933; --muted: #616e7c; --rule: #d9dee3; --wash: #f5f7f9; }
+:root { --accent: #1f8a4c; --ink: #1f2933; --muted: #616e7c; --rule: #d9dee3; --wash: #f5f7f9; }
 
 @page {
   size: A4;
@@ -47,7 +47,7 @@ ul { margin: 0 0 3mm; padding-left: 5mm; }
 .terms p, .terms h4 { font-size: 9pt; }
 .terms h3 { margin-top: 4mm; }
 .placeholder { background: #fff3cd; border: 1pt dashed #b58105; padding: 2mm 3mm; color: #5c4400; font-size: 9pt; }
-.missing { color: var(--accent); }
+.missing { color: #b3261e; }
 
 table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; break-inside: auto; }
 tr { break-inside: avoid; }
@@ -81,4 +81,4 @@ figure img { width: 100%; }
 .missing-image { background: var(--wash); border: 0.5pt dashed var(--muted); color: var(--muted); padding: 12mm 4mm; text-align: center; font-size: 9pt; }
 figcaption { font-size: 8.5pt; color: var(--muted); }
 
-.draft-box { margin-top: 12mm; padding: 4mm; border: 1.5pt solid var(--accent); background: #fdecea; font-size: 9pt; }
+.draft-box { margin-top: 12mm; padding: 4mm; border: 1.5pt solid #b3261e; background: #fdecea; font-size: 9pt; }

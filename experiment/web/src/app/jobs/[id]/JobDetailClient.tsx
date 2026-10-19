@@ -33,6 +33,7 @@ import { RightPanel } from "@/components/vp/RightPanel";
 import { TabEditor } from "@/components/vp/TabEditor";
 import { useFieldConfig, type TabDef } from "@/lib/fieldConfig";
 import { buildTabValues, useJob, type JobDetail } from "@/lib/jobs";
+import { useMe } from "@/lib/auth";
 
 type NavStage = "setup" | "inspection" | "valuation" | "review" | "send";
 
@@ -75,6 +76,7 @@ function stageDone(stage: NavStage, job: JobDetail, pages: Page[]): boolean {
 export function JobDetailClient({ id }: { id: string }) {
   const { data: job, isLoading: jobLoading, isError } = useJob(id);
   const { data: tabs, isLoading: tabsLoading } = useFieldConfig();
+  const { data: me } = useMe();
   const [active, setActive] = useState<string | null>(null);
   // A small notification card (top right) that goes after 5 seconds: what
   // stops moving on, or which stage the job has moved to.
@@ -134,15 +136,26 @@ export function JobDetailClient({ id }: { id: string }) {
     return { pct: Math.min(...parts.map((c) => c.pct)), missing: parts.flatMap((c) => c.missing) };
   };
 
-  const statusStage = STAGE_FOR_STATUS[job.status] ?? "setup";
+  // Ops look after Setup only: once it is done the job is the valuer's, so
+  // the later stages are greyed out for them rather than opened read-only.
+  const opsView =
+    Boolean(me?.authenticated && me.user.roles.includes("ops")) &&
+    Boolean(job.tabs.instructions?.can_edit) &&
+    !job.tabs.inspection?.can_edit &&
+    !job.tabs.summary?.can_edit;
+  const statusStage = opsView ? "setup" : STAGE_FOR_STATUS[job.status] ?? "setup";
   const defaultPage =
     navPages.find((p) => p.stage === statusStage && p.tab && completionOf(p.key).pct < 100) ??
     navPages.find((p) => p.stage === statusStage) ??
     navPages[0];
-  const current = navPages.find((p) => p.key === active) ?? defaultPage;
+  const current = navPages.find((p) => p.key === active && (!opsView || p.stage === "setup")) ?? defaultPage;
   const index = navPages.findIndex((p) => p.key === current.key);
   const prev = index > 0 ? navPages[index - 1] : null;
-  const next = index < navPages.length - 1 ? navPages[index + 1] : null;
+  const nextPage = index < navPages.length - 1 ? navPages[index + 1] : null;
+  // For ops the walk ends with Setup: the next stage is the valuer's.
+  const next = opsView && nextPage && nextPage.stage !== "setup" ? null : nextPage;
+  const setupDone = (pages.filter((p) => p.stage === "setup" && p.tab)).every((p) => (job.tabs[p.key]?.completion.pct ?? 0) === 100);
+  const valuerName = (job.assignees as { name: string; roles: string[] }[] | undefined)?.find((a) => a.roles.includes("valuer"))?.name;
   const stageLabel = (key: NavStage) => NAV.find((s) => s.key === key)?.label ?? key;
   const stagePages = navPages.filter((p) => p.stage === current.stage);
 
@@ -271,13 +284,18 @@ export function JobDetailClient({ id }: { id: string }) {
             const selected = stage.key === current.stage;
             const now = stage.key === statusStage && !done;
             const owner = ownerOf(stage.role);
+            const greyed = opsView && stage.key !== "setup";
             return (
               <button
                 key={stage.key}
                 type="button"
+                disabled={greyed}
+                title={greyed ? "The valuer's stage" : undefined}
                 onClick={() => goStage(stage.key)}
                 aria-current={selected ? "step" : undefined}
                 style={{
+                  opacity: greyed ? 0.4 : 1,
+                  cursor: greyed ? "not-allowed" : "pointer",
                   flex: 1,
                   minWidth: 0,
                   display: "flex",
@@ -287,7 +305,6 @@ export function JobDetailClient({ id }: { id: string }) {
                   border: 0,
                   borderBottom: `2px solid ${selected ? "var(--action-primary)" : "transparent"}`,
                   background: "none",
-                  cursor: "pointer",
                   textAlign: "left",
                   fontFamily: "inherit",
                 }}
@@ -454,6 +471,14 @@ export function JobDetailClient({ id }: { id: string }) {
               className="row"
               style={{ justifyContent: "space-between", marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-divider)" }}
             >
+              {opsView && current.stage === "setup" && !next && (
+                <span className="row" style={{ gap: 8, fontSize: 14, color: setupDone ? "var(--green-600)" : "var(--text-muted)", order: 2 }}>
+                  <Icon name={setupDone ? "check-circle" : "user-check"} size={16} />
+                  {setupDone
+                    ? `Setup complete. Handed off to the valuer${valuerName ? ` (${valuerName})` : ""}.`
+                    : "Complete Setup to hand the job off to the valuer."}
+                </span>
+              )}
               {prev ? (
                 <Button variant="outline" size="sm" icon={<Icon name="chevron-left" size={16} />} onClick={() => go(prev.key)}>
                   {prevLabel(prev)}

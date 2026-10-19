@@ -11,6 +11,7 @@ import { useState } from "react";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import type { FieldDef } from "@/lib/fieldConfig";
 import type { Option, UserOption } from "@/lib/options";
+import { DatePicker } from "./DatePicker";
 import { formatDate, formatDateTime } from "./format";
 import { Chip } from "./ui";
 
@@ -95,13 +96,13 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
       );
 
     case "date":
-      return <ConfirmedInput type="date" shown={str(value)} invalid={invalid} onConfirm={(v) => onChange(v || null)} />;
+      return <DatePicker value={str(value)} invalid={invalid} onConfirm={(v) => onChange(v || null)} />;
 
     case "datetime":
       return (
-        <ConfirmedInput
-          type="datetime-local"
-          shown={toLocalInput(value)}
+        <DatePicker
+          withTime
+          value={toLocalInput(value)}
           invalid={invalid}
           onConfirm={(v) => onChange(v ? new Date(v).toISOString() : null)}
         />
@@ -198,53 +199,6 @@ function WholeNumberInput({ value, invalid, onChange }: { value: unknown; invali
       onBlur={() => setFocused(false)}
       onChange={(e) => onChange(e.target.value.replace(/[^0-9.,-]/g, ""))}
     />
-  );
-}
-
-/** A date or date-and-time picked in the calendar is only applied on OK
- * (or Enter), so scrolling through the picker never saves a half-chosen
- * value. */
-function ConfirmedInput({
-  type,
-  shown,
-  invalid,
-  onConfirm,
-}: {
-  type: "date" | "datetime-local";
-  shown: string;
-  invalid?: boolean;
-  onConfirm: (v: string) => void;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const pending = draft !== null && draft !== shown;
-  const confirm = () => {
-    if (draft !== null) onConfirm(draft);
-    setDraft(null);
-  };
-  return (
-    <div style={{ display: "grid", gap: 4 }}>
-      <div className="row" style={{ gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Input
-            type={type}
-            value={draft ?? shown}
-            invalid={invalid}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                confirm();
-              }
-              if (e.key === "Escape") setDraft(null);
-            }}
-          />
-        </div>
-        <Button size="sm" variant={pending ? "primary" : "outline"} disabled={!pending} onClick={confirm}>
-          OK
-        </Button>
-      </div>
-      {pending && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Press OK to apply.</span>}
-    </div>
   );
 }
 
