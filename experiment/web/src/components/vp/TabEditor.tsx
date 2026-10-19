@@ -58,6 +58,16 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
   const paused = save.status === "conflict" || save.status === "blocked";
   const tabReadOnly = !state.can_edit || paused;
   const label = (key: string) => tab.fields.find((f) => f.key === key)?.label ?? key;
+  const empty = (v: unknown) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+  // Required fields still to fill in, shown on the field and listed at the top.
+  const missing = state.can_edit
+    ? visible.filter((f) => f.required && !f.calculated && empty(merged[f.key]))
+    : [];
+  const jump = (key: string) => {
+    const el = document.getElementById(`field-${tab.key}-${key}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.querySelector<HTMLElement>("input, select, textarea, button")?.focus({ preventScroll: true });
+  };
   const summary = (tab.key === "summary" ? merged : (allValues.summary as Record<string, unknown> | undefined)) ?? {};
   const propertyCategory = typeof summary.property_category === "string" ? summary.property_category : undefined;
 
@@ -67,10 +77,39 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
         {state.can_edit && <SaveIndicator status={save.status} dirty={save.dirty} onRetry={save.retry} />}
       </div>
 
-      {!state.can_edit && state.read_only_reason && (
+      {/* Another role's stage is shown read-only without an error; locked or
+          frozen jobs still say why. */}
+      {!state.can_edit && state.read_only_reason && state.read_only_code !== "forbidden" && (
         <Banner tone="blue" icon="lock">
           {state.read_only_reason}
         </Banner>
+      )}
+
+      {missing.length > 0 && (
+        <div className="row wrap" style={{ gap: 6, marginBottom: 16, fontSize: 13 }}>
+          <span style={{ color: "var(--text-error)", fontWeight: 700 }}>
+            {missing.length} still required:
+          </span>
+          {missing.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => jump(f.key)}
+              style={{
+                border: "1px solid var(--red-200)",
+                background: "var(--red-50)",
+                color: "var(--text-error)",
+                borderRadius: 999,
+                padding: "3px 10px",
+                fontFamily: "inherit",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       )}
 
       {save.status === "blocked" && save.notice && (
@@ -99,14 +138,15 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "18px 24px" }}>
         {visible.map((field) => {
           const readOnly = tabReadOnly || field.calculated || state.read_only_fields.includes(field.key);
+          const isMissing = missing.includes(field);
           return (
+            <div key={field.key} id={`field-${tab.key}-${field.key}`} style={{ gridColumn: WIDE.has(field.type) ? "span 2" : undefined, minWidth: 0 }}>
             <F
-              key={field.key}
-              span={WIDE.has(field.type) ? 2 : undefined}
               label={
                 <>
                   {field.label}
-                  {field.required && <span style={{ color: "var(--text-accent)" }}> *</span>}
+                  {field.required && <span style={{ color: isMissing ? "var(--text-error)" : "var(--text-accent)" }}> *</span>}
+                  {isMissing && <span className="field-missing">Required</span>}
                 </>
               }
               badge={field.calculated ? "Calculated" : undefined}
@@ -128,6 +168,7 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
                 />
               )}
             </F>
+            </div>
           );
         })}
       </div>

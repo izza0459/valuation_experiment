@@ -37,10 +37,7 @@ export function RightPanel({ jobId }: { jobId: string }) {
         display: "flex",
         flexDirection: "column",
         gap: 14,
-        position: "sticky",
-        top: 84, // below the sticky top bar
         alignSelf: "flex-start",
-        maxHeight: "calc(100vh - 104px)",
       }}
     >
       <div className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>

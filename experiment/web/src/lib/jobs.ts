@@ -32,6 +32,8 @@ export type TabState = {
   version: number;
   can_edit: boolean;
   read_only_reason: string;
+  /** Why not: "forbidden" (another role's stage), "locked" or "frozen". */
+  read_only_code?: string;
   /** Fields on an otherwise editable tab this user may not change. */
   read_only_fields: string[];
 };

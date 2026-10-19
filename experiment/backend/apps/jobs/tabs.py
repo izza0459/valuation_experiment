@@ -67,8 +67,8 @@ TAB_MODELS = {
 # the rest and can step into Setup too.
 TAB_EDIT_ROLES = {
     "checklist": {Role.INSPECTOR, Role.VALUER},
-    "instructions": {Role.ADMIN, Role.VALUER},
-    "address": {Role.ADMIN, Role.VALUER},
+    "instructions": {Role.ADMIN, Role.OPS, Role.VALUER},
+    "address": {Role.ADMIN, Role.OPS, Role.VALUER},
     "summary": {Role.VALUER},
     "inspection": {Role.INSPECTOR, Role.VALUER},
     "location": {Role.VALUER},
@@ -77,7 +77,7 @@ TAB_EDIT_ROLES = {
     # ordering are checked against the same rules (see apps/media_files).
     "photos": {Role.INSPECTOR, Role.VALUER},
     # The title document is attached from the Check List, so the inspector too.
-    "documents": {Role.ADMIN, Role.INSPECTOR, Role.VALUER},
+    "documents": {Role.ADMIN, Role.OPS, Role.INSPECTOR, Role.VALUER},
     # Comparables the valuer enters and picks for the report (apps/evidence).
     "evidence": {Role.VALUER},
 }
@@ -332,6 +332,9 @@ def job_tab_state(job, user=None) -> dict:
             denial = edit_denial(user, job, key) if has_form else None
             tab_state["can_edit"] = has_form and denial is None
             tab_state["read_only_reason"] = denial.detail if denial else ""
+            # "forbidden": not this user's stage (shown quietly, not as an error);
+            # "locked" / "frozen": nobody can edit it now.
+            tab_state["read_only_code"] = denial.code if denial else ""
             # Fields on an otherwise editable tab that this user may not change.
             tab_state["read_only_fields"] = (
                 [] if may_assign(user, job)

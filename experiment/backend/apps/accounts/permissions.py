@@ -37,9 +37,9 @@ def can_create_jobs(user) -> bool:
 
 
 def sees_all_jobs(user) -> bool:
-    """Platform admins and valuers see every job; editing still follows the
-    roles held on each job."""
-    return is_platform_admin(user) or has_global_role(user, Role.VALUER)
+    """Platform admins, valuers and ops see every job; editing still follows
+    the roles held on each job."""
+    return is_platform_admin(user) or has_global_role(user, Role.VALUER) or has_global_role(user, Role.OPS)
 
 
 def roles_on_job(user, job) -> set[str]:
@@ -54,6 +54,9 @@ def roles_on_job(user, job) -> set[str]:
     # The signing valuer isn't a separate role, but it must grant access.
     if getattr(job, "registered_valuer_id", None) == user.id:
         held.add(Role.VALUER)
+    # Ops take instructions in and look after Setup on every job.
+    if Role.OPS in (user.roles or []):
+        held.add(Role.OPS)
     return held
 
 

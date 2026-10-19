@@ -21,7 +21,7 @@
  * required/visible rules, so there is one answer to "is this section done?".
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
 import { Avatar, Button, Icon } from "@/design-system";
@@ -76,8 +76,14 @@ export function JobDetailClient({ id }: { id: string }) {
   const { data: job, isLoading: jobLoading, isError } = useJob(id);
   const { data: tabs, isLoading: tabsLoading } = useFieldConfig();
   const [active, setActive] = useState<string | null>(null);
-  // What stops moving on to the next stage, shown when Next is pressed.
-  const [stageBlock, setStageBlock] = useState<{ stage: string; missing: string[] } | null>(null);
+  // A small notification card (top right) that goes after 5 seconds: what
+  // stops moving on, or which stage the job has moved to.
+  const [notice, setNotice] = useState<{ tone: "red" | "green"; title: string; lines?: string[] } | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   // The include-in-report step, and where to go once it is saved.
   const [reportStep, setReportStep] = useState<string | null>(null);
 
@@ -174,8 +180,7 @@ export function JobDetailClient({ id }: { id: string }) {
     if (target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage)) {
       const block = blockingStage(target.stage);
       if (block) {
-        setStageBlock(block);
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        setNotice({ tone: "red", title: `Complete the ${block.stage} stage before moving on`, lines: block.missing });
         return;
       }
       // Leaving a complete Inspection stage: choose what goes in the report.
@@ -185,7 +190,9 @@ export function JobDetailClient({ id }: { id: string }) {
         return;
       }
     }
-    setStageBlock(null);
+    if (target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage)) {
+      setNotice({ tone: "green", title: `On to ${stageLabel(target.stage)}` });
+    }
     setActive(key);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -210,7 +217,7 @@ export function JobDetailClient({ id }: { id: string }) {
   return (
     <Shell>
       {/* --- header: the job, then its stages ------------------------- */}
-      <div className="card" style={{ marginBottom: 16, padding: "18px 22px 0" }}>
+      <div className="card" style={{ marginBottom: 12, padding: "18px 22px" }}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>
@@ -254,8 +261,11 @@ export function JobDetailClient({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* --- the stages, as tabs ------------------------------------ */}
-        <nav aria-label="Stages" className="stagenav" style={{ display: "flex", marginTop: 18, borderTop: "1px solid var(--border-divider)" }}>
+      </div>
+
+      {/* --- the stages and their sections, kept in view while scrolling --- */}
+      <div className="card stickybar" style={{ padding: "0 22px", marginBottom: 16 }}>
+        <nav aria-label="Stages" className="stagenav" style={{ display: "flex" }}>
           {NAV.map((stage, i) => {
             const done = stageDone(stage.key, job, pages);
             const selected = stage.key === current.stage;
@@ -329,39 +339,10 @@ export function JobDetailClient({ id }: { id: string }) {
             );
           })}
         </nav>
-      </div>
-
-      {stageBlock && (
-        <Banner tone="red" icon="alert-circle">
-          <b style={{ fontWeight: 500 }}>Complete the {stageBlock.stage} stage before moving on.</b> Still required:
-          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-            {stageBlock.missing.map((m) => (
-              <li key={m}>{m}</li>
-            ))}
-          </ul>
-        </Banner>
-      )}
-
-      {job.issue_in_progress && (
-        <Banner tone="blue" icon="loader">
-          <b style={{ fontWeight: 500 }}>Producing the final report…</b> This page updates when it&apos;s done.
-        </Banner>
-      )}
-
-      {!isLocked && !job.issue_in_progress && job.issue_error && (
-        <Banner tone="red" icon="alert-circle">
-          <b style={{ fontWeight: 500 }}>The final report couldn&apos;t be produced.</b> {job.issue_error}
-        </Banner>
-      )}
-
-      {/* --- body + right panel -------------------------------------- */}
-      <div className="jobcols" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="card">
-            {/* The stage's sections, when it has more than one. */}
-            {stagePages.length > 1 && (
-              <div className="row wrap" style={{ gap: 6, marginBottom: 20 }}>
-                {stagePages.map((p) => {
+        {/* The stage's sections, when it has more than one. */}
+        {stagePages.length > 1 && (
+          <div className="row wrap" style={{ gap: 6, padding: "10px 0 12px", borderTop: "1px solid var(--border-divider)" }}>
+            {stagePages.map((p) => {
                   const { pct, missing } = completionOf(p.key);
                   const on = p.key === current.key;
                   return (
@@ -390,8 +371,50 @@ export function JobDetailClient({ id }: { id: string }) {
                     </button>
                   );
                 })}
-              </div>
-            )}
+          </div>
+        )}
+      </div>
+
+      {notice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="notice"
+          style={{ borderLeft: `4px solid ${notice.tone === "red" ? "var(--text-error)" : "var(--green-600)"}` }}
+        >
+          <div className="row" style={{ justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+            <b style={{ fontSize: 14, fontWeight: 700 }}>{notice.title}</b>
+            <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}
+              style={{ border: 0, background: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+              <Icon name="x" size={14} />
+            </button>
+          </div>
+          {notice.lines && notice.lines.length > 0 && (
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, color: "var(--text-secondary)" }}>
+              {notice.lines.map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {job.issue_in_progress && (
+        <Banner tone="blue" icon="loader">
+          <b style={{ fontWeight: 500 }}>Producing the final report…</b> This page updates when it&apos;s done.
+        </Banner>
+      )}
+
+      {!isLocked && !job.issue_in_progress && job.issue_error && (
+        <Banner tone="red" icon="alert-circle">
+          <b style={{ fontWeight: 500 }}>The final report couldn&apos;t be produced.</b> {job.issue_error}
+        </Banner>
+      )}
+
+      {/* --- body + right panel -------------------------------------- */}
+      <div className="jobcols" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="card">
 
             {current.key === "review" ? (
               <ReviewPanel job={job} jobId={id} onSend={() => go("send")} />
@@ -454,7 +477,7 @@ export function JobDetailClient({ id }: { id: string }) {
             </div>
           </div>
         </div>
-        <RightPanel jobId={id} />
+        {current.stage === "valuation" && <RightPanel jobId={id} />}
       </div>
 
       {reportStep !== null && (
@@ -473,7 +496,7 @@ export function JobDetailClient({ id }: { id: string }) {
             const target = reportStep;
             setReportStep(null);
             if (target) {
-              setStageBlock(null);
+              setNotice({ tone: "green", title: `On to ${stageLabel(pages.find((p) => p.key === target)?.stage ?? "valuation")}` });
               setActive(target);
               window.scrollTo({ top: 0, behavior: "smooth" });
             }

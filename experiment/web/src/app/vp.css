@@ -214,6 +214,34 @@
   background: var(--surface-page);
 }
 
+/* --- job workspace ----------------------------------------------------- */
+/* The stage and section tabs stay in view under the top bar. */
+.stickybar {
+  position: sticky;
+  top: 68px;
+  z-index: 15;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+/* Small notification card, top right; the page removes it after 5 s. */
+.notice {
+  position: fixed;
+  top: 84px;
+  right: 20px;
+  z-index: 40;
+  width: min(360px, calc(100vw - 32px));
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
+/* A required field still empty: the label says so. */
+.field-missing {
+  color: var(--text-error);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
 /* --- responsive (from the design rebuild) --------------------------- */
 /* Screens set their grids inline, so these match on the inline style. */
 .table-wrap {
@@ -248,6 +276,10 @@
   }
   main {
     padding: 18px 16px 44px !important;
+  }
+  /* The top bar wraps on small screens, so the stage bar stops sticking. */
+  .stickybar {
+    position: static;
   }
   /* Stage steps scroll sideways instead of squeezing their labels. */
   .stagenav {
