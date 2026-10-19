@@ -27,6 +27,8 @@ LIBRARY_CATEGORIES = {
     "special_assumption": "special_assumption",
     "other_matter": "other_matter",
     "commentary": "commentary",
+    "market_commentary": "market_commentary",
+    "valuation_commentary": "valuation_commentary",
     "property_specification": "specification",
     "property_condition": "condition",
 }
@@ -59,8 +61,11 @@ def library_options(options_key: str) -> list[dict]:
     options = []
     category = LIBRARY_CATEGORIES.get(options_key)
     if category:
+        # `categories`: the property categories an entry is offered for
+        # (empty = all), so apartment commentary is offered for apartments.
         options += [
-            {"value": f"lib-{i.pk}", "label": i.title, "report_text": i.body}
+            {"value": f"lib-{i.pk}", "label": i.title, "report_text": i.body,
+             "categories": list(i.property_categories or [])}
             for i in TextLibraryItem.objects.filter(category=category, active=True)
         ]
     return options + preset_options(options_key)

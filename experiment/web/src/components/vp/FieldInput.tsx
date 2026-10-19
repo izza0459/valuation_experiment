@@ -11,7 +11,7 @@ import { useState } from "react";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import type { FieldDef } from "@/lib/fieldConfig";
 import type { Option, UserOption } from "@/lib/options";
-import { aed, formatDate, formatDateTime } from "./format";
+import { formatDate, formatDateTime } from "./format";
 import { Chip } from "./ui";
 
 type Props = {
@@ -22,7 +22,20 @@ type Props = {
   users: UserOption[];
   readOnly: boolean;
   invalid?: boolean;
+  /** The job's property category: library entries are offered for it only. */
+  propertyCategory?: string;
 };
+
+/** Coordinates keep their decimals; every other figure is a whole number. */
+const KEEPS_DECIMALS = new Set(["latitude", "longitude"]);
+
+/** "1250000.00" -> "1,250,000". Text that isn't a number is shown as typed. */
+export function formatWhole(value: unknown): string {
+  const raw = str(value).replace(/,/g, "").trim();
+  if (raw === "") return "";
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.round(n).toLocaleString("en-US") : str(value);
+}
 
 type LibraryEntry = { title: string; body: string };
 
@@ -42,7 +55,7 @@ function toLocalInput(iso: unknown): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function FieldInput({ field, value, onChange, options, users, readOnly, invalid }: Props) {
+export function FieldInput({ field, value, onChange, options, users, readOnly, invalid, propertyCategory }: Props) {
   const choices = field.type === "user" ? users : options;
 
   if (readOnly) return <ReadOnlyValue field={field} value={value} choices={choices} />;
@@ -56,15 +69,16 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
 
     case "number":
     case "decimal":
-      return (
-        <Input
-          className="num"
-          inputMode={field.type === "number" ? "numeric" : "decimal"}
-          value={str(value)}
-          invalid={invalid}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
+      if (KEEPS_DECIMALS.has(field.key)) {
+        return (
+          <Input className="num" inputMode="decimal" value={str(value)} invalid={invalid}
+            onChange={(e) => onChange(e.target.value)} />
+        );
+      }
+      return <WholeNumberInput value={value} invalid={invalid} onChange={onChange} />;
+
+    case "names":
+      return <NamesInput value={value} invalid={invalid} onChange={onChange} />;
 
     case "boolean":
       return (
@@ -78,20 +92,20 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
       );
 
     case "date":
-      return <Input type="date" value={str(value)} invalid={invalid} onChange={(e) => onChange(e.target.value || null)} />;
+      return <ConfirmedInput type="date" shown={str(value)} invalid={invalid} onConfirm={(v) => onChange(v || null)} />;
 
     case "datetime":
       return (
-        <Input
+        <ConfirmedInput
           type="datetime-local"
-          value={toLocalInput(value)}
+          shown={toLocalInput(value)}
           invalid={invalid}
-          onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
+          onConfirm={(v) => onChange(v ? new Date(v).toISOString() : null)}
         />
       );
 
     case "select":
-      if (field.free_text) {
+      if (field.free_text && !field.dropdown) {
         const listId = `suggest-${field.key}`;
         return (
           <>
@@ -148,12 +162,124 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
       );
     }
 
-    case "library":
-      return <LibraryField value={value} options={options} invalid={invalid} onChange={onChange} />;
+    case "library": {
+      // Entries tagged with property categories (commentary) are offered
+      // only for those; untagged entries are offered for every property.
+      const offered = options.filter(
+        (o) => !o.categories?.length || (propertyCategory ? o.categories.includes(propertyCategory) : true),
+      );
+      return (
+        <LibraryField value={value} options={offered} invalid={invalid} onChange={onChange} append={Boolean(field.append)}
+          filtered={offered.length < options.length} />
+      );
+    }
 
     default:
       return <ReadOnlyValue field={field} value={value} choices={choices} />;
   }
+}
+
+/** Figures are typed with or without thousands separators and shown with
+ * them; the server rounds to whole numbers. The text stays as typed while
+ * the field has focus, so the cursor never jumps. */
+function WholeNumberInput({ value, invalid, onChange }: { value: unknown; invalid?: boolean; onChange: (v: unknown) => void }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <Input
+      className="num"
+      inputMode="decimal"
+      value={focused ? str(value) : formatWhole(value)}
+      invalid={invalid}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(e.target.value.replace(/[^0-9.,-]/g, ""))}
+    />
+  );
+}
+
+/** A date or date-and-time picked in the calendar is only applied on OK
+ * (or Enter), so scrolling through the picker never saves a half-chosen
+ * value. */
+function ConfirmedInput({
+  type,
+  shown,
+  invalid,
+  onConfirm,
+}: {
+  type: "date" | "datetime-local";
+  shown: string;
+  invalid?: boolean;
+  onConfirm: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const pending = draft !== null && draft !== shown;
+  const confirm = () => {
+    if (draft !== null) onConfirm(draft);
+    setDraft(null);
+  };
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      <div className="row" style={{ gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Input
+            type={type}
+            value={draft ?? shown}
+            invalid={invalid}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                confirm();
+              }
+              if (e.key === "Escape") setDraft(null);
+            }}
+          />
+        </div>
+        <Button size="sm" variant={pending ? "primary" : "outline"} disabled={!pending} onClick={confirm}>
+          OK
+        </Button>
+      </div>
+      {pending && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Press OK to apply.</span>}
+    </div>
+  );
+}
+
+/** Several names (owners, applicants): one line each, add or remove. */
+function NamesInput({ value, invalid, onChange }: { value: unknown; invalid?: boolean; onChange: (v: unknown) => void }) {
+  const names = Array.isArray(value) ? (value as string[]) : str(value) ? [str(value)] : [];
+  const rows = names.length ? names : [""];
+  const set = (next: string[]) => onChange(next);
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {rows.map((name, i) => (
+        <div key={i} className="row" style={{ gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Input
+              value={name}
+              invalid={invalid && i === 0}
+              placeholder={i === 0 ? "Enter name" : "Enter another name"}
+              onChange={(e) => set(rows.map((n, j) => (j === i ? e.target.value : n)))}
+            />
+          </div>
+          {rows.length > 1 && (
+            <button
+              type="button"
+              aria-label="Remove this name"
+              onClick={() => set(rows.filter((_, j) => j !== i))}
+              style={{ border: 0, background: "none", cursor: "pointer", display: "flex", padding: 4 }}
+            >
+              <Icon name="x" size={16} />
+            </button>
+          )}
+        </div>
+      ))}
+      <div>
+        <Button size="sm" variant="soft" icon={<Icon name="plus" size={16} />} onClick={() => set([...rows, ""])}>
+          Add another
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function Dropdown({
@@ -195,11 +321,15 @@ function LibraryField({
   options,
   invalid,
   onChange,
+  append = false,
+  filtered = false,
 }: {
   value: unknown;
   options: Option[];
   invalid?: boolean;
   onChange: (v: unknown) => void;
+  append?: boolean;
+  filtered?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -215,6 +345,8 @@ function LibraryField({
 
   const insert = (o: Option) => {
     if (asList) onChange([...entries, { title: o.label, body: o.report_text ?? "" }]);
+    // Several entries can apply (assumptions): each one is added to the text.
+    else if (append) onChange([str(value).trim(), o.report_text ?? ""].filter(Boolean).join("\n\n"));
     // One answer per field (a property is an apartment or a villa, not both):
     // choosing replaces the text rather than adding to it.
     else onChange(o.report_text ?? "");
@@ -256,7 +388,7 @@ function LibraryField({
           icon={<Icon name={open ? "chevron-up" : "book-open"} size={16} />}
           onClick={() => setOpen(!open)}
         >
-          {asList ? "Add from library" : str(value) ? "Replace from library" : "Choose from library"}
+          {asList || append ? "Add from library" : str(value) ? "Replace from library" : "Choose from library"}
         </Button>
       </div>
 
@@ -265,7 +397,11 @@ function LibraryField({
           <Input placeholder="Search text library" value={query} onChange={(e) => setQuery(e.target.value)} />
           {matches.length === 0 && (
             <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-              {options.length === 0 ? "The text library has no entries for this field yet." : "No matches."}
+              {options.length === 0
+                ? filtered
+                  ? "No entries for this property category. Set the category on the Preliminary Check first."
+                  : "The text library has no entries for this field yet."
+                : "No matches."}
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
@@ -334,7 +470,12 @@ function displayValue(field: FieldDef, value: unknown, choices: Option[]): strin
     case "datetime":
       return formatDateTime(value as string);
     case "decimal":
-      return /\(AED/.test(field.label) ? aed(value as string) : str(value);
+      if (field.key === "latitude" || field.key === "longitude") return str(value);
+      return /\(AED/.test(field.label) ? `AED ${formatWhole(value)}` : formatWhole(value);
+    case "number":
+      return formatWhole(value);
+    case "names":
+      return Array.isArray(value) && value.length ? value.join(", ") : str(value) || "—";
     case "select":
     case "user":
       return field.free_text ? str(value) : labelFor(choices, value);
@@ -354,13 +495,11 @@ function displayValue(field: FieldDef, value: unknown, choices: Option[]): strin
 /** Server-derived values (sqft, DMS, rate/sqft ...) are shown, never edited. */
 export function formatComputed(key: string, value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
-  if (key.endsWith("_sqft") && !key.includes("rate")) return `${Number(value).toLocaleString("en-US")} sqft`;
-  if (key.endsWith("_sqm")) return `${Number(value).toLocaleString("en-US")} sqm`;
-  if (key === "market_value_rate_per_sqft") {
-    const rate = Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return `AED ${rate} / sqft`;
-  }
-  if (key === "forced_sale_value") return aed(value as string);
-  if (key === "exact_age") return `${value} years`;
+  // No decimals anywhere: areas, rates and values are rounded.
+  if (key.endsWith("_sqft") && !key.includes("rate")) return `${formatWhole(value)} sqft`;
+  if (key.endsWith("_sqm")) return `${formatWhole(value)} sqm`;
+  if (key === "market_value_rate_per_sqft") return `AED ${formatWhole(value)} / sqft`;
+  if (key === "forced_sale_value") return `AED ${formatWhole(value)}`;
+  if (key === "report_date") return formatDate(value as string);
   return str(value);
 }

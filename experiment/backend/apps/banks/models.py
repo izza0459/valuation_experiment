@@ -6,6 +6,8 @@ class Bank(models.Model):
     tab once sla_signed is True (CLAUDE.md §4 Tab 2)."""
 
     name = models.CharField(max_length=255)
+    # The bank's own code, filled in on a job when the bank is picked.
+    code = models.CharField(max_length=50, blank=True)
     billing_address = models.TextField(blank=True)
     po_box = models.CharField(max_length=50, blank=True)
     contacts = models.JSONField(default=list, blank=True, help_text="[{name, email, phone}]")

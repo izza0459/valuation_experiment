@@ -20,10 +20,11 @@ from .tabs import TabError, ValidationFailed, patch_tab
 # details and the rest are entered in the workspace afterwards.
 INTAKE_FIELDS = {
     "instructions": {
-        "bank", "bank_reference_no", "purpose", "date_time_request_received", "date_of_instruction",
+        "bank", "bank_reference_no", "client_name", "purpose", "date_time_request_received",
+        "date_of_instruction", "contact_name", "contact_number",
     },
     "address": {
-        "unit_number", "building_name", "development", "community_name", "latitude", "longitude",
+        "unit_number", "building_name", "community_name", "latitude", "longitude",
         "applicant_name", "ownership_name", "registered_valuer",
     },
     "checklist": {"inspected_by", "valuer", "peer_reviewer"},
@@ -39,9 +40,11 @@ class NotAllowedToCreate(TabError):
 def create_job(user, values: dict) -> Job:
     """Creates a job, its property and tab rows, and applies `values`.
 
-    The creator becomes the job's admin. Billing address comes from the bank
-    once its SLA is signed (CLAUDE.md §4 Tab 2). Raises ValidationFailed with
-    per-field errors, collected across every tab."""
+    The creator becomes the job's admin. Mortgage work names a bank from the
+    master, whose billing address comes across once its SLA is signed
+    (CLAUDE.md §4 Tab 2); audit and internal work names the client
+    organisation instead. Raises ValidationFailed with per-field errors,
+    collected across every tab."""
     if not isinstance(values, dict):
         raise TabError("`values` must be an object.")
 
@@ -54,12 +57,19 @@ def create_job(user, values: dict) -> Job:
         else:
             by_tab[tab][key] = raw
 
+    purpose = values.get("purpose") or "mortgage_security"
     bank_id = values.get("bank")
     bank = None
-    if isinstance(bank_id, int) and not isinstance(bank_id, bool):
-        bank = Bank.objects.filter(pk=bank_id, active=True).first()
-    if bank is None:
-        errors["bank"] = "Choose the client bank." if bank_id in (None, "") else "No such bank."
+    if purpose == "mortgage_security":
+        if isinstance(bank_id, int) and not isinstance(bank_id, bool):
+            bank = Bank.objects.filter(pk=bank_id, active=True).first()
+        if bank is None:
+            errors["bank"] = "Choose the client bank." if bank_id in (None, "") else "No such bank."
+    else:
+        by_tab["instructions"].pop("bank", None)
+        by_tab["instructions"].pop("bank_reference_no", None)
+        if not str(values.get("client_name") or "").strip():
+            errors["client_name"] = "Enter the organisation or client name."
     if errors:
         raise ValidationFailed(errors)
 
@@ -68,7 +78,7 @@ def create_job(user, values: dict) -> Job:
             bank=bank,
             property=Property.objects.create(),
             admin_user=user,
-            billing_address=bank.billing_address if bank.sla_signed else "",
+            billing_address=bank.billing_address if bank and bank.sla_signed else "",
         )
         job.save()  # allocates the reference number; the signal adds the tab rows
 

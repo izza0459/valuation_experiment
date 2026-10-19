@@ -127,6 +127,9 @@ def issue_report(job, user) -> ReportVersion:
                 or _fingerprint(build_context(job, issued=True)) != _fingerprint(context)
             ):
                 raise IssueBlockedError("The job changed while its report was being produced. Issue it again.")
+            # The report date is system-generated: the day it is issued.
+            job.valuation.report_date = now.date() if timezone.is_naive(now) else timezone.localdate(now)
+            job.valuation.save(update_fields=["report_date"])
             version = ReportVersion.objects.create(
                 job=job,
                 job_version=job.version,

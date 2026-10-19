@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
-from .permissions import is_platform_admin
+from .permissions import can_create_jobs, is_platform_admin
 
 
 def describe_user(user) -> dict:
@@ -23,6 +23,7 @@ def describe_user(user) -> dict:
         "email": user.email,
         "roles": list(user.roles or []),
         "is_admin": is_platform_admin(user),
+        "can_create_jobs": can_create_jobs(user),
     }
 
 

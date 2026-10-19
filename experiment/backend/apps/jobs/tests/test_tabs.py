@@ -157,7 +157,7 @@ class TestPatch:
 
     def test_returns_server_computed_values(self, job, dan):
         res = patch(client_for(dan), job, "summary", {"bua_sqft": "519"}).json()
-        assert res["computed"]["summary"]["bua_sqm"] == "48.22"
+        assert res["computed"]["summary"]["bua_sqm"] == "48"  # whole numbers only
         assert res["values"]["bua_sqft"] == "519.00"
 
     def test_a_change_on_one_tab_updates_computed_values_on_another(self, job, dan):
@@ -166,7 +166,7 @@ class TestPatch:
         patch(client, job, "valuation", {"market_value": "725000"})
         res = patch(client, job, "summary", {"bua_sqft": "519"}).json()
         valuation = res["computed"]["valuation"]
-        assert valuation["market_value_rate_per_sqft"] == "1396.92"  # 725,000 / 519 sqft
+        assert valuation["market_value_rate_per_sqft"] == "1397"  # 725,000 / 519 sqft, rounded
         assert valuation["market_value_in_words"] == "Seven Hundred and Twenty-Five Thousand UAE Dirhams"
 
     def test_completion_is_returned_for_every_tab(self, job, dan):
@@ -210,9 +210,19 @@ class TestValidation:
     def test_bad_money_values(self, job, dan, value):
         assert "market_value" in self.errors(client_for(dan), job, "valuation", {"market_value": value})
 
-    def test_money_is_never_silently_rounded(self, job, dan):
-        errors = self.errors(client_for(dan), job, "valuation", {"market_value": "725000.123"})
-        assert "decimal places" in errors["market_value"]
+    def test_figures_are_rounded_to_whole_numbers_and_take_commas(self, job, dan):
+        """Field dictionary round 2: no decimals anywhere; numbers are typed
+        with thousands separators."""
+        res = patch(client_for(dan), job, "valuation", {"market_value": "1,250,000.50", "market_rent": "84,999.4"})
+        assert res.status_code == 200, res.json()
+        job.refresh_from_db()
+        assert (job.valuation.market_value, job.valuation.market_rent) == (1250001, 84999)
+
+    def test_whole_number_fields_take_commas_too(self, job, dan):
+        res = patch(client_for(dan), job, "summary", {"no_of_bedrooms": "3", "total_floors": "1,0"})
+        assert res.status_code == 200, res.json()
+        job.refresh_from_db()
+        assert (job.summary.no_of_bedrooms, job.summary.total_floors) == (3, 10)
 
     def test_coordinates_are_rounded_to_what_the_column_keeps(self, job, dan):
         res = patch(client_for(dan), job, "address", {"latitude": "25.04030429", "longitude": "55.28623161"})
@@ -267,6 +277,9 @@ class TestValidation:
     def test_an_unpopulated_option_list_does_not_block_editing(self, job, dan):
         """Before an admin has set a list up there is nothing to check
         against; refusing everything would make the field unusable."""
+        from apps.presets.models import PresetOption
+
+        PresetOption.objects.filter(field_key="interest_valued").delete()
         assert patch(client_for(dan), job, "summary", {"interest_valued": "anything"}).status_code == 200
 
     def test_free_text_fields_accept_text_outside_the_suggestions(self, job, dan, presets):
@@ -279,8 +292,26 @@ class TestValidation:
         errors = self.errors(client, job, "instructions", {"registered_valuer": gone.pk, "bank": 9999})
         assert set(errors) == {"registered_valuer", "bank"}
 
-    def test_the_bank_cannot_be_cleared(self, job, dan):
-        assert "bank" in self.errors(client_for(dan), job, "instructions", {"bank": None})
+    def test_a_mortgage_job_without_a_bank_is_incomplete(self, job, dan):
+        res = patch(client_for(dan), job, "instructions", {"bank": None})
+        assert res.status_code == 200
+        assert "Bank / Organisation" in res.json()["completion"]["instructions"]["missing"]
+
+    def test_audit_and_internal_work_names_a_client_instead_of_a_bank(self, job, dan):
+        client = client_for(dan)
+        res = patch(client, job, "instructions", {"purpose": "audit_purpose", "bank": None}).json()
+        assert "Organisation / Client name" in res["completion"]["instructions"]["missing"]
+        assert "Bank / Organisation" not in res["completion"]["instructions"]["missing"]
+        patch(client, job, "instructions", {"client_name": "Acme Holdings"}, base_version=1)
+        job.refresh_from_db()
+        assert job.organisation_name == "Acme Holdings"
+
+    def test_owners_and_applicants_are_lists(self, job, dan):
+        res = patch(client_for(dan), job, "address", {"ownership_name": ["A. One", " ", "B. Two"]})
+        assert res.status_code == 200, res.json()
+        assert res.json()["values"]["ownership_name"] == ["A. One", "B. Two"]
+        job.refresh_from_db()
+        assert job.property.ownership_names == ["A. One", "B. Two"]
 
     def test_library_lists_need_titles(self, job, dan):
         errors = self.errors(client_for(dan), job, "summary", {"special_assumptions": [{"body": "x"}]})
@@ -572,7 +603,7 @@ class TestEditability:
         assert tabs_state["valuation"]["can_edit"] is False
         assert "doesn't allow editing" in tabs_state["valuation"]["read_only_reason"]
         assert tabs_state["photos"]["can_edit"] is True  # inspectors take the photographs
-        assert tabs_state["documents"]["can_edit"] is False  # title documents are the admin's and valuer's
+        assert tabs_state["documents"]["can_edit"] is True  # the title document is attached on the Check List
 
     def test_a_frozen_job_is_read_only_for_everyone(self, job, dan):
         Job.objects.filter(pk=job.pk).update(status=JobStatus.PEER_REVIEW)
@@ -613,9 +644,10 @@ class TestReportFields:
         res = patch(client, job, "location", {"remaining_economic_life_years": 55})
         assert res.status_code == 200
         assert patch(client, job, "summary", {"total_floors": 12}).status_code == 200
-        assert patch(client, job, "address", {"development": "The Views"}).status_code == 200
+        assert patch(client, job, "instructions", {"contact_name": "R. Agent",
+                                                   "contact_number": "+971 50 000 0000"}).status_code == 200
         job.refresh_from_db()
-        assert job.property.development == "The Views"
+        assert (job.contact_name, job.contact_number) == ("R. Agent", "+971 50 000 0000")
         assert job.location.remaining_economic_life_years == 55
         assert job.summary.total_floors == 12
 
@@ -652,10 +684,10 @@ class TestReportFields:
         client = client_for(dan)
         patch(client, job, "location", {"remaining_economic_life_years": 40})
         patch(client, job, "summary", {"total_floors": 9})
-        patch(client, job, "inspection", {"occupancy": "tenanted", "tenant_name": "T. Tenant"})
+        patch(client, job, "inspection", {"occupancy": "tenanted", "rent_if_any": "90000"})
         Job.objects.filter(pk=job.pk).update(is_locked=True, status=JobStatus.ISSUED)
         revision = Job.objects.get(pk=job.pk).create_revision(by=dan)
-        assert revision.inspection.tenant_name == "T. Tenant"
+        assert revision.inspection.rent_if_any == 90000
         assert revision.location.remaining_economic_life_years == 40
         assert revision.summary.total_floors == 9
 
@@ -673,22 +705,30 @@ class TestExactAge:
         """A report regenerated next year must still state the age it was
         valued at. (A valuation years ago is the case where 'today' and 'at
         valuation' give different answers.)"""
-        assert self.age(job, dan, "2019-03-01", "2024-02-01") == 4
+        assert self.age(job, dan, "2019-03-01", "2024-02-01") == "4 years, 11 months, 0 days"
 
     def test_the_day_before_the_anniversary_is_still_the_younger_age(self, job, dan):
-        assert self.age(job, dan, "2019-09-01", "2026-08-31") == 6
+        assert self.age(job, dan, "2019-09-01", "2026-08-31") == "6 years, 11 months, 30 days"
 
     def test_falls_back_to_today_until_there_is_a_valuation_date(self, job, dan):
-        today = date.today()
-        expected = today.year - 2019 - ((today.month, today.day) < (3, 1))
-        assert self.age(job, dan, "2019-03-01", None) == expected
+        from apps.jobs.calculations import age_text
+
+        assert self.age(job, dan, "2019-03-01", None) == age_text(date(2019, 3, 1), None)
 
     def test_a_built_year_gives_valuation_year_minus_built_year(self, job, dan):
+        client = client_for(dan)
+        patch(client, job, "location", {"built_about": 2015})
+        patch(client, job, "valuation", {"valuation_date": "2026-01-02"})
+        job.refresh_from_db()
+        assert job.location.exact_age == "11 years"
+
+    def test_the_built_date_gives_years_months_and_days(self, job, dan):
+        """Regression: with a built year as well, only whole years showed."""
         client = client_for(dan)
         patch(client, job, "location", {"built_about": 2015, "built_date": "2015-12-31"})
         patch(client, job, "valuation", {"valuation_date": "2026-01-02"})
         job.refresh_from_db()
-        assert job.location.exact_age == 11
+        assert job.location.exact_age == "10 years, 0 months, 2 days"
 
 
 class TestAddressTab:

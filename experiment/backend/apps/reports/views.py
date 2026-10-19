@@ -10,10 +10,10 @@ from apps.jobs.models import Job
 from apps.jobs.tabs import TabError
 
 from .delivery import describe_delivery, request_delivery
-from .tasks import request_send
 from .generate import generate_report, preview_html
 from .models import ReportVersion
 from .render import PdfEngineUnavailable
+from .tasks import request_send
 
 
 class _JobReportView(APIView):

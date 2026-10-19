@@ -88,8 +88,8 @@ class TestContent:
         summary = rows(build_context(job), "valuation_summary")
         assert summary["Market Value"] == "AED 725,000"
         assert summary["Market Value in words"] == "Seven Hundred and Twenty-Five Thousand UAE Dirhams"
-        assert summary["Market Value rate"] == "AED 1,396.92 / sqft"
-        assert rows(build_context(job), "property_details")["Built-up area"] == "519 sqft (48.22 sqm)"
+        assert summary["Market Value rate"] == "AED 1,397 / sqft"
+        assert rows(build_context(job), "property_details")["Built-up area"] == "519 sqft (48 sqm)"
 
     def test_fractional_values_are_not_rounded_away(self, job):
         job.valuation.market_value = "725000.60"
@@ -156,7 +156,7 @@ class TestContent:
         job.valuation.save()
         ctx = build_context(Job.objects.get(pk=job.pk))
         details, summary = rows(ctx, "property_details"), rows(ctx, "valuation_summary")
-        assert "Rukan Residences, The Views, Dubailand" in details["Address (as inspected)"]
+        assert "Rukan Residences, Dubailand" in details["Address (as inspected)"]
         assert details["Total no. of floors"] == "G + 10 Floors"
         assert details["Elevation above sea level"] == "Approximately 35 m"
         assert details["Type of property"] == "1 Bedroom apartment"
@@ -168,14 +168,12 @@ class TestContent:
         assert "part of a larger structure" in ctx["reinstatement"]  # an apartment
         assert ctx["tenancy"] == ""
         job.inspection.occupancy = "tenanted"
-        job.inspection.tenant_name = "T. Tenant"
         job.inspection.rent_if_any = "90000"
-        job.inspection.tenancy_expiry = datetime.date(2027, 5, 31)
         job.inspection.save()
         job.valuation.reinstatement_note = "Custom wording."
         job.valuation.save()
         ctx = build_context(Job.objects.get(pk=job.pk))
-        assert ctx["tenancy"] == "The property is let to T. Tenant at AED 90,000 per annum, expiring 31 May 2027."
+        assert ctx["tenancy"] == "The property is let at AED 90,000 per annum."  # no tenant name or expiry
         assert ctx["tenanted"] is True
         assert ctx["reinstatement"] == "Custom wording."
 
@@ -445,5 +443,43 @@ class TestFieldDictionaryChanges:
         job.location.amenities = ["gym", "swimming_pool"]
         job.location.save()
         context = build_context(Job.objects.get(pk=job.pk))
-        assert rows(context, "building_specification")["Air conditioning"] == "Central, District cooling"
-        assert context["text"]["amenities"] == "Gym, Swimming pool"
+        ac = rows(context, "building_specification")["Air conditioning"]
+        assert ac == "Central Air Conditioning, District Cooling"
+        assert context["text"]["amenities"] == "Gym, Swimming Pool"
+
+    def test_the_report_address_is_the_title_document_one(self, job):
+        prop = job.property
+        prop.title_doc_property_no, prop.title_doc_plot_no = "312", "100"
+        prop.title_doc_municipality_no, prop.title_doc_building_no = "123-1234", "1"
+        prop.save()
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        assert ctx["property"]["address"] == prop.address_as_per_document
+        assert "Plot No. 100" in ctx["property"]["address"]
+
+    def test_several_owners_and_applicants_are_listed(self, job):
+        job.property.applicant_name = "A. One\nB. Two"
+        job.property.ownership_name = "C. Owner"
+        job.property.save()
+        details = rows(build_context(Job.objects.get(pk=job.pk)), "property_details")
+        assert details["Applicants"] == "A. One, B. Two"
+        assert details["Owner"] == "C. Owner"
+
+    def test_audit_work_is_for_the_named_client(self, job):
+        Job.objects.filter(pk=job.pk).update(bank=None, purpose="audit_purpose", client_name="Acme Holdings")
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        assert ctx["client"]["name"] == "Acme Holdings"
+        assert rows(ctx, "property_details")["Client"] == "Acme Holdings"
+
+    def test_fields_left_out_of_the_report_are_not_printed(self, job):
+        job.inspection.air_conditioning = ["central"]
+        job.inspection.save()
+        Job.objects.filter(pk=job.pk).update(report_exclusions=["inspection.air_conditioning", "summary.bua_sqft"])
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        assert "Air conditioning" not in rows(ctx, "building_specification")
+        assert "Built-up area" not in rows(ctx, "property_details")
+
+    def test_the_report_date_is_today_until_issued(self, job):
+        job.valuation.report_date = None
+        job.valuation.save()
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        assert ctx["dates"]["report"] == datetime.date.today().strftime("%d %b %Y")

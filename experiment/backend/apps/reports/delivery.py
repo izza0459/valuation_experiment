@@ -21,7 +21,6 @@ from apps.jobs.tabs import TabError
 
 from .models import ReportDelivery
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +44,7 @@ def bank_contacts(job) -> list[dict]:
     """The bank master's contacts that have an email address."""
     return [
         {"name": (c.get("name") or "").strip(), "email": c["email"].strip()}
-        for c in (job.bank.contacts or [])
+        for c in ((job.bank.contacts if job.bank_id else None) or [])
         if isinstance(c, dict) and (c.get("email") or "").strip()
     ]
 

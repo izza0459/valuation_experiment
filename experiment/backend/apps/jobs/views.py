@@ -10,14 +10,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsJobParticipantOrAdmin, IsPlatformAdmin, visible_jobs
+from apps.accounts.permissions import CanCreateJobs, IsJobParticipantOrAdmin, IsPlatformAdmin, visible_jobs
 from apps.presets.options import options_for, user_options
 
 from .field_config import TABS, serialize_config
 from .intake import create_job
 from .models import Job, JobTransition
 from .serializers import JobDetailSerializer, JobListSerializer
-from .tabs import TabError, job_tab_state, patch_tab
+from .tabs import TabError, job_tab_state, patch_tab, set_report_exclusions
 from .transitions import perform_transition, transition_log
 from .workflow import JobStatus
 
@@ -69,9 +69,9 @@ class JobViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
 
     def get_permissions(self):
-        # Admin creates the instruction (CLAUDE.md §3).
+        # Ops (or an admin) takes the instruction in (CLAUDE.md §3).
         if self.action == "create":
-            return [IsAuthenticated(), IsPlatformAdmin()]
+            return [IsAuthenticated(), CanCreateJobs()]
         return super().get_permissions()
 
     def create(self, request, *args, **kwargs):
@@ -112,6 +112,7 @@ class JobViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(
                 Q(bayut_internal_reference_no__icontains=search)
                 | Q(bank_reference_no__icontains=search)
+                | Q(client_name__icontains=search)
                 | Q(property__building_name__icontains=search)
                 | Q(property__community_name__icontains=search)
                 | Q(property__unit_number__icontains=search)
@@ -121,7 +122,9 @@ class JobViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         view = params.get("view")
         user = self.request.user
         if view == "mine":
-            queryset = queryset.filter(Q(valuer=user) | Q(registered_valuer=user) | Q(inspected_by=user))
+            queryset = queryset.filter(
+                Q(valuer=user) | Q(registered_valuer=user) | Q(inspected_by=user) | Q(admin_user=user)
+            )
         elif view == "review":
             queryset = queryset.filter(status=JobStatus.PEER_REVIEW, peer_reviewer=user)
 
@@ -246,6 +249,23 @@ class JobReviseView(APIView):
             {"id": revision.pk, "reference": revision.bayut_internal_reference_no, "version": revision.version},
             status=201,
         )
+
+
+class JobReportFieldsView(APIView):
+    """POST {"excluded": ["summary.departures", ...]}: the Preliminary Check
+    and Inspection fields to leave out of the report."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+
+    def post(self, request, pk):
+        job = get_object_or_404(Job.objects.all(), pk=pk)
+        self.check_object_permissions(request, job)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            excluded = set_report_exclusions(job.pk, request.user, body.get("excluded"))
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response({"excluded": excluded})
 
 
 class JobActivityView(APIView):

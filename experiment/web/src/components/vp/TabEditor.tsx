@@ -14,6 +14,7 @@ import { isFieldVisible, type FieldDef, type TabDef } from "@/lib/fieldConfig";
 import type { TabState } from "@/lib/jobs";
 import { useOptions } from "@/lib/options";
 import { useTabAutosave, type SaveStatus } from "@/lib/useTabAutosave";
+import { ChecklistUploads } from "./ChecklistUploads";
 import { FieldInput, formatComputed } from "./FieldInput";
 import { MediaTab } from "./MediaTab";
 import { Banner, F } from "./ui";
@@ -57,6 +58,8 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
   const paused = save.status === "conflict" || save.status === "blocked";
   const tabReadOnly = !state.can_edit || paused;
   const label = (key: string) => tab.fields.find((f) => f.key === key)?.label ?? key;
+  const summary = (tab.key === "summary" ? merged : (allValues.summary as Record<string, unknown> | undefined)) ?? {};
+  const propertyCategory = typeof summary.property_category === "string" ? summary.property_category : undefined;
 
   return (
     <div>
@@ -121,6 +124,7 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
                   users={options?.users ?? []}
                   readOnly={readOnly}
                   invalid={Boolean(save.errors[field.key])}
+                  propertyCategory={propertyCategory}
                 />
               )}
             </F>
@@ -129,6 +133,15 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
       </div>
 
       {tab.key === "valuation" && <ValueInWords words={state.computed.market_value_in_words} />}
+
+      {tab.key === "checklist" && (
+        <ChecklistUploads
+          jobId={jobId}
+          makani={merged.makani_photo === true}
+          dewa={merged.dewa_photo === true}
+          canEdit={!tabReadOnly}
+        />
+      )}
     </div>
   );
 }

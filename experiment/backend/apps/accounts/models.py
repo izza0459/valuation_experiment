@@ -6,6 +6,8 @@ class Role(models.TextChoices):
     """A user can hold several of these on a given job (CLAUDE.md §3)."""
 
     ADMIN = "admin", "Admin"
+    # Takes instructions in and completes the Setup stage; the valuer does the rest.
+    OPS = "ops", "Ops"
     INSPECTOR = "inspector", "Inspector"
     VALUER = "valuer", "Valuer"
     PEER_REVIEWER = "peer_reviewer", "Peer Reviewer"

@@ -45,7 +45,9 @@ class TextLibraryCategory(models.TextChoices):
     OTHER_MATTER = "other_matter", "Other Matter"
     CONDITION = "condition", "Property Condition"
     SPECIFICATION = "specification", "Property Specification"
-    COMMENTARY = "commentary", "Market/Valuation Commentary"
+    COMMENTARY = "commentary", "Market/Valuation Commentary (old)"
+    MARKET_COMMENTARY = "market_commentary", "Market Commentary"
+    VALUATION_COMMENTARY = "valuation_commentary", "Valuation Commentary"
 
 
 class TextLibraryItem(models.Model):
@@ -56,6 +58,9 @@ class TextLibraryItem(models.Model):
     category = models.CharField(max_length=30, choices=TextLibraryCategory.choices)
     title = models.CharField(max_length=255)
     body = models.TextField()
+    # Property categories (preset values) this entry is offered for, e.g.
+    # apartment commentary only for apartments. Empty: offered for all.
+    property_categories = models.JSONField(default=list, blank=True)
     order = models.PositiveIntegerField(default=0)
     active = models.BooleanField(default=True)
 

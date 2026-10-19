@@ -155,8 +155,10 @@
   {% if text.special_assumptions %}<p>The following Special Assumptions have been adopted:</p>{{ entries(text.special_assumptions) }}{% else %}<p>No Special Assumptions have been adopted.</p>{% endif %}
   <p>A Special Assumption is one that assumes facts differing from those existing at the valuation date, or that would not be made by a typical market participant on that date.</p>
 
+  {% if text.other_matters %}
   <h3>Other matters</h3>
-  {% if text.other_matters %}{{ entries(text.other_matters) }}{% else %}<p>None.</p>{% endif %}
+  {{ entries(text.other_matters) }}
+  {% endif %}
 </section>
 
 {# ---------- 3 Due diligence ---------- #}

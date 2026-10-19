@@ -231,6 +231,10 @@ const STATUS_TONES: Record<string, Tone> = {
   "Approved & Signed": "blue",
   Issued: "green",
   Returned: "red",
+  // Dashboard stages
+  Inspection: "blue",
+  Valuation: "purple",
+  Review: "amber",
 };
 
 export const StatusChip = ({ s }: { s: string }) => (

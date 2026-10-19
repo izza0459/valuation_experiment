@@ -46,6 +46,7 @@ from .models import (
     Property,
     SummaryData,
     ValuationData,
+    split_names,
 )
 from .workflow import FROZEN_STATUSES, JobLockedError
 
@@ -61,6 +62,9 @@ TAB_MODELS = {
 # are filled by the valuer for now, so the valuer holds that tab too.
 # Platform admins can edit everything; peer reviewers and counter-signatories
 # review, they don't edit.
+# The Setup stage (Instructions, Property Address) belongs to whoever took
+# the instruction (the job's admin, usually an ops person); the valuer does
+# the rest and can step into Setup too.
 TAB_EDIT_ROLES = {
     "checklist": {Role.INSPECTOR, Role.VALUER},
     "instructions": {Role.ADMIN, Role.VALUER},
@@ -72,7 +76,8 @@ TAB_EDIT_ROLES = {
     # Photos and documents have no form fields; their uploads, captions and
     # ordering are checked against the same rules (see apps/media_files).
     "photos": {Role.INSPECTOR, Role.VALUER},
-    "documents": {Role.ADMIN, Role.VALUER},
+    # The title document is attached from the Check List, so the inspector too.
+    "documents": {Role.ADMIN, Role.INSPECTOR, Role.VALUER},
     # Comparables the valuer enters and picks for the report (apps/evidence).
     "evidence": {Role.VALUER},
 }
@@ -87,9 +92,9 @@ ASSIGNMENT_FIELDS = {"inspected_by", "valuer", "peer_reviewer", "counter_signato
 ASSIGNMENT_ROLES = {Role.ADMIN, Role.VALUER}
 
 # Coordinates are pasted from Google Maps with more decimals than the column
-# keeps. Rounding them to the column's precision (~0.1 m) is harmless; for
-# money it is not, so every other decimal field rejects excess precision
-# instead of silently rounding.
+# keeps; they are rounded to the column's precision (~0.1 m). Every other
+# figure (money, areas, elevation) is a whole number: decimals are rounded
+# half-up to the nearest unit, and thousands separators are accepted.
 ROUND_TO_COLUMN_PRECISION = {"latitude", "longitude"}
 
 # Decimals are non-negative unless listed here; bounded ones are checked
@@ -206,7 +211,8 @@ def tab_values(job, tab_key: str) -> dict:
     values = {}
     for f in _editable_fields(tab_key):
         target, mf = resolve_storage(tab_key, f["key"])
-        values[f["key"]] = getattr(targets[target], mf.attname)
+        value = getattr(targets[target], mf.attname)
+        values[f["key"]] = split_names(value) if f["type"] == "names" else value
     return values
 
 
@@ -225,6 +231,8 @@ def tab_computed(job, tab_key: str) -> dict:
     if tab_key == "valuation":
         # Not a form field, but printed beside the figure on the signed report.
         computed["market_value_in_words"] = targets["tab"].market_value_in_words
+        # System-generated: the issue date once issued, today until then.
+        computed["report_date"] = targets["tab"].report_date or timezone.localdate()
     return computed
 
 
@@ -259,7 +267,8 @@ def _is_empty(value) -> bool:
 
 def visibility_context(job) -> dict:
     context = {tab["key"]: tab_values(job, tab["key"]) for tab in TABS if tab["fields"]}
-    context["bank"] = {"name": job.bank.name, "rules": job.bank.rules or {}}
+    bank = job.bank
+    context["bank"] = {"name": job.organisation_name, "rules": (bank.rules if bank else None) or {}}
     return context
 
 
@@ -331,6 +340,50 @@ def job_tab_state(job, user=None) -> dict:
     return state
 
 
+# Where each status sits among the workspace stages (mirrors the web app).
+STAGE_FOR_STATUS = {
+    "instruction_received": "setup",
+    "setup": "setup",
+    "inspection_scheduled": "inspection",
+    "inspected": "inspection",
+    "valuation_in_progress": "valuation",
+    "peer_review": "review",
+    "approved_signed": "review",
+    "issued": "issued",
+}
+STAGE_LABELS = {"setup": "Setup", "inspection": "Inspection", "valuation": "Valuation",
+                "review": "Review", "issued": "Issued"}
+
+
+def job_progress(job) -> dict:
+    """The dashboard's status and sub-status: the stage the job is in, and
+    the section of it being worked on (the first that isn't complete)."""
+    stage = STAGE_FOR_STATUS.get(job.status, "setup")
+    sub = ""
+    if stage in ("setup", "inspection", "valuation"):
+        context = visibility_context(job)
+        for tab in sorted(TABS, key=lambda t: t["order"]):
+            if tab["stage"] != stage:
+                continue
+            if tab["key"] in MEDIA_TABS:
+                done = media_completion(job, tab["key"])
+            elif tab["fields"]:
+                done = tab_completion(tab["key"], context)
+            else:
+                continue
+            if done["pct"] < 100:
+                sub = tab["label"]
+                break
+        sub = sub or "Ready for the next stage"
+    elif job.status == "peer_review":
+        sub = "Awaiting peer review"
+    elif job.status == "approved_signed":
+        sub = "Approved & signed"
+    else:
+        sub = "Report issued"
+    return {"stage": stage, "stage_label": STAGE_LABELS[stage], "sub_status": sub}
+
+
 # --- validation ---------------------------------------------------------------
 
 
@@ -341,9 +394,9 @@ class _Invalid(Exception):
 def _allowed_values(field: dict, mf) -> list | None:
     """The option values a select accepts, or None when anything goes
     (free-text fields, and keys an admin hasn't populated yet)."""
-    if field["free_text"] or not field["options_key"]:
+    if not field["options_key"] or (field["free_text"] and not field.get("dropdown")):
         return None
-    options = options_for(field["options_key"])
+    options = options_for(field["options_key"], free_text=field["free_text"])
     return [o["value"] for o in options] or None
 
 
@@ -368,13 +421,23 @@ def _coerce_number(raw, mf):
     if isinstance(raw, bool):
         raise _Invalid("Must be a whole number.")
     try:
-        if isinstance(raw, float) and not raw.is_integer():
+        if isinstance(raw, str):
+            raw = _without_separators(raw)
+            if raw == "":
+                return _coerce_number(None, mf)
+        number = Decimal(str(raw))
+        if not number.is_finite():
             raise _Invalid("Must be a whole number.")
-        value = int(raw)
-    except (TypeError, ValueError) as exc:
+        value = int(number.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+    except (TypeError, ValueError, InvalidOperation) as exc:
         raise _Invalid("Must be a whole number.") from exc
     mf.run_validators(value)
     return value
+
+
+def _without_separators(raw) -> str:
+    """'1,250,000' -> '1250000'. Numbers are typed with thousands separators."""
+    return str(raw).strip().replace(",", "").replace(" ", "")
 
 
 def _coerce_decimal(raw, mf, key):
@@ -386,7 +449,7 @@ def _coerce_decimal(raw, mf, key):
         raise _Invalid("Must be a number.")
     try:
         # str() first: Decimal(48.2) would carry the float's binary noise.
-        value = Decimal(str(raw).strip())
+        value = Decimal(_without_separators(raw))
     except InvalidOperation as exc:
         raise _Invalid("Must be a number.") from exc
     if not value.is_finite():
@@ -398,11 +461,13 @@ def _coerce_decimal(raw, mf, key):
             raise _Invalid(f"Must be between {low} and {high}.")
         raise _Invalid("Can't be negative.")
 
-    if key in ROUND_TO_COLUMN_PRECISION:
-        try:
+    try:
+        if key in ROUND_TO_COLUMN_PRECISION:
             value = value.quantize(Decimal(1).scaleb(-mf.decimal_places), rounding=ROUND_HALF_UP)
-        except InvalidOperation as exc:
-            raise _Invalid("Out of range.") from exc
+        else:
+            value = value.quantize(Decimal(1), rounding=ROUND_HALF_UP)
+    except InvalidOperation as exc:
+        raise _Invalid("Out of range.") from exc
     try:
         mf.run_validators(value)
     except DjangoValidationError as exc:
@@ -493,6 +558,20 @@ def _coerce_multiselect(raw, field, mf, current):
     return value
 
 
+def _coerce_names(raw, mf):
+    """One or more names (owners, applicants), stored one per line."""
+    if raw is None:
+        raw = []
+    if isinstance(raw, str):
+        raw = raw.splitlines()
+    if not isinstance(raw, list) or not all(isinstance(v, str) for v in raw):
+        raise _Invalid("Must be a list of names.")
+    names = [v.strip() for v in raw if v.strip()]
+    if any(len(n) > 255 for n in names):
+        raise _Invalid("A name can be at most 255 characters.")
+    return "\n".join(names)
+
+
 def _coerce_library(raw, mf, multiline=True):
     """Library fields hold report text: plain text on most tabs, or a list
     of {title, body} entries where the valuer picks several (special
@@ -538,6 +617,8 @@ def coerce(field: dict, mf, raw, current):
             return _coerce_record(raw, field, mf)
         if kind == "library":
             return _coerce_library(raw, mf)
+        if kind == "names":
+            return _coerce_names(raw, mf)
     except DjangoValidationError as exc:
         raise _Invalid(exc.messages[0]) from exc
     raise _Invalid(f"Unsupported field type {kind!r}.")
@@ -608,7 +689,29 @@ def _follow_bank_billing_address(job, old_bank_id, supplied):
     old = Bank.objects.filter(pk=old_bank_id).first()
     if job.billing_address and (old is None or job.billing_address != old.billing_address):
         return
-    job.billing_address = job.bank.billing_address if job.bank.sla_signed else ""
+    bank = job.bank
+    job.billing_address = bank.billing_address if bank and bank.sla_signed else ""
+
+
+def set_report_exclusions(job_id: int, user, excluded) -> list[str]:
+    """Which Preliminary Check and Inspection fields stay out of the report
+    (the include-in-report step). Whoever may edit the Inspection tab may set
+    it, under the same lock and freeze rules as any edit."""
+    from .field_config import REPORT_OPTIONAL
+
+    allowed = {f"{tab}.{key}" for tab, keys in REPORT_OPTIONAL.items() for key in keys}
+    if not isinstance(excluded, list) or not all(isinstance(k, str) for k in excluded):
+        raise TabError("`excluded` must be a list of field keys.")
+    unknown = sorted(set(excluded) - allowed)
+    if unknown:
+        raise ValidationFailed({"excluded": f"Not a report field: {', '.join(unknown)}."})
+    with acting_as(user), transaction.atomic():
+        job = Job.objects.select_for_update().get(pk=job_id)
+        if denial := edit_denial(user, job, "inspection"):
+            raise denial
+        job.report_exclusions = sorted(set(excluded))
+        job.save(update_fields=["report_exclusions", "updated_at"])
+    return job.report_exclusions
 
 
 def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int) -> dict:

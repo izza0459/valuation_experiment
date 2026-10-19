@@ -17,7 +17,9 @@ export type FieldType =
   | "select"
   | "multiselect"
   | "user"
-  | "library";
+  | "library"
+  /** One or more names (owners, applicants), edited as a list. */
+  | "names";
 
 export type VisibilityRule = {
   /** Dotted path resolved against the job's values, e.g.
@@ -37,8 +39,14 @@ export type FieldDef = {
   visible_if: VisibilityRule | null;
   calculated: boolean;
   help_text: string;
-  /** Options are suggestions only; any text is accepted (community, emirate). */
+  /** The option label is stored (community, emirate). Options are only
+   * suggestions unless `dropdown` is set, which makes it a strict pick. */
   free_text: boolean;
+  dropdown?: boolean;
+  /** Library fields: picking an entry adds its text instead of replacing it. */
+  append?: boolean;
+  /** May be left out of the report (include-in-report step). */
+  report_optional?: boolean;
 };
 
 export type TabDef = {

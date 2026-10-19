@@ -25,6 +25,11 @@ from .workflow import (
 )
 
 
+def split_names(stored: str) -> list[str]:
+    """Names stored one per line back to a list."""
+    return [n.strip() for n in (stored or "").splitlines() if n.strip()]
+
+
 class Property(SoftDeleteModel):
     """Standalone so the same property can be referenced by multiple Job
     versions/instructions over time — needed for the conflict check
@@ -38,8 +43,10 @@ class Property(SoftDeleteModel):
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
-    applicant_name = models.CharField(max_length=255, blank=True)
-    ownership_name = models.CharField(max_length=255, blank=True)
+    # One or more names, one per line (several owners or applicants is common);
+    # the form edits them as a list (field type "names").
+    applicant_name = models.TextField(blank=True)
+    ownership_name = models.TextField(blank=True)
 
     TITLE_DOC_TYPES = [
         ("title_deed", "Title Deed"),
@@ -92,6 +99,14 @@ class Property(SoftDeleteModel):
     @property
     def gps_dms(self) -> str:
         return calculations.lat_long_to_dms(self.latitude, self.longitude)
+
+    @property
+    def applicant_names(self) -> list[str]:
+        return split_names(self.applicant_name)
+
+    @property
+    def ownership_names(self) -> list[str]:
+        return split_names(self.ownership_name)
 
     @property
     def address_as_per_document(self) -> str:
@@ -173,12 +188,21 @@ class Job(SoftDeleteModel):
     date_time_request_received = models.DateTimeField(null=True, blank=True)
     date_of_instruction = models.DateField(null=True, blank=True)
 
-    bank = models.ForeignKey("banks.Bank", on_delete=models.PROTECT, related_name="jobs")
+    # Mortgage work is for a bank from the Bank master; audit and internal
+    # valuations name their client organisation as text instead.
+    bank = models.ForeignKey("banks.Bank", on_delete=models.PROTECT, related_name="jobs", null=True, blank=True)
+    client_name = models.CharField(max_length=255, blank=True)
     billing_address = models.TextField(blank=True)
     purpose = models.CharField(max_length=30, choices=PURPOSE_CHOICES, default="mortgage_security")
 
     property = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="jobs")
     contact_for_access = models.CharField(max_length=255, blank=True)
+    contact_name = models.CharField(max_length=255, blank=True)
+    contact_number = models.CharField(max_length=50, blank=True)
+
+    # Fields ("tab.field") the valuer left out of the report in the
+    # include-in-report step after the Inspection stage.
+    report_exclusions = models.JSONField(default=list, blank=True)
 
     report_template = models.ForeignKey(
         "reports.ReportTemplate", null=True, blank=True, on_delete=models.SET_NULL, related_name="jobs"
@@ -367,6 +391,18 @@ class Job(SoftDeleteModel):
         already carry their version in the reference (`BYT-2026-00012-v2`)."""
         ref = self.bayut_internal_reference_no
         return ref if self.version > 1 else f"{ref}-v{self.version}"
+
+    @builtins.property
+    def organisation_name(self) -> str:
+        """Who the report is for: the bank on mortgage work, otherwise the
+        client organisation typed on the instruction."""
+        if self.bank_id:
+            return self.bank.name
+        return self.client_name
+
+    @builtins.property
+    def bank_code(self) -> str:
+        return self.bank.code if self.bank_id else ""
 
     TAB_DATA_RELATIONS = ("checklist", "summary", "inspection", "location", "valuation")
 
@@ -673,20 +709,31 @@ class LocationData(JobTabData):
     property_specification = models.TextField(blank=True)
     property_condition = models.TextField(blank=True)
 
-    @property
-    def exact_age(self):
-        """Valuation year minus built year (field dictionary). As at the
-        valuation date, so a report regenerated later still states the age it
-        was valued at; falls back to today until a valuation date is entered.
-        Without a built year, the built date is used."""
+    def _age_as_of(self):
+        """As at the valuation date, so a report regenerated later still
+        states the age it was valued at; today until one is entered."""
         valuation = getattr(self.job, "valuation", None) if self.job_id else None
-        as_of = getattr(valuation, "valuation_date", None)
-        if self.built_about:
-            return calculations.age_from_year(self.built_about, as_of=as_of)
-        return calculations.exact_age(self.built_date, as_of=as_of)
+        return getattr(valuation, "valuation_date", None)
+
+    @property
+    def exact_age(self) -> str:
+        """'7 years, 7 months, 14 days' from the built date; whole years from
+        the built year when no date is given (field dictionary)."""
+        return calculations.age_text(self.built_date, self.built_about, as_of=self._age_as_of())
+
+    @property
+    def age_years(self):
+        """Whole years, for the report's 'years' wording and the age band."""
+        if self.built_date:
+            return calculations.exact_age(self.built_date, as_of=self._age_as_of())
+        return calculations.age_from_year(self.built_about, as_of=self._age_as_of())
 
     def __str__(self):
         return f"LocationData<{self.job}>"
+
+
+def default_valuation_approaches():
+    return ["market_approach_comparable_method"]
 
 
 class ValuationData(JobTabData):
@@ -703,6 +750,8 @@ class ValuationData(JobTabData):
     report_date = models.DateField(null=True, blank=True)
     basis_of_valuation = models.CharField(max_length=40, choices=BASIS_CHOICES, default="market_value")
     valuation_approach = models.CharField(max_length=255, default="Market approach – Comparable method")
+    # The approaches used (presets `valuation_approach`); replaces the text above.
+    valuation_approaches = models.JSONField(default=default_valuation_approaches, blank=True)
     valuation_commentary = models.TextField(blank=True)
     market_value = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     # The report states one annual figure; the low/high range is no longer

@@ -10,6 +10,7 @@ type Contact = { name: string; email: string; phone: string };
 type Bank = {
   id: number;
   name: string;
+  code: string;
   billing_address: string;
   po_box: string;
   contacts: Contact[];
@@ -30,7 +31,7 @@ const RULES: { key: string; label: string; help: string }[] = [
 ];
 
 const BLANK: Bank = {
-  id: 0, name: "", billing_address: "", po_box: "", contacts: [], sla_signed: false,
+  id: 0, name: "", code: "", billing_address: "", po_box: "", contacts: [], sla_signed: false,
   sla_signed_date: null, rules: {}, active: true,
 };
 
@@ -53,7 +54,7 @@ export function BanksPanel() {
       delete rules.forced_sale_discount_pct;
     }
     const body = {
-      name: form.name, billing_address: form.billing_address, po_box: form.po_box,
+      name: form.name, code: form.code, billing_address: form.billing_address, po_box: form.po_box,
       contacts: form.contacts.filter((c) => c.name || c.email || c.phone),
       sla_signed: form.sla_signed, sla_signed_date: emptyToNull(form.sla_signed_date ?? ""),
       rules, active: form.active,
@@ -109,8 +110,11 @@ export function BanksPanel() {
         onSave={() => void submit()}
       >
         <Grid>
-          <F label="Name" span={2} error={errors.name}>
+          <F label="Name" error={errors.name}>
             <Input invalid={Boolean(errors.name)} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </F>
+          <F label="Bank code" error={errors.code} helper="Filled in on a job when this bank is picked.">
+            <Input value={form.code ?? ""} onChange={(e) => setForm({ ...form, code: e.target.value })} />
           </F>
           <F label="Billing address" span={2} error={errors.billing_address} helper="Fills into new jobs once the SLA is signed.">
             <Textarea rows={2} value={form.billing_address} onChange={(e) => setForm({ ...form, billing_address: e.target.value })} />

@@ -12,6 +12,8 @@ export type JobListItem = {
   purpose: string;
   status: string;
   status_label: string;
+  /** Dashboard status and sub-status: the stage, and the section being worked on. */
+  progress?: { stage: string; stage_label: string; sub_status: string };
   version: number;
   is_locked: boolean;
   date_time_request_received: string | null;

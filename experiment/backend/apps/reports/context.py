@@ -202,8 +202,16 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     lock; the issue flow passes True because it builds the final report
     before it locks the job."""
     labels = Labels()
-    bank = job.bank
+    bank = job.bank  # None on audit / internal work, which names a client instead
     prop = job.property
+    # Fields the valuer left out of the report (include-in-report step).
+    excluded = set(job.report_exclusions or [])
+
+    def row(label, value, key=None, *, always=True):
+        return None if key in excluded else _row(label, value, always=always)
+
+    def keep(key, value):
+        return None if key in excluded else value
     summary, inspection, location = job.summary, job.inspection, job.location
     valuation, checklist = job.valuation, job.checklist
 
@@ -216,19 +224,23 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     address_inspected = _join(
         f"Unit {prop.unit_number}" if prop.unit_number else "",
         prop.building_name,
-        prop.development,
         prop.community_name,
         prop.title_doc_emirate,
     )
+    # The report's address is the one on the title document (property, plot,
+    # municipality and building numbers, building, community, emirate);
+    # until those are entered, the address as inspected stands in.
+    address = prop.address_as_per_document if prop.title_doc_property_no or prop.title_doc_plot_no \
+        else address_inspected
     coordinates = ""
     if prop.latitude is not None and prop.longitude is not None:
         coordinates = f"Latitude {prop.latitude}, Longitude {prop.longitude}"
 
     interest = labels("summary", "interest_valued", summary.interest_valued)
     category = labels("summary", "property_category", summary.property_category)
-    occupancy = labels("inspection", "occupancy", inspection.occupancy)
+    occupancy = keep("inspection.occupancy", labels("inspection", "occupancy", inspection.occupancy))
     tenanted = inspection.occupancy in TENANTED_OCCUPANCIES
-    if tenanted and inspection.rent_if_any:
+    if occupancy and tenanted and inspection.rent_if_any:
         occupancy = f"{occupancy} (passing rent {fmt_aed(inspection.rent_if_any)} p.a.)"
 
     year_built = "Under construction" if under_construction else (
@@ -238,7 +250,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     if location.built_date:
         age = calculations.age_years_months(location.built_date, as_of=valuation.valuation_date)
     else:
-        age = fmt_number(location.exact_age, " years") if location.exact_age is not None else ""
+        age = fmt_number(location.age_years, " years") if location.age_years is not None else ""
 
     beds = summary.no_of_bedrooms
     type_of_property = f"{beds} Bedroom {category.lower()}" if beds and category else category
@@ -246,12 +258,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     tenancy = ""
     if tenanted:
         tenancy = "The property is let"
-        if inspection.tenant_name:
-            tenancy += f" to {inspection.tenant_name}"
         if inspection.rent_if_any:
             tenancy += f" at {fmt_aed(inspection.rent_if_any)} per annum"
-        if inspection.tenancy_expiry:
-            tenancy += f", expiring {fmt_date(inspection.tenancy_expiry)}"
         tenancy += "."
     elif inspection.occupancy == "vacant":
         tenancy = "The subject property is currently vacant."
@@ -275,7 +283,9 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         )
 
     upgrades = ""
-    if inspection.upgraded:
+    if "inspection.upgraded" in excluded:
+        pass
+    elif inspection.upgraded:
         upgrades = _join("Yes", inspection.upgrade_comment, sep=" – ")
     elif inspection.inspection_type or inspection.inspection_date:
         # `upgraded` defaults to False, so "No" only means something once
@@ -293,81 +303,97 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     accommodation = _rows(
         {"floor": labels("inspection", "occupancy_title", inspection.occupancy_title)
                   or ("Ground floor" if plot_bearing else ""),
-         "rooms": labels.many("inspection", "accommodation_details", inspection.accommodation_details)},
+         "rooms": labels.many("inspection", "accommodation_details", inspection.accommodation_details)}
+        if "inspection.accommodation_details" not in excluded else None,
         {"floor": "First floor",
          "rooms": labels.many("inspection", "accommodation_first_floor", inspection.accommodation_first_floor)}
-        if plot_bearing and inspection.accommodation_first_floor else None,
+        if plot_bearing and inspection.accommodation_first_floor
+        and "inspection.accommodation_first_floor" not in excluded else None,
         {"floor": "Designated parking spaces",
          "rooms": [f"Parking for {summary.no_of_parkings} car{'s' if summary.no_of_parkings != 1 else ''}"]}
-        if summary.parking and summary.no_of_parkings else None,
+        if summary.parking and summary.no_of_parkings and "summary.parking" not in excluded else None,
     )
+    approaches = labels.many("valuation", "valuation_approaches", valuation.valuation_approaches)
+    approach = ", ".join(approaches) or valuation.valuation_approach
+    report_date = valuation.report_date or timezone.localdate()
+    applicants = ", ".join(prop.applicant_names)
+    owners = ", ".join(prop.ownership_names)
 
     property_details = _rows(
-        _row("Client", bank.name),
+        _row("Client", job.organisation_name),
         _row("Valuation Ref No.", job.bayut_internal_reference_no),
         _row("Bank reference", job.bank_reference_no, always=False),
-        _row("Applicant", prop.applicant_name),
+        _row("Applicant" if len(prop.applicant_names) < 2 else "Applicants", applicants),
+        _row("Owner" if len(prop.ownership_names) < 2 else "Owners", owners, always=False),
         _row("GPS coordinates", coordinates),
-        _row("Address (as inspected)", address_inspected),
         _row("Address (as per title document)", prop.address_as_per_document),
-        _row("Built-up area", bua_text),
-        _row("Plot area", (plot_text or EMPTY) if plot_bearing else NOT_APPLICABLE),
-        _row("Floor", summary.property_floor_no),
-        _row("Total no. of floors", f"G + {summary.total_floors} Floors" if summary.total_floors else ""),
-        _row("Elevation above sea level",
-             f"Approximately {fmt_number(summary.ground_elevation)} m" if summary.ground_elevation is not None else ""),
-        _row("Interest valued", interest),
-        _row("Lease expiry", fmt_date(summary.lease_expiry), always=False) if long_leasehold else None,
-        _row("Acquisition method", labels("summary", "acquisition_method", summary.acquisition_method)),
+        _row("Address (as inspected)", address_inspected),
+        row("Built-up area", bua_text, "summary.bua_sqft"),
+        row("Plot area", (plot_text or EMPTY) if plot_bearing else NOT_APPLICABLE, "summary.plot_area_sqft"),
+        row("Floor", summary.property_floor_no, "summary.property_floor_no"),
+        row("Total no. of floors", f"G + {summary.total_floors} Floors" if summary.total_floors else "",
+            "summary.total_floors"),
+        row("Elevation above sea level",
+            f"Approximately {fmt_number(summary.ground_elevation)} m" if summary.ground_elevation is not None else "",
+            "summary.ground_elevation"),
+        row("Interest valued", interest, "summary.interest_valued"),
+        row("Lease expiry", fmt_date(summary.lease_expiry), "summary.lease_expiry", always=False)
+        if long_leasehold else None,
+        row("Acquisition method", labels("summary", "acquisition_method", summary.acquisition_method),
+            "summary.acquisition_method"),
         _row("Type of property", type_of_property),
-        _row("Views", inspection.views_summary),
+        row("Views", inspection.views_summary, "inspection.front_views"),
         _row("Developer", location.developer),
         _row("Year built", year_built),
         _row("Age of the property", age),
         _row("Remaining economic life",
              f"Circa {fmt_number(location.remaining_economic_life_years, ' years')}"
              if location.remaining_economic_life_years else ""),
-        _row("Utilities", inspection.utilities_summary),
-        _row("Upgrades / modifications", upgrades),
-        _row("Occupancy", occupancy),
+        row("Utilities", inspection.utilities_summary, "inspection.electrical_services"),
+        row("Upgrades / modifications", upgrades, "inspection.upgraded"),
+        row("Occupancy", occupancy, "inspection.occupancy"),
     )
 
     valuation_summary = _rows(
         _row("Purpose of valuation", labels("instructions", "purpose", job.purpose)),
-        _row("Valuation approach", valuation.valuation_approach),
+        _row("Valuation approach", approach),
         _row("Basis of value", labels("valuation", "basis_of_valuation", valuation.basis_of_valuation)),
         _row("Standards", STANDARDS),
         _row("Date of instruction", fmt_date(job.date_of_instruction)),
         _row("Date of inspection", fmt_date(inspection.inspection_date)),
         _row("Type of inspection", labels("inspection", "inspection_type", inspection.inspection_type)),
         _row("Date of valuation", fmt_date(valuation.valuation_date)),
-        _row("Date of report", fmt_date(valuation.report_date)),
+        _row("Date of report", fmt_date(report_date)),
         _row("Market Value", fmt_aed(market_value)),
         _row("Market Value in words", calculations.amount_in_words(market_value) if market_value else ""),
         _row("Market Value rate", f"{fmt_aed(valuation.market_value_rate_per_sqft)} / sqft"
              if valuation.market_value_rate_per_sqft else ""),
         _row("Market Rent", f"{fmt_aed(valuation.market_rent)} per annum" if valuation.market_rent else "",
              always=False),
-        _row("Capacity of valuer", labels("summary", "capacity_of_valuer", summary.capacity_of_valuer)),
-        _row("Departures", summary.departures),
+        row("Capacity of valuer", labels("summary", "capacity_of_valuer", summary.capacity_of_valuer),
+            "summary.capacity_of_valuer"),
+        row("Departures", summary.departures, "summary.departures"),
     )
 
     areas = _rows(
-        _row("Built-up area", bua_text),
-        _row("Plot area", plot_text or EMPTY) if plot_bearing else None,
+        row("Built-up area", bua_text, "summary.bua_sqft"),
+        row("Plot area", plot_text or EMPTY, "summary.plot_area_sqft") if plot_bearing else None,
     )
 
+    def spec(label, key, value):
+        return row(label, value, f"inspection.{key}", always=False)
+
     building_specification = _rows(
-        _row("Structure", labels("inspection", "structure", inspection.structure), always=False),
-        _row("Roof", labels("inspection", "roof", inspection.roof), always=False),
-        _row("External walls", labels("inspection", "external_walls", inspection.external_walls), always=False),
-        _row("Flooring", ", ".join(labels.many("inspection", "flooring", inspection.flooring)), always=False),
-        _row("Internal walls", ", ".join(labels.many("inspection", "walls", inspection.walls)), always=False),
-        _row("Ceiling", ", ".join(labels.many("inspection", "ceiling", inspection.ceiling)), always=False),
-        _row("Lighting", ", ".join(labels.many("inspection", "lighting", inspection.lighting)), always=False),
-        _row("Utilities", inspection.utilities_summary, always=False),
-        _row("Air conditioning",
-             ", ".join(labels.many("inspection", "air_conditioning", inspection.air_conditioning)), always=False),
+        spec("Structure", "structure", labels("inspection", "structure", inspection.structure)),
+        spec("Roof", "roof", labels("inspection", "roof", inspection.roof)),
+        spec("External walls", "external_walls", labels("inspection", "external_walls", inspection.external_walls)),
+        spec("Flooring", "flooring", ", ".join(labels.many("inspection", "flooring", inspection.flooring))),
+        spec("Internal walls", "walls", ", ".join(labels.many("inspection", "walls", inspection.walls))),
+        spec("Ceiling", "ceiling", ", ".join(labels.many("inspection", "ceiling", inspection.ceiling))),
+        spec("Lighting", "lighting", ", ".join(labels.many("inspection", "lighting", inspection.lighting))),
+        spec("Utilities", "electrical_services", inspection.utilities_summary),
+        spec("Air conditioning", "air_conditioning",
+             ", ".join(labels.many("inspection", "air_conditioning", inspection.air_conditioning))),
     )
 
     valuer = person_block(job.registered_valuer)
@@ -397,19 +423,22 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             "address": settings.REPORT_FIRM_ADDRESS,
         },
         "client": {
-            "name": bank.name,
-            "billing_address": job.billing_address or bank.billing_address,
-            "po_box": bank.po_box,
+            "name": job.organisation_name,
+            "billing_address": job.billing_address or (bank.billing_address if bank else ""),
+            "po_box": bank.po_box if bank else "",
         },
         "property": {
-            "address": address_inspected,
+            "address": address,
+            "inspected_address": address_inspected,
             "title_address": prop.address_as_per_document,
+            "applicants": applicants,
+            "owners": owners,
             "coordinates": coordinates,
             "category": category,
         },
         "dates": {
             "valuation": fmt_date(valuation.valuation_date),
-            "report": fmt_date(valuation.report_date),
+            "report": fmt_date(report_date),
         },
         "property_details": property_details,
         "valuation_summary": valuation_summary,
@@ -422,26 +451,31 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         "plot_source": labels("summary", "plot_area_source", summary.plot_area_source) if plot_bearing else "",
         "building_specification": building_specification,
         "accommodation": accommodation,
-        "information_provided": labels.many("summary", "information_provided", summary.information_provided),
+        "information_provided": keep(
+            "summary.information_provided",
+            labels.many("summary", "information_provided", summary.information_provided),
+        ) or [],
         "inspection_type": labels("inspection", "inspection_type", inspection.inspection_type),
         "inspection_date": fmt_date(inspection.inspection_date),
         "inspector": str(job.inspected_by) if job.inspected_by else "",
         "text": {
             "disclosure": summary.disclosure,
-            "assumptions": summary.assumptions,
-            "special_assumptions": summary.special_assumptions or [],
+            "assumptions": keep("summary.assumptions", summary.assumptions) or "",
+            "special_assumptions": keep("summary.special_assumptions", summary.special_assumptions) or [],
+            # No longer entered (Other Matters joined the assumptions library);
+            # kept so older jobs still print theirs.
             "other_matters": summary.other_matters or [],
-            "market_commentary": summary.market_commentary,
+            "market_commentary": keep("summary.market_commentary", summary.market_commentary) or "",
             "valuation_commentary": valuation.valuation_commentary,
             "sub_community": location.sub_community,
             "location": location.location,
             "amenities": ", ".join(labels.many("location", "amenities", location.amenities)),
             "specification": location.property_specification,
             "condition": location.property_condition,
-            "repairs": inspection.repairs,
+            "repairs": keep("inspection.repairs", inspection.repairs) or "",
         },
         "reinstatement": reinstatement,
-        "tenancy": tenancy,
+        "tenancy": keep("inspection.occupancy", tenancy) or "",
         "tenanted": tenanted,
         "plot_bearing": plot_bearing,
         "valuation": {

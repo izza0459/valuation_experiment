@@ -23,7 +23,7 @@ class BankSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bank
         fields = [
-            "id", "name", "billing_address", "po_box", "contacts",
+            "id", "name", "code", "billing_address", "po_box", "contacts",
             "sla_signed", "sla_signed_date", "rules", "active",
         ]
 

@@ -2,6 +2,7 @@
 generator (CLAUDE.md §2, §5, §6; build order step 3: "calculations: sqft,
 age, rate/sqft, forced sale, DMS, value-in-words")."""
 
+import calendar
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -13,7 +14,7 @@ def sqm_to_sqft(sqm) -> Decimal:
     if sqm in (None, ""):
         return None
     return (Decimal(sqm) * Decimal(str(settings.SQFT_PER_SQM))).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP
+        Decimal("1"), rounding=ROUND_HALF_UP
     )
 
 
@@ -21,18 +22,16 @@ def sqft_to_sqm(sqft) -> Decimal:
     if sqft in (None, ""):
         return None
     return (Decimal(sqft) / Decimal(str(settings.SQFT_PER_SQM))).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP
+        Decimal("1"), rounding=ROUND_HALF_UP
     )
 
 
 def format_area(sqft) -> str:
-    """Areas are entered in sqft (field dictionary): `519 sqft (48.22 sqm)`."""
+    """Areas are entered in sqft (field dictionary), in whole numbers: `519 sqft (48 sqm)`."""
     if sqft in (None, ""):
         return "Not Applicable"
-    sqft = Decimal(sqft)
-    whole = sqft == sqft.to_integral_value()
-    return f"{sqft:,.0f} sqft ({sqft_to_sqm(sqft):,.2f} sqm)" if whole else \
-        f"{sqft:,.2f} sqft ({sqft_to_sqm(sqft):,.2f} sqm)"
+    sqft = Decimal(sqft).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return f"{sqft:,.0f} sqft ({sqft_to_sqm(sqft):,.0f} sqm)"
 
 
 def decimal_to_dms(value: float, is_lat: bool) -> str:
@@ -74,6 +73,42 @@ def age_years_months(built_date: date, as_of: date | None = None) -> str:
         months -= 1
     months = max(months, 0)
     return f"{months // 12:02d}.{months % 12:02d}"
+
+
+def age_parts(built_date: date, as_of: date | None = None) -> tuple[int, int, int] | None:
+    """Whole years, months and days from the built date to `as_of`."""
+    if built_date is None:
+        return None
+    as_of = as_of or date.today()
+    if as_of < built_date:
+        return (0, 0, 0)
+    months = (as_of.year - built_date.year) * 12 + as_of.month - built_date.month
+    if as_of.day < built_date.day:
+        months -= 1
+    # Days since the same day-of-month in the last whole month (clamped for
+    # short months, so 31 Jan + 1 month is 28/29 Feb).
+    years_part, months_part = divmod(months, 12)
+    anchor_month_index = built_date.month - 1 + months
+    anchor_year = built_date.year + anchor_month_index // 12
+    anchor_month = anchor_month_index % 12 + 1
+    last_day = calendar.monthrange(anchor_year, anchor_month)[1]
+    anchor = date(anchor_year, anchor_month, min(built_date.day, last_day))
+    return years_part, months_part, (as_of - anchor).days
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def age_text(built_date: date | None, built_year: int | None, as_of: date | None = None) -> str:
+    """The exact age shown on screen: '7 years, 7 months, 14 days' from the
+    built date, or '7 years' from the built year when there is no date."""
+    parts = age_parts(built_date, as_of)
+    if parts is not None:
+        years, months, days = parts
+        return ", ".join([_plural(years, "year"), _plural(months, "month"), _plural(days, "day")])
+    years = age_from_year(built_year, as_of)
+    return _plural(years, "year") if years is not None else ""
 
 
 def age_from_year(built_year: int, as_of: date | None = None) -> int | None:
@@ -118,7 +153,7 @@ def rate_per_sqft(value, bua_sqft) -> Decimal | None:
     bua_sqft = Decimal(bua_sqft)
     if bua_sqft == 0:
         return None
-    return (Decimal(value) / bua_sqft).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return (Decimal(value) / bua_sqft).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 def forced_sale_value(market_value, discount_pct) -> Decimal | None:

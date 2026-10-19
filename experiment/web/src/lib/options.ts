@@ -7,6 +7,8 @@ export type Option = {
   label: string;
   /** Report paragraph a library entry inserts. */
   report_text?: string;
+  /** Library entries: property categories it is offered for (empty = all). */
+  categories?: string[];
 };
 
 export type UserOption = Option & { roles: string[] };

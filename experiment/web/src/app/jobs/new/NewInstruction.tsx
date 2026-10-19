@@ -18,7 +18,7 @@ import { FieldInput } from "@/components/vp/FieldInput";
 import { Banner, F, PageHead, Section, Shell } from "@/components/vp/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { useMe } from "@/lib/auth";
-import { useFieldConfig, type FieldDef } from "@/lib/fieldConfig";
+import { isFieldVisible, useFieldConfig, type FieldDef } from "@/lib/fieldConfig";
 import { useOptions } from "@/lib/options";
 
 /** Field keys, grouped as the form shows them. Must be a subset of what the
@@ -26,14 +26,18 @@ import { useOptions } from "@/lib/options";
 const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
   {
     title: "Client",
-    sub: "The billing address fills in from the bank once its SLA is signed.",
-    keys: ["bank", "bank_reference_no", "purpose", "date_time_request_received", "date_of_instruction"],
+    sub: "Mortgage work is for a bank (its code and billing address come from the bank master); audit and internal work names the client.",
+    keys: ["purpose", "bank", "bank_reference_no", "client_name", "date_time_request_received", "date_of_instruction"],
   },
   {
     title: "Property",
-    keys: ["property_category", "unit_number", "building_name", "development", "community_name", "latitude", "longitude"],
+    keys: ["property_category", "unit_number", "building_name", "community_name", "latitude", "longitude"],
   },
-  { title: "Parties", keys: ["applicant_name", "ownership_name"] },
+  {
+    title: "Parties",
+    sub: "Add every owner and applicant named on the request.",
+    keys: ["applicant_name", "ownership_name", "contact_name", "contact_number"],
+  },
   {
     title: "Team",
     sub: "Who works on this job. These can be changed later on the Check List.",
@@ -57,10 +61,14 @@ export function NewInstruction() {
   const fields = new Map<string, FieldDef>();
   for (const tab of tabs ?? []) for (const f of tab.fields) fields.set(f.key, f);
 
-  const isAdmin = me?.authenticated ? me.user.is_admin : false;
+  const canCreate = me?.authenticated ? Boolean(me.user.can_create_jobs ?? me.user.is_admin) : false;
 
   // A field's configured default (the purpose) is what the form starts on.
   const valueOf = (field: FieldDef) => (field.key in values ? values[field.key] : (field.default ?? ""));
+  // The purpose decides between a bank and a named client.
+  const purposeField = fields.get("purpose");
+  const context = { instructions: { purpose: purposeField ? valueOf(purposeField) : "mortgage_security" } };
+  const shown = (field: FieldDef) => !field.visible_if || field.visible_if.field !== "instructions.purpose" || isFieldVisible(field, context);
 
   function set(key: string, value: unknown) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -81,7 +89,7 @@ export function NewInstruction() {
     for (const section of SECTIONS) {
       for (const key of section.keys) {
         const field = fields.get(key);
-        if (!field) continue;
+        if (!field || !shown(field)) continue;
         const value = valueOf(field);
         if (value !== "" && value !== null && value !== undefined) payload[key] = value;
       }
@@ -104,11 +112,11 @@ export function NewInstruction() {
     }
   }
 
-  if (me && !isAdmin) {
+  if (me && !canCreate) {
     return (
       <Shell>
         <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
-          <div style={{ fontSize: 17 }}>Only an admin can create an instruction.</div>
+          <div style={{ fontSize: 17 }}>Only ops or an admin can create an instruction.</div>
           <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 6 }}>
             <Link href="/jobs">Back to jobs</Link>
           </div>
@@ -119,7 +127,7 @@ export function NewInstruction() {
 
   return (
     <Shell>
-      <PageHead title="New valuation instruction" sub="Open a job from a bank's request.">
+      <PageHead title="New valuation instruction" sub="Open a job from a bank's or client's request.">
         <Link href="/jobs">
           <Button variant="outline">Cancel</Button>
         </Link>
@@ -137,7 +145,8 @@ export function NewInstruction() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "18px 24px" }}>
               {section.keys.map((key) => {
                 const field = fields.get(key);
-                if (!field) return null;
+                if (!field || !shown(field)) return null;
+                const starred = key === "bank" || key === "client_name" || key === "applicant_name";
                 return (
                   <F
                     key={key}
@@ -145,7 +154,7 @@ export function NewInstruction() {
                     label={
                       <>
                         {field.label}
-                        {key === "bank" && <span style={{ color: "var(--text-accent)" }}> *</span>}
+                        {starred && <span style={{ color: "var(--text-accent)" }}> *</span>}
                       </>
                     }
                     error={errors[key]}

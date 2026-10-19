@@ -4,6 +4,7 @@ These feed signed bank reports, so the edge cases matter more than the
 happy path.
 """
 import datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -14,10 +15,11 @@ from apps.jobs import calculations as c
 class TestAreaConversion:
     def test_sqm_to_sqft_uses_the_spec_factor(self):
         # CLAUDE.md §2: sqft = sqm × 10.76391
-        assert c.sqm_to_sqft(Decimal("48.20")) == Decimal("518.82")
+        # Rounded to whole numbers: no decimals on screen or in the report.
+        assert c.sqm_to_sqft(Decimal("48.20")) == Decimal("519")
 
     def test_accepts_float_without_binary_noise(self):
-        assert c.sqm_to_sqft(48.2) == Decimal("518.82")
+        assert c.sqm_to_sqft(48.2) == Decimal("519")
 
     @pytest.mark.parametrize("empty", [None, ""])
     def test_missing_area_is_none(self, empty):
@@ -25,8 +27,8 @@ class TestAreaConversion:
 
     def test_format_area_matches_report_style(self):
         # Entered in sqft (field dictionary), sqm alongside.
-        assert c.format_area(Decimal("519")) == "519 sqft (48.22 sqm)"
-        assert c.format_area(Decimal("5381.95")) == "5,381.95 sqft (500.00 sqm)"
+        assert c.format_area(Decimal("519")) == "519 sqft (48 sqm)"
+        assert c.format_area(Decimal("5381.95")) == "5,382 sqft (500 sqm)"
 
     def test_format_area_not_applicable_when_missing(self):
         assert c.format_area(None) == "Not Applicable"
@@ -60,11 +62,27 @@ class TestExactAge:
         assert c.exact_age(datetime.date(2030, 1, 1), as_of=datetime.date(2026, 1, 1)) == 0
 
 
+class TestExactAgeText:
+    def test_years_months_and_days_from_the_built_date(self):
+        assert c.age_text(date(2019, 3, 1), None, as_of=date(2026, 10, 15)) == "7 years, 7 months, 14 days"
+
+    def test_month_ends_are_clamped(self):
+        assert c.age_text(date(2026, 1, 31), None, as_of=date(2026, 3, 1)) == "0 years, 1 month, 1 day"
+
+    def test_the_built_year_gives_whole_years(self):
+        assert c.age_text(None, 2015, as_of=date(2026, 10, 15)) == "11 years"
+
+    def test_the_built_date_wins_over_the_year(self):
+        assert c.age_text(date(2019, 3, 1), 2015, as_of=date(2026, 3, 1)) == "7 years, 0 months, 0 days"
+
+    def test_nothing_entered_gives_nothing(self):
+        assert c.age_text(None, None) == ""
+
+
 class TestRatePerSqft:
     def test_divides_value_by_area(self):
-        # Sample report quotes AED 1,397/sqft; we keep 2dp and let the
-        # report template round for display.
-        assert c.rate_per_sqft(Decimal("725000"), Decimal("519")) == Decimal("1396.92")
+        # Sample report quotes AED 1,397/sqft: whole dirhams.
+        assert c.rate_per_sqft(Decimal("725000"), Decimal("519")) == Decimal("1397")
 
     def test_guards_against_divide_by_zero(self):
         assert c.rate_per_sqft(Decimal("725000"), Decimal("0")) is None

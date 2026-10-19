@@ -182,9 +182,10 @@ class TestUploading:
 
 
 class TestPermissions:
-    def test_the_inspector_takes_photographs_but_does_not_attach_title_documents(self, job, ines):
+    def test_the_inspector_takes_photographs_and_attaches_the_title_document(self, job, ines):
+        """The title document is uploaded from the Check List (Inspection stage)."""
         assert post_files(ines, job, "photos", [photo()]).status_code == 201
-        assert post_files(ines, job, "documents", [upload_file("d.pdf", pdf_bytes())]).status_code == 403
+        assert post_files(ines, job, "documents", [upload_file("d.pdf", pdf_bytes())]).status_code == 201
 
     def test_the_valuer_and_the_admin_can_attach_documents(self, job, dan, boss):
         assert post_files(dan, job, "documents", [upload_file("a.pdf", pdf_bytes(1))]).status_code == 201

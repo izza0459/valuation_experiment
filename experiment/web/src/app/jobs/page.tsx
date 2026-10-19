@@ -27,7 +27,7 @@ export default function JobsPage() {
   const { data: page, isLoading, isError, error } = useJobs(filters);
   const { data: kpis } = useJobKpis();
   const { data: me } = useMe();
-  const isAdmin = me?.authenticated ? me.user.is_admin : false;
+  const canCreate = me?.authenticated ? Boolean(me.user.can_create_jobs ?? me.user.is_admin) : false;
 
   const rows = page?.results ?? [];
   const set = (patch: Partial<JobFilters>) => setFilters((f) => ({ ...f, ...patch }));
@@ -36,8 +36,8 @@ export default function JobsPage() {
   return (
     <Shell>
       <PageHead title="Jobs" sub={page ? `${page.count} total` : undefined}>
-        {/* Admins open jobs; for everyone else the button isn't offered. */}
-        {isAdmin && (
+        {/* Ops (and admins) take instructions in; for everyone else the button isn't offered. */}
+        {canCreate && (
           <Link href="/jobs/new">
             <Button icon={<Icon name="plus" size={18} />}>New valuation instruction</Button>
           </Link>
@@ -137,7 +137,19 @@ export default function JobsPage() {
                 ),
               },
               { key: "type", label: "Type", render: (j: JobListItem) => j.property_type || "—" },
-              { key: "status", label: "Status", render: (j: JobListItem) => <StatusChip s={j.status_label} /> },
+              {
+                key: "status",
+                label: "Status",
+                render: (j: JobListItem) =>
+                  j.progress ? (
+                    <div style={{ display: "grid", gap: 3, justifyItems: "start" }}>
+                      <StatusChip s={j.progress.stage_label} />
+                      <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{j.progress.sub_status}</span>
+                    </div>
+                  ) : (
+                    <StatusChip s={j.status_label} />
+                  ),
+              },
               {
                 key: "valuer",
                 label: "Valuer",

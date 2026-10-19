@@ -22,7 +22,7 @@ def find_field(tab_key, field_key):
 class TestStructure:
     def test_tabs_match_the_spec(self):
         assert [tab["key"] for tab in serialize_config()] == [
-            "checklist", "instructions", "address", "summary", "inspection", "photos",
+            "instructions", "address", "checklist", "summary", "inspection", "photos",
             "location", "valuation", "documents", "evidence", "review",
         ]
         assert [tab["order"] for tab in TABS] == sorted(tab["order"] for tab in TABS)
@@ -60,9 +60,9 @@ class TestConditionalRules:
         the form (the columns stay, so existing data is kept)."""
         assert field_key not in [f["key"] for f in get_tab(tab_key)["fields"]]
 
-    def test_tenancy_details_follow_a_tenanted_occupancy(self):
-        rule = find_field("inspection", "tenant_name")["visible_if"]
-        assert rule["op"] == "in" and "multi_tenanted" in rule["value"]
+    def test_tenant_name_and_expiry_are_not_asked_for(self):
+        keys = {f["key"] for f in get_tab("inspection")["fields"]}
+        assert not keys & {"tenant_name", "tenancy_expiry"}
 
     @pytest.mark.parametrize(
         "tab_key,field_key",
@@ -97,6 +97,7 @@ class TestPresetValues:
     def test_renaming_a_label_keeps_the_stable_value(self):
         """The whole point: visibility rules reference `value`, so an
         admin editing the display text must not break them."""
+        PresetOption.objects.filter(field_key="property_category").delete()  # seeded by migration
         option = PresetOption.objects.create(field_key="property_category", label="Villa")
         assert option.value == "villa"
 
@@ -108,6 +109,7 @@ class TestPresetValues:
         assert option.value in PLOT_BEARING_CATEGORIES
 
     def test_explicit_value_is_respected(self):
+        PresetOption.objects.filter(field_key="property_category").delete()  # seeded by migration
         option = PresetOption.objects.create(
             field_key="property_category", value="townhouse", label="Townhouse / Terraced"
         )

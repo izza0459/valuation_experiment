@@ -10,7 +10,9 @@ export type Me =
   | { authenticated: false }
   | {
       authenticated: true;
-      user: { id: number; name: string; email: string; roles: string[]; is_admin: boolean };
+      user: { id: number; name: string; email: string; roles: string[]; is_admin: boolean;
+        /** Ops and platform admins take instructions in. */
+        can_create_jobs?: boolean };
     };
 
 export function useMe() {
@@ -34,6 +36,7 @@ export function safeNext(next: string | null): string {
 
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
+  ops: "Ops",
   inspector: "Inspector",
   valuer: "Valuer",
   peer_reviewer: "Peer reviewer",

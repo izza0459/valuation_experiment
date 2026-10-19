@@ -27,6 +27,21 @@ def is_platform_admin(user) -> bool:
     return user.is_staff or user.is_superuser or Role.ADMIN in (user.roles or [])
 
 
+def has_global_role(user, role) -> bool:
+    return bool(user and user.is_authenticated and role in (user.roles or []))
+
+
+def can_create_jobs(user) -> bool:
+    """Taking an instruction in: ops people, and platform admins."""
+    return is_platform_admin(user) or has_global_role(user, Role.OPS)
+
+
+def sees_all_jobs(user) -> bool:
+    """Platform admins and valuers see every job; editing still follows the
+    roles held on each job."""
+    return is_platform_admin(user) or has_global_role(user, Role.VALUER)
+
+
 def roles_on_job(user, job) -> set[str]:
     """Every role this user holds on this job, which may be several."""
     if not user or not user.is_authenticated:
@@ -43,14 +58,14 @@ def roles_on_job(user, job) -> set[str]:
 
 
 def can_access_job(user, job) -> bool:
-    return is_platform_admin(user) or bool(roles_on_job(user, job))
+    return sees_all_jobs(user) or bool(roles_on_job(user, job))
 
 
 def visible_jobs(queryset, user):
     """Scopes a Job queryset to what `user` is entitled to see."""
     from django.db.models import Q
 
-    if is_platform_admin(user):
+    if sees_all_jobs(user):
         return queryset
     if not user or not user.is_authenticated:
         return queryset.none()
@@ -69,6 +84,13 @@ class IsPlatformAdmin(permissions.BasePermission):
 
     def has_permission(self, request, view):
         return is_platform_admin(request.user)
+
+
+class CanCreateJobs(permissions.BasePermission):
+    message = "Only ops or an admin can add an instruction."
+
+    def has_permission(self, request, view):
+        return can_create_jobs(request.user)
 
 
 class IsJobParticipantOrAdmin(permissions.BasePermission):

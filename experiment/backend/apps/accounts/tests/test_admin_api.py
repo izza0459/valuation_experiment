@@ -266,7 +266,7 @@ class TestPresets:
         client.patch(f"/api/admin/presets/{option.pk}/", {"active": False}, format="json")
         options = as_user(make_user("val")).get("/api/options/").json()["roof"]
         assert "metal_sheeting" not in [o["value"] for o in options]
-        assert PresetOption.objects.get(pk=option.pk).label == "Metal sheeting"
+        assert PresetOption.objects.get(pk=option.pk).label == "Metal Sheeting"
 
 
 class TestLibrary:
@@ -277,7 +277,7 @@ class TestLibrary:
         client.patch(f"/api/admin/library/{res.json()['id']}/", {"body": "Changed."}, format="json")
         assert TextLibraryItem.objects.get(pk=res.json()["id"]).body == "Changed."
         assert len(client.get("/api/admin/library/?category=assumption").json()) == 1
-        assert client.get("/api/admin/library/?category=condition").json() == []
+        assert client.get("/api/admin/library/?category=special_assumption").json() == []
 
     def test_the_category_must_be_real(self, client):
         res = client.post("/api/admin/library/", {"category": "nonsense", "title": "x", "body": "y"}, format="json")

@@ -6,6 +6,7 @@ from .views import (
     FieldConfigView,
     JobActivityView,
     JobKpiView,
+    JobReportFieldsView,
     JobReviseView,
     JobTabView,
     JobTransitionView,
@@ -26,5 +27,6 @@ urlpatterns = [
     path("jobs/<int:pk>/revise/", JobReviseView.as_view(), name="job-revise"),
     path("jobs/<int:pk>/transitions/", JobTransitionView.as_view(), name="job-transitions"),
     path("jobs/<int:pk>/tabs/<str:tab>/", JobTabView.as_view(), name="job-tab"),
+    path("jobs/<int:pk>/report-fields/", JobReportFieldsView.as_view(), name="job-report-fields"),
     path("", include(router.urls)),
 ]

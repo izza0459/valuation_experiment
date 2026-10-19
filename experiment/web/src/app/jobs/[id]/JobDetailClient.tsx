@@ -6,13 +6,14 @@
  * The job moves through five stages, shown as the main tabs, each with the
  * person responsible for it:
  *
- *   Setup (admin) → Inspection (inspector) → Valuation (valuer)
- *     → Review (peer reviewer) → Send to bank (admin)
+ *   Setup (ops) → Inspection (valuer) → Valuation (valuer)
+ *     → Review (peer reviewer) → Send to bank (ops)
  *
  * A stage's sections (the data-entry tabs from the field config) sit under
  * it. Completing a stage's sections moves the job on by itself (server:
- * transitions.sync_stage); nothing is locked by stage. Previous/next buttons
- * walk every section in order, across stages.
+ * transitions.sync_stage). Moving forward into a later stage needs every
+ * earlier stage complete: Next (or a later stage's tab) says what is missing
+ * instead. Leaving a completed Inspection stage asks what goes in the report.
  *
  * Sections are edited in place through `TabEditor`, which renders each one
  * from the shared field config and autosaves via the per-tab PATCH endpoint.
@@ -21,6 +22,7 @@
  */
 
 import { useState } from "react";
+import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
 import { Avatar, Button, Icon } from "@/design-system";
 import { Banner, Ring, Shell, StatusChip } from "@/components/vp/ui";
@@ -36,11 +38,11 @@ type NavStage = "setup" | "inspection" | "valuation" | "review" | "send";
 
 /** The main tabs, and whose stage each is (a role on the job). */
 const NAV: { key: NavStage; label: string; role: string; roleLabel: string }[] = [
-  { key: "setup", label: "Setup", role: "admin", roleLabel: "Admin" },
-  { key: "inspection", label: "Inspection", role: "inspector", roleLabel: "Inspector" },
+  { key: "setup", label: "Setup", role: "admin", roleLabel: "Ops" },
+  { key: "inspection", label: "Inspection", role: "valuer", roleLabel: "Valuer" },
   { key: "valuation", label: "Valuation", role: "valuer", roleLabel: "Valuer" },
   { key: "review", label: "Review", role: "peer_reviewer", roleLabel: "Peer reviewer" },
-  { key: "send", label: "Send to bank", role: "admin", roleLabel: "Admin" },
+  { key: "send", label: "Send to bank", role: "admin", roleLabel: "Ops" },
 ];
 
 /** Where the job's status sits among the stages. */
@@ -69,6 +71,10 @@ export function JobDetailClient({ id }: { id: string }) {
   const { data: job, isLoading: jobLoading, isError } = useJob(id);
   const { data: tabs, isLoading: tabsLoading } = useFieldConfig();
   const [active, setActive] = useState<string | null>(null);
+  // What stops moving on to the next stage, shown when Next is pressed.
+  const [stageBlock, setStageBlock] = useState<{ stage: string; missing: string[] } | null>(null);
+  // The include-in-report step, and where to go once it is saved.
+  const [reportStep, setReportStep] = useState<string | null>(null);
 
   if (jobLoading || tabsLoading) {
     return (
@@ -113,7 +119,52 @@ export function JobDetailClient({ id }: { id: string }) {
   const stageLabel = (key: NavStage) => NAV.find((s) => s.key === key)?.label ?? key;
   const stagePages = pages.filter((p) => p.stage === current.stage);
 
+  const STAGE_ORDER: NavStage[] = ["setup", "inspection", "valuation", "review", "send"];
+  /** What is still missing in a data-entry stage, as "Section: field, field". */
+  const missingIn = (stage: NavStage): string[] =>
+    pages
+      .filter((p) => p.stage === stage && p.tab && job.tabs[p.key])
+      .flatMap((p) => {
+        const missing = job.tabs[p.key].completion.missing;
+        return missing.length ? [`${p.label}: ${missing.join(", ")}`] : [];
+      });
+  /** The first earlier data-entry stage that isn't complete, if moving to
+   * `target` would skip past it. Going back is always allowed. */
+  const blockingStage = (target: NavStage) => {
+    if (isLocked) return null;
+    for (const stage of STAGE_ORDER.slice(0, STAGE_ORDER.indexOf(target))) {
+      if (stage === "review" || stage === "send") continue;
+      const missing = missingIn(stage);
+      if (missing.length) return { stage: stageLabel(stage), missing };
+    }
+    return null;
+  };
+  const reportStepKey = `report-fields-confirmed:${id}`;
+  const reportStepDone = () => {
+    try {
+      return window.localStorage.getItem(reportStepKey) === "1";
+    } catch {
+      return false;
+    }
+  };
+
   const go = (key: string) => {
+    const target = pages.find((p) => p.key === key);
+    if (target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage)) {
+      const block = blockingStage(target.stage);
+      if (block) {
+        setStageBlock(block);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      // Leaving a complete Inspection stage: choose what goes in the report.
+      const canChoose = Boolean(job.tabs.inspection?.can_edit);
+      if (current.stage === "inspection" && canChoose && !reportStepDone()) {
+        setReportStep(key);
+        return;
+      }
+    }
+    setStageBlock(null);
     setActive(key);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -259,6 +310,17 @@ export function JobDetailClient({ id }: { id: string }) {
         </nav>
       </div>
 
+      {stageBlock && (
+        <Banner tone="red" icon="alert-circle">
+          <b style={{ fontWeight: 500 }}>Complete the {stageBlock.stage} stage before moving on.</b> Still required:
+          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+            {stageBlock.missing.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </Banner>
+      )}
+
       {job.issue_in_progress && (
         <Banner tone="blue" icon="loader">
           <b style={{ fontWeight: 500 }}>Producing the final report…</b> This page updates when it&apos;s done.
@@ -341,17 +403,48 @@ export function JobDetailClient({ id }: { id: string }) {
               ) : (
                 <span />
               )}
-              {next && (
-                <Button size="sm" onClick={() => go(next.key)}>
-                  {nextLabel(next)}
-                  <Icon name="chevron-right" size={16} />
-                </Button>
-              )}
+              <div className="row" style={{ gap: 8 }}>
+                {current.stage === "inspection" && Boolean(job.tabs.inspection?.can_edit) && (
+                  <Button size="sm" variant="outline" icon={<Icon name="file-text" size={16} />} onClick={() => setReportStep("")}>
+                    Report fields
+                  </Button>
+                )}
+                {next && (
+                  <Button size="sm" onClick={() => go(next.key)}>
+                    {nextLabel(next)}
+                    <Icon name="chevron-right" size={16} />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
         <RightPanel jobId={id} />
       </div>
+
+      {reportStep !== null && (
+        <ReportFieldsDialog
+          open
+          jobId={id}
+          tabs={(tabs ?? []).filter((t) => t.key === "summary" || t.key === "inspection")}
+          excluded={Array.isArray(job.report_exclusions) ? (job.report_exclusions as string[]) : []}
+          onClose={() => setReportStep(null)}
+          onSaved={() => {
+            try {
+              window.localStorage.setItem(reportStepKey, "1");
+            } catch {
+              /* private mode: the step simply shows again next time */
+            }
+            const target = reportStep;
+            setReportStep(null);
+            if (target) {
+              setStageBlock(null);
+              setActive(target);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          }}
+        />
+      )}
     </Shell>
   );
 }

@@ -184,7 +184,7 @@ class TestSendForReview:
         res = move(client_for(dan), job, S.PEER_REVIEW)
         assert res.status_code == 422 and res.json()["code"] == "blocked"
         blockers = " ".join(res.json()["blockers"])
-        assert "Summary: Interest Valued" in blockers and "Valuation:" in blockers
+        assert "Preliminary Check: Interest Valued" in blockers and "Valuation:" in blockers
 
     def test_the_blockers_are_also_shown_up_front(self, job, dan):
         get_to(job, S.VALUATION_IN_PROGRESS)
@@ -349,10 +349,12 @@ class TestStagesFollowTheTabs:
     def test_a_complete_setup_stage_moves_on_to_inspection(self, job, dan):
         job.date_of_instruction = datetime.date(2026, 8, 26)
         job.save()
-        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.SETUP
+        # Setup is now just Instructions and Property Address (ops); the Check
+        # List and Preliminary Check moved into the Inspection stage.
         summary = {"interest_valued": "international_freehold", "property_category": "apartment",
                    "bua_sqft": "519", "disclosure": "No conflicts."}
-        assert self.patch(dan, job, "summary", summary) == S.INSPECTION_SCHEDULED
+        assert self.patch(dan, job, "summary", summary) == S.SETUP
+        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.INSPECTION_SCHEDULED
         moves = list(JobTransition.objects.filter(job=job).order_by("id").values_list("to_status", flat=True))
         assert moves == [S.SETUP, S.INSPECTION_SCHEDULED]
 
@@ -370,5 +372,5 @@ class TestMissingItemsNameTheirStage:
     def test_review_blockers_say_which_stage_and_section(self, job, dan):
         blockers = client_for(dan).get(f"/api/jobs/{job.pk}/").json()["available_actions"]
         review = next(a for a in blockers if a["to"] == S.PEER_REVIEW)["blockers"]
-        assert any(b.startswith("Setup › Summary: ") for b in review)
+        assert any(b.startswith("Inspection › Preliminary Check: ") for b in review)
         assert any(b.startswith("Valuation › Documents: ") for b in review)

@@ -36,7 +36,7 @@ def _photo_requirements(job) -> list[tuple[str, bool]]:
     included = [p for p in job.photos.all() if p.include_in_report]
     general = [p for p in included if p.slot == "general"]
     inspection_type = job.inspection.inspection_type
-    rules = job.bank.rules or {}
+    rules = (job.bank.rules if job.bank_id else None) or {}
     needs = []
 
     # A site visit produces photographs; a desktop valuation has none to show.
@@ -56,7 +56,7 @@ def _photo_requirements(job) -> list[tuple[str, bool]]:
     ):
         have = any(p.slot == slot for p in included)
         if rules.get(rule) and inspection_type == "full":
-            needs.append((f"A {name} number photograph (required by {job.bank.name})", have))
+            needs.append((f"A {name} number photograph (required by {job.organisation_name})", have))
         elif getattr(job.checklist, checklist_flag):
             needs.append((f"A {name} number photograph (the Check List says one was taken)", have))
     return needs

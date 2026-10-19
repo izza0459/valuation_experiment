@@ -54,20 +54,29 @@ class ValuationDataSerializer(serializers.ModelSerializer):
 class JobListSerializer(serializers.ModelSerializer):
     """Backs the jobs dashboard table (design brief S1)."""
 
-    bank_name = serializers.CharField(source="bank.name", read_only=True)
+    # The bank on mortgage work, otherwise the client organisation.
+    bank_name = serializers.CharField(source="organisation_name", read_only=True)
     property_label = serializers.CharField(source="property.__str__", read_only=True)
     property_type = serializers.CharField(source="summary.property_category", read_only=True, default="")
     valuer_name = serializers.SerializerMethodField()
     status_label = serializers.CharField(source="get_status_display", read_only=True)
+    # Status and sub-status for the dashboard: the stage the job is in and
+    # the section being worked on (the first one not yet complete).
+    progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Job
         fields = [
             "id", "bayut_internal_reference_no", "bank_reference_no", "bank_name",
             "property_label", "property_type", "valuer_name", "purpose",
-            "status", "status_label", "version", "is_locked",
+            "status", "status_label", "progress", "version", "is_locked",
             "date_time_request_received", "created_at", "updated_at",
         ]
+
+    def get_progress(self, job) -> dict:
+        from .tabs import job_progress
+
+        return job_progress(job)
 
     def get_valuer_name(self, job) -> str:
         valuer = job.valuer or job.registered_valuer
@@ -76,13 +85,14 @@ class JobListSerializer(serializers.ModelSerializer):
 
 class JobDetailSerializer(serializers.ModelSerializer):
     property = PropertySerializer(read_only=True)
-    bank_name = serializers.CharField(source="bank.name", read_only=True)
+    bank_name = serializers.CharField(source="organisation_name", read_only=True)
+    bank_code = serializers.CharField(read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     # Names for the workspace header's assignee avatars (design brief S3).
     assignees = serializers.SerializerMethodField()
     # Conditional fields key off the bank master's rules rather than the
     # bank's name (e.g. the ADIB service charge) — see field_config.py.
-    bank_rules = serializers.JSONField(source="bank.rules", read_only=True)
+    bank_rules = serializers.SerializerMethodField()
     # Per-tab values, server-computed values, completion and edit version,
     # assembled by the same engine the PATCH endpoint uses (see tabs.py).
     tabs = serializers.SerializerMethodField()
@@ -111,6 +121,9 @@ class JobDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = "__all__"
+
+    def get_bank_rules(self, job) -> dict:
+        return (job.bank.rules if job.bank_id else None) or {}
 
     def get_tabs(self, job) -> dict:
         from .tabs import job_tab_state
