@@ -42,7 +42,7 @@ export function LoginForm() {
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
       <form onSubmit={submit} className="card" style={{ width: 380, maxWidth: "100%", padding: 32 }}>
         <div style={{ fontSize: 24, fontWeight: 500, marginBottom: 4 }}>
-          dubizzle <span style={{ color: "var(--brand-red)" }}>valuations</span>
+          Bayut <span style={{ color: "var(--brand-red)" }}>valuations</span>
         </div>
         <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 24 }}>Sign in to continue</div>
 
