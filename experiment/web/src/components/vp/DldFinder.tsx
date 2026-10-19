@@ -44,7 +44,14 @@ type Sale = {
 };
 
 type DataStatus = { count: number; earliest: string | null; latest: string | null };
-type SearchResult = { filters: Record<string, unknown>; defaults: Record<string, unknown>; results: Sale[]; data: DataStatus };
+type SearchResult = {
+  filters: Record<string, unknown>;
+  defaults: Record<string, unknown>;
+  results: Sale[];
+  /** Filters the server relaxed because the search found nothing as set. */
+  widened?: string[];
+  data: DataStatus;
+};
 
 const asFilters = (raw: Record<string, unknown>): Filters => ({
   community: String(raw.community ?? ""),
@@ -232,9 +239,15 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
             </button>
           </div>
 
+          {sales.length > 0 && result?.widened && result.widened.length > 0 && (
+            <div style={{ fontSize: 13, color: "var(--amber-600)" }}>
+              Nothing matched exactly, so the search was widened to: {result.widened.join(", ")}.
+            </div>
+          )}
           {sales.length === 0 ? (
             <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
-              No sales match. Try widening the BUA range, a longer period, or clearing the building.
+              No DLD sales found for this community, even with the filters widened. DLD may name it differently: try
+              its DLD area name (e.g. Marsa Dubai for Dubai Marina) or a nearby community.
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>

@@ -90,14 +90,17 @@ class JobDldView(_EvidenceView):
         defaults = dld.defaults_for(job)
         params = {**defaults, **request.query_params.dict()} if request.query_params else defaults
         try:
-            results = [dld.describe(t) for t in dld.search(params)]
+            found, widened = dld.search_widening(params)
+            results = [dld.describe(t) for t in found]
         except (TypeError, ValueError):
             return Response({"code": "validation", "detail": "Check the filters."}, status=400)
         dld_links = job.job_comparables.filter(comparable__source="dld")
         linked = set(dld_links.values_list("comparable__source_ref", flat=True))
         for row in results:
             row["added"] = row["transaction_number"] in linked
-        return Response({"filters": params, "defaults": defaults, "results": results, "data": dld.data_status()})
+        return Response(
+            {"filters": params, "defaults": defaults, "results": results, "widened": widened, "data": dld.data_status()}
+        )
 
     def post(self, request, pk):
         job = self._job(request, pk)

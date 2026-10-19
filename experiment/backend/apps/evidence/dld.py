@@ -17,7 +17,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Value
+from django.db.models.functions import Replace, Upper
 
 from apps.jobs.calculations import sqft_to_sqm
 from apps.jobs.constants import PLOT_BEARING_CATEGORIES
@@ -58,7 +59,18 @@ COMMUNITY_AREAS = {
     "downtown dubai": ["burj khalifa"],
     "dubai hills estate": ["hadaeq sheikh mohammed bin rashid"],
     "jumeirah village triangle": ["al barsha south fifth"],
+    "dubailand": ["dubai land"],
+    "health care city": ["healthcare city"],
+    "dubai healthcare city": ["healthcare city"],
+    "al jaddaf": ["jadaf", "jaddaf"],
+    "jaddaf": ["jadaf", "jaddaf"],
+    "dubai south": ["madinat al mataar"],
 }
+
+PLACE_FIELDS = ("area_name", "master_project", "project_name", "building_name")
+GENERIC_WORDS = re.compile(r"\b(the|residences?|towers?|buildings?|apartments?|villas?|heights|by)\b", re.I)
+# Widen until a search finds at least this many sales.
+ENOUGH = 5
 
 # Job property categories, as DLD records the property.
 TYPE_GROUPS = {
@@ -228,24 +240,58 @@ def defaults_for(job) -> dict:
     }
 
 
+def _squash(text: str) -> str:
+    """Compared without case, spaces, dashes or dots: "health care city" and
+    "DUBAI HEALTHCARE CITY - PHASE 2" both become ...HEALTHCARECITY..."""
+    return re.sub(r"[\s\-.]", "", (text or "")).upper()
+
+
+def _squashed(field: str):
+    expr = Upper(field)
+    for ch in (" ", "-", "."):
+        expr = Replace(expr, Value(ch), Value(""))
+    return expr
+
+
+def _place_q(terms: list[str], fields=PLACE_FIELDS) -> Q:
+    """Any of the terms in any of the fields, ignoring spacing and dashes. A
+    trailing number or "phase" ("health care city 2") is also tried without."""
+    variants = set()
+    for term in terms:
+        variants.add(_squash(term))
+        trimmed = re.sub(r"(\s+(phase\s*)?\d+)+$", "", term.strip(), flags=re.I)
+        if trimmed and trimmed != term.strip():
+            variants.add(_squash(trimmed))
+        # "Rukan Residences" is registered as "RUKAN": try it without the
+        # generic words buildings are named with.
+        core = GENERIC_WORDS.sub("", term).strip()
+        if core and core.lower() != term.strip().lower():
+            variants.add(_squash(core))
+    q = Q()
+    for v in (v for v in variants if len(v) >= 3):
+        for field in fields:
+            q |= Q(**{f"_sq_{field}__contains": v})
+    return q
+
+
+def _annotated(qs):
+    return qs.annotate(**{f"_sq_{f}": _squashed(f) for f in PLACE_FIELDS})
+
+
 def _terms(community: str) -> list[str]:
     name = community.strip().lower()
     return [name, *COMMUNITY_AREAS.get(name, [])] if name else []
 
 
 def search(params: dict, limit: int = 60) -> list[DldTransaction]:
-    qs = DldTransaction.objects.all()
+    qs = _annotated(DldTransaction.objects.all())
     months = int(params.get("months") or 12)
     qs = qs.filter(date__gte=date.today() - timedelta(days=round(months * 30.44)))
 
     if terms := _terms(params.get("community") or ""):
-        place = Q()
-        for term in terms:
-            for field in ("area_name", "master_project", "project_name", "building_name"):
-                place |= Q(**{f"{field}__icontains": term})
-        qs = qs.filter(place)
+        qs = qs.filter(_place_q(terms))
     if building := (params.get("building") or "").strip():
-        qs = qs.filter(Q(project_name__icontains=building) | Q(building_name__icontains=building))
+        qs = qs.filter(_place_q([building], fields=("project_name", "building_name")))
     if group := TYPE_GROUPS.get(params.get("type") or ""):
         qs = qs.filter(Q(property_sub_type__in=group) | Q(property_type__in=group))
     if str(params.get("beds", "")).strip() != "":
@@ -257,6 +303,33 @@ def search(params: dict, limit: int = 60) -> list[DldTransaction]:
     if status in ("ready", "offplan"):
         qs = qs.filter(is_offplan=(status == "offplan"))
     return list(qs.order_by("-date")[:limit])
+
+
+def search_widening(params: dict, limit: int = 60) -> tuple[list[DldTransaction], list[str]]:
+    """The search, widened one step at a time while it finds nothing, so a
+    job whose building DLD names differently still gets nearby sales. Says
+    what it widened."""
+    # The same building registered under another DLD area (Rukan is in
+    # Wadi Al Safa 7, not "Dubailand") is the best evidence, so it is tried
+    # before loosening anything else.
+    steps = [
+        ([], {}),
+        (["the building anywhere in Dubai"], {"community": ""}),
+        (["any building in the community"], {"building": ""}),
+        (["any building", "ready or off-plan"], {"building": "", "status": "any"}),
+        (["any building", "ready or off-plan", "any bedrooms and size"],
+         {"building": "", "status": "any", "beds": "", "bua_min": "", "bua_max": ""}),
+    ]
+    best: tuple[list[DldTransaction], list[str]] = ([], [])
+    for widened, changes in steps:
+        if changes.get("community") == "" and not (params.get("building") or "").strip():
+            continue
+        results = search({**params, **changes}, limit=limit)
+        if len(results) >= ENOUGH:
+            return results, widened
+        if len(results) > len(best[0]):
+            best = (results, widened)
+    return best
 
 
 def _sqft(t: DldTransaction):

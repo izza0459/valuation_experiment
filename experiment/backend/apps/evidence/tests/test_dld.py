@@ -141,19 +141,50 @@ class TestSearch:
         assert {t.transaction_number for t in dld.search(params)} == {"T-1", "T-2", "T-3"}
 
 
+class TestMatching:
+    def test_spacing_dashes_and_phase_numbers_are_ignored(self, job):
+        load(PULSE)
+        DldTransaction.objects.filter(transaction_number="T-1").update(area_name="DUBAI HEALTHCARE CITY - PHASE 2")
+        params = {**dld.defaults_for(job), "community": "health care city 2", "building": ""}
+        assert [t.transaction_number for t in dld.search(params)] == ["T-1"]
+
+    def test_generic_words_in_a_building_name_are_dropped(self, job):
+        load(PULSE)
+        DldTransaction.objects.filter(transaction_number="T-1").update(project_name="RUKAN 3")
+        params = {**dld.defaults_for(job), "building": "Rukan Residences"}
+        assert [t.transaction_number for t in dld.search(params)] == ["T-1"]
+
+    def test_an_empty_search_widens_and_says_how(self, job):
+        load(PULSE)
+        # No such building: the community's other sales are used instead,
+        # widened further while fewer than ENOUGH turn up.
+        found, widened = dld.search_widening({**dld.defaults_for(job), "building": "Nowhere Tower"})
+        assert "T-1" in {t.transaction_number for t in found}
+        assert widened and widened[0].startswith("any building")
+
+    def test_the_same_building_elsewhere_comes_before_loosening(self, job):
+        load(PULSE)
+        params = {**dld.defaults_for(job), "community": "Somewhere Else", "building": "Test Tower A"}
+        found, widened = dld.search_widening(params)
+        assert [t.transaction_number for t in found] == ["T-1"]
+        assert widened == ["the building anywhere in Dubai"]
+
+
 class TestApi:
     def test_search_then_add_ticked_sales(self, job, dan):
         load(PULSE)
         res = client_for(dan).get(f"/api/jobs/{job.pk}/evidence/dld/")
         assert res.status_code == 200
-        row = res.json()["results"][0]
-        assert row["transaction_number"] == "T-1" and row["aed_per_sqft"] == "1765" and row["added"] is False
+        # Fewer than five exact matches, so the list is widened; T-1 is still in it.
+        row = next(r for r in res.json()["results"] if r["transaction_number"] == "T-1")
+        assert row["aed_per_sqft"] == "1765" and row["added"] is False
         add = client_for(dan).post(f"/api/jobs/{job.pk}/evidence/dld/", {"ids": [row["id"]]}, format="json")
         assert add.status_code == 201 and add.json()["added"] == 1
         comparable = JobComparable.objects.get(job=job).comparable
         assert (comparable.source, comparable.source_ref, comparable.status) == ("dld", "T-1", "sold")
         assert comparable.bua_sqft == Decimal("850") and comparable.created_by is None
-        assert client_for(dan).get(f"/api/jobs/{job.pk}/evidence/dld/").json()["results"][0]["added"] is True
+        again = client_for(dan).get(f"/api/jobs/{job.pk}/evidence/dld/").json()["results"]
+        assert next(r for r in again if r["transaction_number"] == "T-1")["added"] is True
 
     def test_a_sale_used_by_two_jobs_is_one_comparable(self, job, dan):
         load(PULSE)
