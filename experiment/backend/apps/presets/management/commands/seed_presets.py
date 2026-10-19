@@ -27,6 +27,8 @@ PRESETS = {
     "document_type": [
         "Title Deed", "SPA", "Site Plan", "Site Affection Plan", "Floor Plan", "Developer's Floor Plan",
         "Tenancy Contract", "Ownership Certificate", "NOC", "Bank instruction", "Other",
+        # The rest of the title document types (presets migration 0005).
+        "Initial Contract of Sale", "Usufruct Certificate", "Sale Certificate",
     ],
     "capacity_of_valuer": ["External", "Internal"],
     "occupancy_title": [

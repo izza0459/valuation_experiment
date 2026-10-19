@@ -39,8 +39,11 @@ export function formatWhole(value: unknown): string {
 
 type LibraryEntry = { title: string; body: string };
 
-/** How many choices still read better as a segmented control than a menu. */
+/** How many choices still read better as a segmented control than a menu,
+ * and how much text they can hold between them before the row would run out
+ * of its half-width column (then it becomes a dropdown). */
 const SEGMENT_MAX = 4;
+const SEGMENT_MAX_CHARS = 50;
 
 const str = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 const labelFor = (options: Option[], value: unknown) =>
@@ -118,7 +121,8 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
           </>
         );
       }
-      if (options.length > 0 && options.length <= SEGMENT_MAX) {
+      const labelChars = options.reduce((n, o) => n + o.label.length, 0);
+      if (options.length > 0 && options.length <= SEGMENT_MAX && labelChars <= SEGMENT_MAX_CHARS) {
         return (
           <div className="seg">
             {options.map((o) => (

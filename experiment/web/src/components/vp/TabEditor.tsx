@@ -134,9 +134,13 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
 
       {tab.key === "valuation" && <ValueInWords words={state.computed.market_value_in_words} />}
 
-      {tab.key === "checklist" && (
+      {/* The title document is uploaded where its details are asked for. */}
+      {tab.key === "address" && <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} />}
+
+      {tab.key === "checklist" && (merged.makani_photo === true || merged.dewa_photo === true) && (
         <ChecklistUploads
           jobId={jobId}
+          mode="photos"
           makani={merged.makani_photo === true}
           dewa={merged.dewa_photo === true}
           canEdit={!tabReadOnly}
