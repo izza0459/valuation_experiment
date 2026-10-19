@@ -13,6 +13,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button, Icon } from "@/design-system";
 import { FieldInput } from "@/components/vp/FieldInput";
 import { demoValuesFor } from "@/components/vp/demoFill";
@@ -53,6 +54,7 @@ const DEMO_FILL = process.env.NEXT_PUBLIC_DEMO_FILL !== "false";
 
 export function NewInstruction() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { data: me } = useMe();
   const { data: tabs } = useFieldConfig();
   const { data: options } = useOptions();
@@ -132,11 +134,14 @@ export function NewInstruction() {
     }
 
     try {
-      const created = await apiFetch<{ id: number }>("/api/jobs/", {
+      await apiFetch<{ id: number }>("/api/jobs/", {
         method: "POST",
         body: JSON.stringify({ values: payload }),
       });
-      router.push(`/jobs/${created.id}`);
+      // Back to the dashboard, where the new job now shows, rather than
+      // straight into its workspace.
+      await Promise.all([qc.invalidateQueries({ queryKey: ["jobs"] }), qc.invalidateQueries({ queryKey: ["job-kpis"] })]);
+      router.push("/jobs");
     } catch (err) {
       if (err instanceof ApiError && err.status === 400 && err.body?.errors) {
         setErrors(err.body.errors as Record<string, string>);
