@@ -233,7 +233,10 @@ export function JobDetailClient({ id }: { id: string }) {
       <div className="card" style={{ marginBottom: 12, padding: "18px 22px" }}>
         <div className="row jobtop" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>
+            <Link href="/jobs" className="show-app backlink">
+              ‹ Jobs
+            </Link>
+            <div className="hide-app" style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>
               <Link href="/jobs" style={{ textDecoration: "none" }}>
                 Jobs
               </Link>{" "}
@@ -470,9 +473,9 @@ export function JobDetailClient({ id }: { id: string }) {
               )
             )}
 
-            {/* --- previous / next, across stages ---------------------- */}
+            {/* --- previous / next, across stages (fixed above the tab bar on phones) --- */}
             <div
-              className="row"
+              className="row pagenav"
               style={{ justifyContent: "space-between", marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-divider)" }}
             >
               {opsView && current.stage === "setup" && !next && (

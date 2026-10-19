@@ -19,7 +19,8 @@ import { JOB_STATUS_LABELS, useJobKpis, useJobs, type JobFilters, type JobListIt
 const VIEWS = [
   { key: "all", label: "All" },
   { key: "mine", label: "My jobs" },
-  { key: "review", label: "Awaiting my review" },
+  // "Awaiting review", as in the design: short enough for a phone.
+  { key: "review", label: "Awaiting review" },
 ] as const;
 
 export default function JobsPage() {
@@ -47,12 +48,13 @@ export default function JobsPage() {
         )}
       </PageHead>
 
-      <div className="hide-app" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14, marginBottom: 16 }}>
-        <Kpi label="Jobs in progress" value={kpis?.in_progress} />
-        <Kpi label="Awaiting peer review" value={kpis?.awaiting_peer_review} />
-        <Kpi label="Issued this week" value={kpis?.issued_this_week} />
+      <div className="kpis" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14, marginBottom: 16 }}>
+        <Kpi label="Jobs in progress" short="In progress" value={kpis?.in_progress} />
+        <Kpi label="Awaiting peer review" short="In review" value={kpis?.awaiting_peer_review} />
+        <Kpi label="Issued this week" short="Issued (7d)" value={kpis?.issued_this_week} />
         <Kpi
           label="Avg turnaround"
+          short="Turnaround"
           value={kpis?.avg_turnaround_hours ?? undefined}
           suffix=" hrs"
           sub={kpis && kpis.avg_turnaround_hours === null ? "No issued jobs yet" : undefined}
@@ -213,14 +215,17 @@ export default function JobsPage() {
   );
 }
 
-function Kpi({ label, value, suffix = "", sub }: { label: string; value?: number; suffix?: string; sub?: string }) {
+function Kpi({ label, short, value, suffix = "", sub }: { label: string; short?: string; value?: number; suffix?: string; sub?: string }) {
   return (
-    <div className="card" style={{ padding: "16px 18px" }}>
-      <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{label}</div>
-      <div className="num" style={{ fontSize: 30, fontWeight: 500, margin: "4px 0 2px" }}>
+    <div className="card kpi" style={{ padding: "16px 18px" }}>
+      <div className="kpi-label" style={{ fontSize: 14, color: "var(--text-muted)" }}>
+        <span className="hide-app">{label}</span>
+        <span className="show-app">{short ?? label}</span>
+      </div>
+      <div className="num kpi-value" style={{ fontSize: 30, fontWeight: 500, margin: "4px 0 2px" }}>
         {value === undefined ? <span className="skel" style={{ display: "inline-block", width: 48, height: 30 }} /> : value + suffix}
       </div>
-      <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{sub ?? " "}</div>
+      <div className="hide-app" style={{ fontSize: 13, color: "var(--text-muted)" }}>{sub ??" "}</div>
     </div>
   );
 }

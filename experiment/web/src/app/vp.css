@@ -376,6 +376,102 @@
   .card {
     border-radius: 14px;
   }
+
+  /* Nothing wider than the screen: no sideways scrolling. */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+  main {
+    max-width: 100vw;
+  }
+  table {
+    width: 100%;
+  }
+
+  /* Compact cards. */
+  main .card {
+    padding: 12px 14px !important;
+  }
+  .job-card {
+    gap: 3px;
+    padding: 10px 12px;
+  }
+  .job-card b {
+    font-size: 14px !important;
+  }
+  .job-card .row {
+    flex-wrap: nowrap;
+  }
+  .job-card .row > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The four stats in one slim strip (doubled class: beats the
+     one-column rule for small screens further down). */
+  .kpis.kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    margin-bottom: 12px !important;
+    overflow: hidden;
+  }
+  .kpis .kpi {
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 8px 6px !important;
+    text-align: center;
+  }
+  .kpis .kpi + .kpi {
+    border-left: 1px solid var(--border-divider) !important;
+  }
+  .kpi-label {
+    font-size: 11px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kpi-value {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    margin: 2px 0 0 !important;
+  }
+
+  /* Job screen: back to the list, and Previous / Next always in reach. */
+  .backlink {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-accent);
+    text-decoration: none;
+    padding: 4px 0 8px;
+  }
+  .pagenav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    z-index: 38;
+    margin: 0 !important;
+    padding: 8px 12px !important;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border-subtle) !important;
+  }
+  .pagenav button {
+    max-width: 48vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body:has(.pagenav) {
+    padding-bottom: calc(124px + env(safe-area-inset-bottom));
+  }
 }
 
 /* --- responsive (from the design rebuild) --------------------------- */
