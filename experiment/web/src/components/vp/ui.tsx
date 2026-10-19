@@ -431,7 +431,7 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
   return (
     <div style={{ minHeight: "100vh" }}>
       <header className="topbar">
-        <div className="row" style={{ gap: 28, flex: 1, minWidth: 0 }}>
+        <div className="row topbar-main" style={{ gap: 28, flex: 1, minWidth: 0 }}>
           <Link href="/jobs" className="row" style={{ gap: 12, textDecoration: "none" }}>
             {/* eslint-disable-next-line @next/next/no-img-element -- small static logo */}
             <img src="/bayut-logo.jpg" alt="bayut" className="brand-logo" />
@@ -446,9 +446,9 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
             ))}
           </nav>
         </div>
-        <div className="row" style={{ gap: 12, minWidth: 0 }}>
+        <div className="row topbar-user" style={{ gap: 12, minWidth: 0 }}>
           <Avatar name={user.name} size={30} />
-          <div style={{ lineHeight: 1.3, minWidth: 0 }}>
+          <div className="topbar-who" style={{ lineHeight: 1.3, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{user.name}</div>
             <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
               {user.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ") || "No role"}
@@ -462,6 +462,15 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
       <main style={{ maxWidth: bare ? undefined : 1360, margin: "0 auto", padding: bare ? 0 : "24px 28px 56px" }}>
         {children}
       </main>
+      {/* Phones (and the app): the sections as a bottom tab bar. */}
+      <nav className="tabbar" aria-label="Primary">
+        {NAV.filter((item) => !item.adminOnly || user.is_admin).map((item) => (
+          <Link key={item.key} href={"/" + item.key} className={active === item.key ? "on" : ""}>
+            <Icon name={item.icon} size={18} />
+            {item.label}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

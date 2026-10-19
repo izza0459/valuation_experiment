@@ -1,0 +1,13 @@
+{
+  "appId": "ae.bayut.valuations",
+  "appName": "Bayut Valuations",
+  "webDir": "www",
+  "server": {
+    "url": "https://valuation-web-dq3z.onrender.com",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "backgroundColor": "#f4f5f6"
+  }
+}

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Lato } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/QueryProvider";
@@ -11,8 +11,13 @@ const lato = Lato({
   weight: ["400", "700", "900"],
 });
 
+// Full-bleed on phones (the bottom tab bar sits above the home indicator).
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#ffffff" };
+
 export const metadata: Metadata = {
   title: "Bayut Valuations",
+  appleWebApp: { capable: true, title: "Bayut Valuations", statusBarStyle: "default" },
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
   description: "In-house real estate valuation platform (Dubizzle Group / Bayut)",
 };
 

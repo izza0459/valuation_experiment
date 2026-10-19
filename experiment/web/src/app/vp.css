@@ -242,6 +242,142 @@
   margin-left: 6px;
 }
 
+/* --- phone / app layout (design rebuild: app view) --------------------- */
+.tabbar,
+.show-app {
+  display: none;
+}
+@media (max-width: 700px) {
+  .show-app {
+    display: block;
+  }
+  span.show-app {
+    display: inline;
+  }
+  .hide-app,
+  .topbar nav,
+  .brand-name,
+  .topbar-who {
+    display: none !important;
+  }
+  .topbar {
+    flex-wrap: nowrap !important;
+    padding-top: calc(10px + env(safe-area-inset-top)) !important;
+  }
+  .topbar > .row {
+    flex: 0 1 auto !important;
+  }
+  .topbar-user {
+    margin-left: auto;
+  }
+  body {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tabbar {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 4px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border-subtle);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  }
+  .tabbar a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 48px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .tabbar a.on {
+    color: var(--text-accent);
+    background: var(--surface-accent);
+  }
+  /* New instruction: a floating button above the tab bar. */
+  .fab-link {
+    position: fixed;
+    right: 16px;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    z-index: 35;
+  }
+  .fab-link button {
+    height: 52px !important;
+    padding: 0 22px !important;
+    border-radius: 26px !important;
+    box-shadow: 0 6px 18px rgba(31, 138, 76, 0.38);
+    font-size: 15px !important;
+  }
+  .job-cards {
+    display: grid;
+  }
+  .job-card {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-divider);
+    color: inherit;
+    text-decoration: none;
+  }
+  .job-card:active {
+    background: var(--surface-subtle);
+  }
+  /* Job header stacks; the stage steps shrink to numbered dots. */
+  .jobtop {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .jobmeta {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+  .stagelab {
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 10px 0 2px;
+  }
+  .stagenav > button {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+    justify-content: center;
+    padding: 10px 4px 8px !important;
+  }
+  .stagenav > button > span:last-child {
+    display: none;
+  }
+  /* Section pills: one row that scrolls sideways. */
+  .stickybar > .row.wrap {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .stickybar > .row.wrap > button {
+    flex-shrink: 0;
+  }
+  .notice {
+    top: auto;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    right: 12px;
+  }
+  .card {
+    border-radius: 14px;
+  }
+}
+
 /* --- responsive (from the design rebuild) --------------------------- */
 /* Screens set their grids inline, so these match on the inline style. */
 .table-wrap {
@@ -281,13 +417,14 @@
   .stickybar {
     position: static;
   }
-  /* Stage steps scroll sideways instead of squeezing their labels. */
+  /* Stage steps scroll sideways instead of squeezing their labels
+     (phones show numbered dots instead, see the app layout above). */
   .stagenav {
     overflow-x: auto;
   }
   .stagenav > button {
-    flex: 0 0 auto !important;
-    min-width: 150px !important;
+    flex: 0 0 auto;
+    min-width: 150px;
   }
   /* Top bar: brand + nav on one line, the signed-in user on the next. */
   .topbar > .row {

@@ -231,7 +231,7 @@ export function JobDetailClient({ id }: { id: string }) {
     <Shell>
       {/* --- header: the job, then its stages ------------------------- */}
       <div className="card" style={{ marginBottom: 12, padding: "18px 22px" }}>
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
+        <div className="row jobtop" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>
               <Link href="/jobs" style={{ textDecoration: "none" }}>
@@ -257,7 +257,7 @@ export function JobDetailClient({ id }: { id: string }) {
             </div>
           </div>
 
-          <div className="row" style={{ gap: 12, flexShrink: 0 }}>
+          <div className="row jobmeta" style={{ gap: 12, flexShrink: 0 }}>
             {!isLocked && current.stage !== "review" && current.stage !== "send" && <ReportActions jobId={id} />}
             <StatusChip s={job.status_label as string} />
             <div className="row" style={{ gap: 0 }}>
@@ -278,6 +278,10 @@ export function JobDetailClient({ id }: { id: string }) {
 
       {/* --- the stages and their sections, kept in view while scrolling --- */}
       <div className="card stickybar" style={{ padding: "0 22px", marginBottom: 16 }}>
+        <div className="show-app stagelab">
+          Stage {STAGE_ORDER.indexOf(current.stage) + 1} of {NAV.length} ·{" "}
+          <b style={{ color: "var(--text-accent)" }}>{stageLabel(current.stage)}</b>
+        </div>
         <nav aria-label="Stages" className="stagenav" style={{ display: "flex" }}>
           {NAV.map((stage, i) => {
             const done = stageDone(stage.key, job, pages);

@@ -38,13 +38,16 @@ export default function JobsPage() {
       <PageHead title="Jobs" sub={page ? `${page.count} total` : undefined}>
         {/* Ops (and admins) take instructions in; for everyone else the button isn't offered. */}
         {canCreate && (
-          <Link href="/jobs/new">
-            <Button icon={<Icon name="plus" size={18} />}>New valuation instruction</Button>
+          <Link href="/jobs/new" className="fab-link">
+            <Button icon={<Icon name="plus" size={18} />}>
+              <span className="hide-app">New valuation instruction</span>
+              <span className="show-app">New</span>
+            </Button>
           </Link>
         )}
       </PageHead>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14, marginBottom: 16 }}>
+      <div className="hide-app" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14, marginBottom: 16 }}>
         <Kpi label="Jobs in progress" value={kpis?.in_progress} />
         <Kpi label="Awaiting peer review" value={kpis?.awaiting_peer_review} />
         <Kpi label="Issued this week" value={kpis?.issued_this_week} />
@@ -110,6 +113,24 @@ export default function JobsPage() {
         ) : rows.length === 0 ? (
           <EmptyState filtered={hasFilters || filters.view !== "all"} />
         ) : (
+          <>
+          {/* Phones: one card per job. */}
+          <div className="show-app job-cards">
+            {rows.map((j) => (
+              <Link key={j.id} href={`/jobs/${j.id}`} className="job-card">
+                <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
+                  <b className="num" style={{ fontSize: 15 }}>{j.bayut_internal_reference_no}</b>
+                  <StatusChip s={j.progress?.stage_label ?? j.status_label} />
+                </div>
+                <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>{j.property_label}</div>
+                <div className="row" style={{ justifyContent: "space-between", gap: 10, fontSize: 13, color: "var(--text-muted)" }}>
+                  <span>{j.valuer_name || "Unassigned"}</span>
+                  <span>{j.progress?.sub_status ?? ""}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div className="hide-app">
           <Table
             columns={[
               {
@@ -175,6 +196,8 @@ export default function JobsPage() {
             ]}
             rows={rows}
           />
+          </div>
+          </>
         )}
 
         {page && rows.length > 0 && (
