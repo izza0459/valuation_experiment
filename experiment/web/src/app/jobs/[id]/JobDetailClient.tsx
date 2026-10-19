@@ -57,7 +57,12 @@ const STAGE_FOR_STATUS: Record<string, NavStage> = {
   issued: "send",
 };
 
-type Page = { key: string; label: string; stage: NavStage; tab?: TabDef };
+/** `within`: a tab shown inside another section rather than as its own
+ * (the Check List sits at the top of Inspection). */
+type Page = { key: string; label: string; stage: NavStage; tab?: TabDef; within?: string };
+
+/** Tabs rendered inside another section: tab -> the section that holds it. */
+const SHOWN_WITHIN: Record<string, string> = { checklist: "inspection" };
 type Assignee = { id: number; name: string; roles: string[] };
 
 function stageDone(stage: NavStage, job: JobDetail, pages: Page[]): boolean {
@@ -103,21 +108,37 @@ export function JobDetailClient({ id }: { id: string }) {
   const pages: Page[] = [
     ...[...(tabs ?? [])]
       .sort((a, b) => a.order - b.order)
-      .map((t) => ({ key: t.key, label: t.key === "review" ? "Review & sign off" : t.label, stage: t.stage as NavStage, tab: t })),
+      .map((t) => ({
+        key: t.key,
+        label: t.key === "review" ? "Review & sign off" : t.label,
+        stage: t.stage as NavStage,
+        tab: t,
+        within: SHOWN_WITHIN[t.key],
+      })),
     { key: "send", label: "Send to bank", stage: "send" },
   ];
+  // What the user moves between: sections shown inside another are left out.
+  const navPages = pages.filter((p) => !p.within);
+  /** A section's completion, including any tab shown inside it. */
+  const completionOf = (key: string) => {
+    const parts = [key, ...pages.filter((p) => p.within === key).map((p) => p.key)]
+      .map((k) => job.tabs[k]?.completion)
+      .filter((c): c is { pct: number; missing: string[] } => Boolean(c));
+    if (parts.length === 0) return { pct: 0, missing: [] as string[] };
+    return { pct: Math.min(...parts.map((c) => c.pct)), missing: parts.flatMap((c) => c.missing) };
+  };
 
   const statusStage = STAGE_FOR_STATUS[job.status] ?? "setup";
   const defaultPage =
-    pages.find((p) => p.stage === statusStage && p.tab && (job.tabs[p.key]?.completion.pct ?? 100) < 100) ??
-    pages.find((p) => p.stage === statusStage) ??
-    pages[0];
-  const current = pages.find((p) => p.key === active) ?? defaultPage;
-  const index = pages.findIndex((p) => p.key === current.key);
-  const prev = index > 0 ? pages[index - 1] : null;
-  const next = index < pages.length - 1 ? pages[index + 1] : null;
+    navPages.find((p) => p.stage === statusStage && p.tab && completionOf(p.key).pct < 100) ??
+    navPages.find((p) => p.stage === statusStage) ??
+    navPages[0];
+  const current = navPages.find((p) => p.key === active) ?? defaultPage;
+  const index = navPages.findIndex((p) => p.key === current.key);
+  const prev = index > 0 ? navPages[index - 1] : null;
+  const next = index < navPages.length - 1 ? navPages[index + 1] : null;
   const stageLabel = (key: NavStage) => NAV.find((s) => s.key === key)?.label ?? key;
-  const stagePages = pages.filter((p) => p.stage === current.stage);
+  const stagePages = navPages.filter((p) => p.stage === current.stage);
 
   const STAGE_ORDER: NavStage[] = ["setup", "inspection", "valuation", "review", "send"];
   /** What is still missing in a data-entry stage, as "Section: field, field". */
@@ -169,8 +190,8 @@ export function JobDetailClient({ id }: { id: string }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const goStage = (stage: NavStage) => {
-    const inStage = pages.filter((p) => p.stage === stage);
-    const firstOpen = inStage.find((p) => p.tab && (job.tabs[p.key]?.completion.pct ?? 100) < 100);
+    const inStage = navPages.filter((p) => p.stage === stage);
+    const firstOpen = inStage.find((p) => p.tab && completionOf(p.key).pct < 100);
     go((firstOpen ?? inStage[0]).key);
   };
 
@@ -183,7 +204,7 @@ export function JobDetailClient({ id }: { id: string }) {
     p.stage === current.stage ? `Next: ${p.label}` : `Next: ${stageLabel(p.stage)}${p.label !== stageLabel(p.stage) && stagePagesCount(p.stage) > 1 ? ` · ${p.label}` : ""}`;
   const prevLabel = (p: Page) => (p.stage === current.stage ? p.label : `${stageLabel(p.stage)}${stagePagesCount(p.stage) > 1 ? ` · ${p.label}` : ""}`);
   function stagePagesCount(stage: NavStage) {
-    return pages.filter((p) => p.stage === stage).length;
+    return navPages.filter((p) => p.stage === stage).length;
   }
 
   return (
@@ -341,7 +362,7 @@ export function JobDetailClient({ id }: { id: string }) {
             {stagePages.length > 1 && (
               <div className="row wrap" style={{ gap: 6, marginBottom: 20 }}>
                 {stagePages.map((p) => {
-                  const { pct, missing } = job.tabs[p.key]?.completion ?? { pct: 0, missing: [] };
+                  const { pct, missing } = completionOf(p.key);
                   const on = p.key === current.key;
                   return (
                     <button
@@ -385,9 +406,23 @@ export function JobDetailClient({ id }: { id: string }) {
             ) : (
               current.tab &&
               job.tabs[current.key] && (
-                // Keyed so each section gets its own autosave state, and
-                // leaving one flushes whatever was typed last.
-                <TabEditor key={current.key} jobId={id} tab={current.tab} state={job.tabs[current.key]} allValues={allValues} />
+                <>
+                  {/* Tabs shown inside this section (the Check List at the top of Inspection). */}
+                  {pages
+                    .filter((p) => p.within === current.key && p.tab && job.tabs[p.key])
+                    .map((p) => (
+                      <div key={p.key} style={{ marginBottom: 28, paddingBottom: 8, borderBottom: "1px solid var(--border-divider)" }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
+                        <TabEditor key={p.key} jobId={id} tab={p.tab!} state={job.tabs[p.key]} allValues={allValues} />
+                      </div>
+                    ))}
+                  {pages.some((p) => p.within === current.key) && (
+                    <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{current.label}</div>
+                  )}
+                  {/* Keyed so each section gets its own autosave state, and
+                      leaving one flushes whatever was typed last. */}
+                  <TabEditor key={current.key} jobId={id} tab={current.tab} state={job.tabs[current.key]} allValues={allValues} />
+                </>
               )
             )}
 

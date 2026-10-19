@@ -78,8 +78,15 @@ export function ReportFieldsDialog({
       }
     >
       <div style={{ display: "grid", gap: 18, maxHeight: "60vh", overflowY: "auto" }}>
+        {!tabs.some((t) => t.fields.some((f) => f.report_optional)) && (
+          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
+            The server hasn&apos;t said which fields can be left out. It is probably running an older version: redeploy
+            or restart the API, then reload this page.
+          </div>
+        )}
         {tabs.map((tab) => {
           const fields = tab.fields.filter((f) => f.report_optional);
+          if (fields.length === 0) return null;
           return (
             <div key={tab.key}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{tab.label}</div>
