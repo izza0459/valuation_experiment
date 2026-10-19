@@ -11,6 +11,7 @@
  */
 
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button, Dialog, Icon, Input, Select } from "@/design-system";
 import { apiUrl } from "@/lib/api";
 import {
@@ -21,7 +22,11 @@ import {
   type MediaKind,
   type Rejected,
 } from "@/lib/media";
+import { uploadDemoFiles } from "./demoFill";
 import { Banner } from "./ui";
+
+/** Same switch as the form sections' "Fill demo data" button. */
+const DEMO_FILL = process.env.NEXT_PUBLIC_DEMO_FILL !== "false";
 
 const SLOTS = [
   { value: "general", label: "General photograph" },
@@ -46,6 +51,7 @@ const sizeText = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toF
 export function MediaTab({ jobId, kind }: { jobId: string; kind: MediaKind }) {
   const { data, isLoading, isError } = useMedia(jobId, kind);
   const actions = useMediaActions(jobId, kind);
+  const qc = useQueryClient();
   const copy = COPY[kind];
 
   const input = useRef<HTMLInputElement>(null);
@@ -137,8 +143,25 @@ export function MediaTab({ jobId, kind }: { jobId: string; kind: MediaKind }) {
     onRemove: () => setRemoving(item),
   });
 
+  // Dummy photographs (general, Makani, DEWA) or documents (title deed, SPA).
+  async function fillDemo() {
+    setUploading(true);
+    setNotice(null);
+    const problems = await uploadDemoFiles(jobId, kind, qc);
+    setUploading(false);
+    setNotice(problems.length ? { tone: "red", text: problems.join(" ") } : { tone: "green", text: "Demo files added." });
+  }
+
   return (
     <div>
+      {DEMO_FILL && canEdit && (
+        <div className="row" style={{ justifyContent: "flex-end", marginBottom: 12 }}>
+          <Button variant="outline" size="sm" disabled={uploading} onClick={() => void fillDemo()}>
+            Fill demo data
+          </Button>
+        </div>
+      )}
+
       {!canEdit && data.read_only_reason && (
         <Banner tone="blue" icon="lock">
           {data.read_only_reason}
