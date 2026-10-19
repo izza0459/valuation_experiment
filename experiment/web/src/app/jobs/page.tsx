@@ -196,8 +196,8 @@ function EmptyState({ filtered }: { filtered: boolean }) {
   }
   return (
     <div style={{ padding: "72px 24px", textAlign: "center" }}>
-      <div style={{ width: 56, height: 56, borderRadius: 28, background: "var(--red-150)", margin: "0 auto 16px", display: "grid", placeItems: "center" }}>
-        <Icon name="briefcase" size={26} color="var(--red-600)" />
+      <div style={{ width: 56, height: 56, borderRadius: 28, background: "var(--surface-accent)", margin: "0 auto 16px", display: "grid", placeItems: "center" }}>
+        <Icon name="briefcase" size={26} color="var(--text-accent)" />
       </div>
       <div style={{ fontSize: 20 }}>No valuation jobs yet</div>
       <div style={{ color: "var(--text-muted)", margin: "6px 0 18px" }}>

@@ -30,6 +30,7 @@ export function RightPanel({ jobId }: { jobId: string }) {
 
   return (
     <aside
+      className="rightpanel"
       style={{
         width: 340,
         flexShrink: 0,
@@ -37,9 +38,9 @@ export function RightPanel({ jobId }: { jobId: string }) {
         flexDirection: "column",
         gap: 14,
         position: "sticky",
-        top: 20,
+        top: 84, // below the sticky top bar
         alignSelf: "flex-start",
-        maxHeight: "calc(100vh - 40px)",
+        maxHeight: "calc(100vh - 104px)",
       }}
     >
       <div className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>

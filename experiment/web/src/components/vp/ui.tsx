@@ -425,54 +425,39 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <aside
-        style={{
-          width: 208,
-          background: "#fff",
-          borderRight: "1px solid var(--border-subtle)",
-          display: "flex",
-          flexDirection: "column",
-          position: "sticky",
-          top: 0,
-          height: "100vh",
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ padding: "22px 20px 18px", fontSize: 22, fontWeight: 500 }}>
-          dubizzle <span style={{ color: "var(--brand-red)" }}>valuations</span>
+    <div style={{ minHeight: "100vh" }}>
+      <header className="topbar">
+        <div className="row" style={{ gap: 28, flex: 1, minWidth: 0 }}>
+          <Link href="/jobs" className="row" style={{ gap: 12, textDecoration: "none" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- small static logo */}
+            <img src="/bayut-logo.jpg" alt="bayut" className="brand-logo" />
+            <span className="brand-name">Valuations</span>
+          </Link>
+          <nav className="row" style={{ gap: 4 }}>
+            {NAV.filter((item) => !item.adminOnly || user.is_admin).map((item) => (
+              <Link key={item.key} href={"/" + item.key} className={"nav" + (active === item.key ? " on" : "")}>
+                <Icon name={item.icon} size={16} />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: "0 10px" }}>
-          {NAV.filter((item) => !item.adminOnly || user.is_admin).map((item) => (
-            <Link key={item.key} href={"/" + item.key} className={"nav" + (active === item.key ? " on" : "")}>
-              <Icon name={item.icon} size={18} />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div style={{ marginTop: "auto", padding: 14 }}>
-          <div className="row" style={{ gap: 10 }}>
-            <Avatar name={user.name} size={34} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis" }}>{user.name}</div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {user.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ") || "No role"}
-              </div>
+        <div className="row" style={{ gap: 12, minWidth: 0 }}>
+          <Avatar name={user.name} size={30} />
+          <div style={{ lineHeight: 1.3, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{user.name}</div>
+            <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+              {user.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ") || "No role"}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void leave()}
-            style={{
-              marginTop: 10, border: 0, background: "none", padding: 0, cursor: "pointer",
-              fontFamily: "inherit", fontSize: 13, color: "var(--text-accent)",
-            }}
-          >
+          <button type="button" className="signout" onClick={() => void leave()}>
             Sign out
           </button>
         </div>
-      </aside>
-      <main style={{ flex: 1, minWidth: 0, padding: bare ? 0 : "20px 24px 40px" }}>{children}</main>
+      </header>
+      <main style={{ maxWidth: bare ? undefined : 1360, margin: "0 auto", padding: bare ? 0 : "24px 28px 56px" }}>
+        {children}
+      </main>
     </div>
   );
 }
@@ -488,7 +473,7 @@ export const PageHead = ({
 }) => (
   <div className="row" style={{ justifyContent: "space-between", marginBottom: 18, gap: 16 }}>
     <div>
-      <h1 style={{ margin: 0, fontSize: 26, fontWeight: 500 }}>{title}</h1>
+      <h1 style={{ margin: 0, fontSize: 26 }}>{title}</h1>
       {sub && <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>{sub}</div>}
     </div>
     <div className="row" style={{ gap: 10 }}>

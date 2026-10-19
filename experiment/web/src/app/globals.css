@@ -3,7 +3,7 @@
  * dubizzle CRM design system tokens, imported individually rather than via
  * its styles.css: that file pulls fonts.css, whose `@import url(Google
  * Fonts)` lands after Tailwind's expanded rules and is then invalid CSS.
- * Outfit is loaded through next/font in layout.tsx instead (self-hosted,
+ * Lato (the theme typeface) is loaded through next/font in layout.tsx instead (self-hosted,
  * no runtime request to Google), and wired to --font-sans below.
  *
  * Imported after Tailwind so the design system's base element styles win
@@ -15,8 +15,10 @@
 @import "../design-system/tokens/base.css";
 /* Layout/utility classes the screens rely on (.card, .row, .seg, …). */
 @import "./vp.css";
+/* Bayut valuations theme: re-points the DS tokens (green brand, flat, Lato). */
+@import "./theme.css";
 
 :root {
-  --font-sans: var(--font-outfit), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-lato), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 }

@@ -1,0 +1,90 @@
+/*
+ * Bayut valuations theme (Valuation Platform Design System Rebuild).
+ *
+ * The vendored dubizzle design system stays byte-identical; this file
+ * re-points its tokens at the rebuild's palette, so every DS component and
+ * screen picks it up without changes:
+ *   - brand / primary actions: Bayut green (was dubizzle red)
+ *   - the --red-* scale now means "negative" (errors, missing, low confidence)
+ *   - flat cards with a hairline border, Lato type
+ * Imported after the DS tokens in globals.css so these values win.
+ */
+:root {
+  /* Negative scale (errors, missing items) */
+  --red-50: #fdecea;
+  --red-100: #fdecea;
+  --red-150: #fdecea;
+  --red-200: #f3b4ae;
+  --red-300: #e5776f;
+  --red-500: #d93025;
+  --red-600: #d93025;
+  --red-700: #a52019;
+  --red-800: #8a1a14;
+  --error-500: #d93025;
+
+  /* Neutrals */
+  --gray-50: #f7f7f7;
+  --gray-100: #f4f5f6;
+  --gray-150: #f3f3f3;
+  --gray-200: #e3e3e3;
+  --gray-300: #e3e3e3;
+  --gray-400: #d6d6d6;
+  --gray-500: #a3a3a3;
+  --gray-600: #6e6e6e;
+  --gray-700: #424242;
+  --gray-900: #262626;
+
+  /* Status */
+  --green-50: #e7f6ee;
+  --green-100: #cdebd9;
+  --green-600: #1f8a4c;
+  --amber-50: #fdf3dc;
+  --amber-600: #a8700f;
+  --blue-50: #e6f1fa;
+  --blue-600: #1a6fb5;
+
+  /* Brand */
+  --accent: #30b066;
+  --accent-dark: #1f8a4c;
+  --accent-soft: #e7f6ee;
+
+  /* Semantic */
+  --surface-page: #f4f5f6;
+  --surface-card: #ffffff;
+  --surface-subtle: #f3f3f3;
+  --surface-accent: var(--accent-soft);
+  --surface-accent-strong: #d4efe0;
+  --text-primary: #262626;
+  --text-secondary: #424242;
+  --text-muted: #6e6e6e;
+  --text-placeholder: #a3a3a3;
+  --text-value: var(--accent-dark);
+  --text-link: var(--accent-dark);
+  --text-accent: var(--accent-dark);
+  --text-error: #d93025;
+  --border-default: #e3e3e3;
+  --border-subtle: #e3e3e3;
+  --border-divider: #ececec;
+  --border-active: #a9dfc0;
+  --border-focus: var(--accent);
+  --action-primary: var(--accent);
+  --action-primary-hover: var(--accent-dark);
+  --action-primary-pressed: #18703d;
+  --brand-red: var(--accent); /* DS name kept; it is the brand colour */
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-primary);
+  letter-spacing: 0;
+}
+h1 {
+  font-weight: 900;
+}
+a:hover {
+  color: var(--accent);
+}
+::selection {
+  background: var(--surface-accent-strong);
+}

@@ -183,7 +183,7 @@ export function JobDetailClient({ id }: { id: string }) {
         </div>
 
         {/* --- the stages, as tabs ------------------------------------ */}
-        <nav aria-label="Stages" style={{ display: "flex", marginTop: 18, borderTop: "1px solid var(--border-divider)" }}>
+        <nav aria-label="Stages" className="stagenav" style={{ display: "flex", marginTop: 18, borderTop: "1px solid var(--border-divider)" }}>
           {NAV.map((stage, i) => {
             const done = stageDone(stage.key, job, pages);
             const selected = stage.key === current.stage;
@@ -272,7 +272,7 @@ export function JobDetailClient({ id }: { id: string }) {
       )}
 
       {/* --- body + right panel -------------------------------------- */}
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      <div className="jobcols" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="card">
             {/* The stage's sections, when it has more than one. */}

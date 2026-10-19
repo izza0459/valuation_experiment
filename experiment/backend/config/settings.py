@@ -182,6 +182,9 @@ ISSUE_TASK_TIMEOUT_SECONDS = env.int("ISSUE_TASK_TIMEOUT_SECONDS", default=600)
 EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+# Give up on an unreachable mail server quickly, so the delivery log shows why
+# instead of the request hanging until the proxy cuts it off.
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_BACKEND = (
