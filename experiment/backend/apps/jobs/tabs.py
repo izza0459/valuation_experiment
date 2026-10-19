@@ -714,7 +714,7 @@ def set_report_exclusions(job_id: int, user, excluded) -> list[str]:
     return job.report_exclusions
 
 
-def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int) -> dict:
+def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, *, intake: bool = False) -> dict:
     """Applies a partial update to one tab, atomically.
 
     Order matters: the cheap checks (tab, role) come first, then everything
@@ -732,9 +732,16 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int) 
     with acting_as(user), transaction.atomic():
         job = Job.objects.select_for_update().get(pk=job_id)
 
-        if denial := edit_denial(user, job, tab_key):
-            raise denial
-        _check_may_assign(user, job, values.keys())
+        # The New instruction form sets a few fields on tabs the creator won't
+        # edit afterwards (the team, the property category): whoever may create
+        # the job may set those once. Every later edit follows the tab's roles.
+        if intake:
+            if job.is_locked:
+                raise JobIsLocked("This job has been issued and is locked.")
+        else:
+            if denial := edit_denial(user, job, tab_key):
+                raise denial
+            _check_may_assign(user, job, values.keys())
 
         version, _ = JobTabVersion.objects.get_or_create(job=job, tab_key=tab_key)
         if version.version != base_version:

@@ -39,6 +39,21 @@ def create(user, values):
 
 
 class TestCreate:
+    def test_ops_can_fill_in_the_whole_form_then_only_setup(self, bank):
+        """Regression: the form's team and category fields sit on Inspection
+        tabs, which ops can't edit, so creating a job failed for ops."""
+        ops, val = make_user("olga", roles=[Role.OPS]), make_user("val", roles=[Role.VALUER])
+        res = create(ops, {"bank": bank.pk, "applicant_name": "A. Applicant", "property_category": "apartment",
+                           "valuer": val.pk, "inspected_by": val.pk})
+        assert res.status_code == 201, res.json()
+        job = Job.objects.get(pk=res.json()["id"])
+        assert (job.valuer, job.summary.property_category) == (val, "apartment")
+        client = APIClient()
+        client.force_authenticate(ops)
+        tabs = client.get(f"/api/jobs/{job.pk}/").json()["tabs"]
+        assert tabs["instructions"]["can_edit"] and tabs["address"]["can_edit"]
+        assert not tabs["summary"]["can_edit"] and not tabs["checklist"]["can_edit"]
+
     def test_creates_a_job_with_its_property_and_tab_rows(self, admin, bank):
         res = create(admin, {"bank": bank.pk, "bank_reference_no": "DIB-1", "unit_number": "312",
                              "building_name": "Rukan Residences", "applicant_name": "A. Applicant"})

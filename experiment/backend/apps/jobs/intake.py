@@ -86,7 +86,7 @@ def create_job(user, values: dict) -> Job:
             if not tab_values:
                 continue
             try:
-                patch_tab(job.pk, tab, user, tab_values, base_version=0)
+                patch_tab(job.pk, tab, user, tab_values, base_version=0, intake=True)
             except ValidationFailed as exc:
                 errors.update(exc.extra["errors"])
         if errors:
