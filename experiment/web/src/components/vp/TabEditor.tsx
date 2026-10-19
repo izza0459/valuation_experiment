@@ -15,6 +15,7 @@ import type { TabState } from "@/lib/jobs";
 import { useOptions } from "@/lib/options";
 import { useTabAutosave, type SaveStatus } from "@/lib/useTabAutosave";
 import { ChecklistUploads } from "./ChecklistUploads";
+import { demoValuesFor } from "./demoFill";
 import { FieldInput, formatComputed } from "./FieldInput";
 import { MediaTab } from "./MediaTab";
 import { Banner, F } from "./ui";
@@ -26,6 +27,10 @@ type Props = {
   /** Every tab's saved values plus `bank`, for rules that cross tabs. */
   allValues: Record<string, unknown>;
 };
+
+/** The "Fill demo data" button; set NEXT_PUBLIC_DEMO_FILL=false to hide it
+ * once real valuations are entered. */
+const DEMO_FILL = process.env.NEXT_PUBLIC_DEMO_FILL !== "false";
 
 /** Fields that need the full width: long text and pick-lists. */
 const WIDE = new Set(["textarea", "library", "multiselect"]);
@@ -68,12 +73,23 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
     el?.querySelector<HTMLElement>("input, select, textarea, button")?.focus({ preventScroll: true });
   };
+  // Fills only what is empty, editable and on screen; typed values stay.
+  const fillDemo = () => {
+    const editable = visible.filter((f) => !f.calculated && !state.read_only_fields.includes(f.key));
+    const values = demoValuesFor(editable, merged, options, options?.users ?? []);
+    for (const [key, value] of Object.entries(values)) save.setField(key, value);
+  };
   const summary = (tab.key === "summary" ? merged : (allValues.summary as Record<string, unknown> | undefined)) ?? {};
   const propertyCategory = typeof summary.property_category === "string" ? summary.property_category : undefined;
 
   return (
     <div>
-      <div className="row" style={{ justifyContent: "flex-end", marginBottom: 12, minHeight: 22 }}>
+      <div className="row" style={{ justifyContent: "flex-end", gap: 12, marginBottom: 12, minHeight: 22 }}>
+        {DEMO_FILL && !tabReadOnly && (
+          <Button variant="outline" size="sm" onClick={fillDemo}>
+            Fill demo data
+          </Button>
+        )}
         {state.can_edit && <SaveIndicator status={save.status} dirty={save.dirty} onRetry={save.retry} />}
       </div>
 
