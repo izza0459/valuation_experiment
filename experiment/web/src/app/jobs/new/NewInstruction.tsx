@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Icon } from "@/design-system";
 import { FieldInput } from "@/components/vp/FieldInput";
-import { demoValuesFor, fillJobDemo } from "@/components/vp/demoFill";
+import { demoValuesFor } from "@/components/vp/demoFill";
 import { Banner, F, PageHead, Section, Shell } from "@/components/vp/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { useMe } from "@/lib/auth";
@@ -63,9 +63,6 @@ export function NewInstruction() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Pressing "Fill demo data" here also fills the rest of the job once created.
-  const [demo, setDemo] = useState(false);
-  const [busyText, setBusyText] = useState("Creating…");
 
   const fields = new Map<string, FieldDef>();
   for (const tab of tabs ?? []) for (const f of tab.fields) fields.set(f.key, f);
@@ -106,7 +103,6 @@ export function NewInstruction() {
 
   // Fills only the empty fields on screen; anything typed stays.
   function fillDemo() {
-    setDemo(true);
     const onScreen = SECTIONS.flatMap((s) => s.keys)
       .map((key) => fields.get(key))
       .filter((f): f is FieldDef => Boolean(f && shown(f)));
@@ -138,14 +134,10 @@ export function NewInstruction() {
     }
 
     try {
-      const created = await apiFetch<{ id: number }>("/api/jobs/", {
+      await apiFetch<{ id: number }>("/api/jobs/", {
         method: "POST",
         body: JSON.stringify({ values: payload }),
       });
-      if (demo) {
-        setBusyText("Filling demo data…");
-        await fillJobDemo(String(created.id), tabs ?? [], options, qc);
-      }
       // Back to the dashboard, where the new job now shows, rather than
       // straight into its workspace.
       await Promise.all([qc.invalidateQueries({ queryKey: ["jobs"] }), qc.invalidateQueries({ queryKey: ["job-kpis"] })]);
@@ -232,7 +224,7 @@ export function NewInstruction() {
 
         <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
           <Button type="submit" disabled={busy} icon={<Icon name="check" size={18} />}>
-            {busy ? busyText : "Create instruction"}
+            {busy ? "Creating…" : "Create instruction"}
           </Button>
         </div>
       </form>

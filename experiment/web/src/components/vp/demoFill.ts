@@ -13,7 +13,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "@/lib/api";
 import { isFieldVisible, type FieldDef, type TabDef } from "@/lib/fieldConfig";
-import { buildTabValues, type JobDetail } from "@/lib/jobs";
 import type { Option, UserOption } from "@/lib/options";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -201,50 +200,6 @@ export function demoValuesForTab(
     Object.assign(filled, more);
   }
   return filled;
-}
-
-/** Fills a whole job with demo data: every section this user may edit, then
- * the dummy title deed, photographs and documents. Used when "Fill demo
- * data" was pressed on the New instruction form. Returns problems, if any. */
-export async function fillJobDemo(
-  jobId: string,
-  tabs: TabDef[],
-  options: (Record<string, Option[]> & { users?: UserOption[] }) | undefined,
-  qc: QueryClient,
-): Promise<string[]> {
-  const problems: string[] = [];
-  const job = await apiFetch<JobDetail>(`/api/jobs/${jobId}/`);
-  const allValues = buildTabValues(job);
-
-  for (const tab of tabs) {
-    const state = job.tabs?.[tab.key];
-    if (!state?.can_edit || tab.fields.length === 0) continue;
-    let values = demoValuesForTab(tab, state.values, allValues, state.read_only_fields, options);
-    // Two tries: a value the server refuses is dropped and the rest saved.
-    for (let attempt = 0; attempt < 2 && Object.keys(values).length; attempt++) {
-      try {
-        await apiFetch(`/api/jobs/${jobId}/tabs/${tab.key}/`, {
-          method: "PATCH",
-          body: JSON.stringify({ base_version: state.version, values }),
-        });
-        allValues[tab.key] = { ...state.values, ...values };
-        break;
-      } catch (err) {
-        const refused = err instanceof ApiError ? (err.body?.errors as Record<string, string> | undefined) : undefined;
-        if (!refused || attempt === 1) {
-          problems.push(`${tab.label}: ${err instanceof ApiError ? err.message : "couldn't save"}`);
-          break;
-        }
-        values = Object.fromEntries(Object.entries(values).filter(([k]) => !(k in refused)));
-      }
-    }
-  }
-
-  for (const which of ["title", "photos", "documents"] as const) {
-    problems.push(...(await uploadDemoFiles(jobId, which, qc)));
-  }
-  await qc.invalidateQueries({ queryKey: ["jobs"] });
-  return problems;
 }
 
 // --- dummy files -------------------------------------------------------------
