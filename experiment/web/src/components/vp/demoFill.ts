@@ -63,7 +63,8 @@ const isEmpty = (v: unknown) => v === null || v === undefined || v === "" || (Ar
 
 function pick(field: FieldDef, options: Option[]): unknown {
   if (!options.length) return undefined;
-  const first = options[0];
+  // A plain apartment keeps the rest of the demo (no plot area) simple.
+  const first = (field.key === "property_category" && options.find((o) => o.value === "apartment")) || options[0];
   // Free-text selects store the label (community, emirate); others the key.
   return field.free_text ? first.label : first.value;
 }
