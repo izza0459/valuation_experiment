@@ -297,6 +297,20 @@ class TestValidation:
         assert res.status_code == 200
         assert "Bank / Organisation" in res.json()["completion"]["instructions"]["missing"]
 
+    def test_picking_a_bank_fills_the_reference_with_its_code(self, job, dan):
+        other = Bank.objects.create(name="Other Bank", code="OB-1")
+        third = Bank.objects.create(name="Third Bank", code="TB-9")
+        client = client_for(dan)
+        res = patch(client, job, "instructions", {"bank": other.pk})
+        assert res.json()["values"]["bank_reference_no"] == "OB-1"
+        # Switching again replaces the old bank's untouched code ...
+        res = patch(client, job, "instructions", {"bank": third.pk}, base_version=1)
+        assert res.json()["values"]["bank_reference_no"] == "TB-9"
+        # ... but never a reference typed by hand.
+        patch(client, job, "instructions", {"bank_reference_no": "REQ-1"}, base_version=2)
+        res = patch(client, job, "instructions", {"bank": other.pk}, base_version=3)
+        assert res.json()["values"]["bank_reference_no"] == "REQ-1"
+
     def test_audit_and_internal_work_names_a_client_instead_of_a_bank(self, job, dan):
         client = client_for(dan)
         res = patch(client, job, "instructions", {"purpose": "audit_purpose", "bank": None}).json()

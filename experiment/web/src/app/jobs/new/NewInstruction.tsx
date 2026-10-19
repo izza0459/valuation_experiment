@@ -71,6 +71,22 @@ export function NewInstruction() {
   const shown = (field: FieldDef) => !field.visible_if || field.visible_if.field !== "instructions.purpose" || isFieldVisible(field, context);
 
   function set(key: string, value: unknown) {
+    if (key === "bank") {
+      // Picking a bank fills the reference with its code, unless one was typed.
+      const banks = options?.bank ?? [];
+      const codeOf = (id: unknown) => banks.find((b) => b.value === id)?.code ?? "";
+      setValues((v) => {
+        const current = String(v.bank_reference_no ?? "");
+        const replace = current === "" || current === codeOf(v.bank);
+        return { ...v, bank: value, ...(replace ? { bank_reference_no: codeOf(value) } : {}) };
+      });
+      setErrors((e) => {
+        const { bank: _gone, ...rest } = e;
+        void _gone;
+        return rest;
+      });
+      return;
+    }
     setValues((v) => ({ ...v, [key]: value }));
     setErrors((e) => {
       const { [key]: _gone, ...rest } = e;

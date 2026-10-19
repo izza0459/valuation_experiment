@@ -714,6 +714,18 @@ def set_report_exclusions(job_id: int, user, excluded) -> list[str]:
     return job.report_exclusions
 
 
+def _follow_bank_reference(job, old_bank_id, supplied):
+    """Picking a bank fills the Bank Reference No. with the bank's own code
+    (bank master). Only an empty reference, or the old bank's code left
+    untouched, is replaced: a reference typed by hand stays."""
+    if "bank_reference_no" in supplied or job.bank_id == old_bank_id:
+        return
+    old = Bank.objects.filter(pk=old_bank_id).first()
+    if job.bank_reference_no and (old is None or job.bank_reference_no != old.code):
+        return
+    job.bank_reference_no = job.bank.code if job.bank else ""
+
+
 def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, *, intake: bool = False) -> dict:
     """Applies a partial update to one tab, atomically.
 
@@ -760,6 +772,7 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
 
         if "bank" in cleaned:
             _follow_bank_billing_address(job, old_bank_id, cleaned)
+            _follow_bank_reference(job, old_bank_id, cleaned)
 
         try:
             for target in touched | ({"job"} if "bank" in cleaned else set()):

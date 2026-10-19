@@ -79,6 +79,8 @@ def create_job(user, values: dict) -> Job:
             property=Property.objects.create(),
             admin_user=user,
             billing_address=bank.billing_address if bank and bank.sla_signed else "",
+            # The bank's own code, unless the form gives a reference.
+            bank_reference_no=bank.code if bank else "",
         )
         job.save()  # allocates the reference number; the signal adds the tab rows
 

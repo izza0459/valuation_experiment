@@ -39,6 +39,14 @@ def create(user, values):
 
 
 class TestCreate:
+    def test_the_bank_reference_starts_as_the_banks_code(self, admin, bank):
+        bank.code = "TB-VAL"
+        bank.save()
+        res = create(admin, {"bank": bank.pk, "applicant_name": "A. Applicant"})
+        assert Job.objects.get(pk=res.json()["id"]).bank_reference_no == "TB-VAL"
+        res = create(admin, {"bank": bank.pk, "bank_reference_no": "REQ-77", "applicant_name": "A. Applicant"})
+        assert Job.objects.get(pk=res.json()["id"]).bank_reference_no == "REQ-77"
+
     def test_ops_can_fill_in_the_whole_form_then_only_setup(self, bank):
         """Regression: the form's team and category fields sit on Inspection
         tabs, which ops can't edit, so creating a job failed for ops."""

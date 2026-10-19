@@ -9,6 +9,8 @@ export type Option = {
   report_text?: string;
   /** Library entries: property categories it is offered for (empty = all). */
   categories?: string[];
+  /** Banks: the bank's own code, which fills the Bank Reference No. */
+  code?: string;
 };
 
 export type UserOption = Option & { roles: string[] };

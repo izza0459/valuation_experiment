@@ -46,7 +46,9 @@ def preset_options(options_key: str, *, free_text: bool = False) -> list[dict]:
 
 def record_options(options_key: str) -> list[dict]:
     if options_key == "bank":
-        return [{"value": b.pk, "label": b.name, "report_text": ""} for b in Bank.objects.filter(active=True)]
+        # `code`: the bank's own code, which fills the Bank Reference No.
+        return [{"value": b.pk, "label": b.name, "report_text": "", "code": b.code}
+                for b in Bank.objects.filter(active=True)]
     if options_key == "report_template":
         return [
             {"value": t.pk, "label": str(t), "report_text": ""}
