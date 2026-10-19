@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import { ApiError, apiFetch } from "@/lib/api";
+import { DldFinder } from "./DldFinder";
 import { aed, formatDate } from "./format";
 import { Banner, Conf } from "./ui";
 
@@ -91,7 +92,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
     queryKey: key,
     queryFn: () => apiFetch<EvidenceState>(`/api/jobs/${jobId}/evidence/`),
   });
-  const [mode, setMode] = useState<null | "paste" | "manual">(null);
+  const [mode, setMode] = useState<null | "dld" | "paste" | "manual">(null);
   const [prefill, setPrefill] = useState<{ values: Record<string, string>; found: string[] } | null>(null);
   const adding = mode === "manual";
   const close = () => {
@@ -142,7 +143,10 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
           </div>
           {canEdit && mode === null && (
             <div className="row" style={{ gap: 8 }}>
-              <Button size="sm" icon={<Icon name="clipboard" size={16} />} onClick={() => setMode("paste")}>
+              <Button size="sm" icon={<Icon name="search" size={16} />} onClick={() => setMode("dld")}>
+                Find DLD sales
+              </Button>
+              <Button size="sm" variant="outline" icon={<Icon name="clipboard" size={16} />} onClick={() => setMode("paste")}>
                 Paste a listing
               </Button>
               <Button size="sm" variant="outline" icon={<Icon name="plus" size={16} />} onClick={() => setMode("manual")}>
@@ -151,6 +155,8 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
             </div>
           )}
         </div>
+
+        {mode === "dld" && <DldFinder jobId={jobId} canEdit={canEdit} onClose={close} />}
 
         {mode === "paste" && (
           <PasteListing
@@ -180,7 +186,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
 
         {data.comparables.length === 0 && !adding ? (
           <div style={{ fontSize: 14, color: "var(--text-muted)", padding: "18px 0" }}>
-            No comparables yet. Paste a listing from Bayut, Property Finder or Property Monitor, or add one by hand.
+            No comparables yet. Find DLD sales, paste a listing from Bayut, Property Finder or Property Monitor, or add one by hand.
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>

@@ -5,9 +5,9 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsJobParticipantOrAdmin, visible_jobs
 from apps.jobs.models import Job
-from apps.jobs.tabs import TabError
+from apps.jobs.tabs import TabError, edit_denial
 
-from . import listing_parse, service
+from . import dld, listing_parse, service
 
 
 class _EvidenceView(APIView):
@@ -66,6 +66,47 @@ class AvmView(_EvidenceView):
             return Response(service.run_avm(job.pk, request.user), status=201)
         except TabError as exc:
             return self._fail(exc)
+
+
+# --- DLD sales ---------------------------------------------------------------
+
+
+class DldDataView(APIView):
+    """GET: how much DLD sales data is loaded (it is loaded on deploy by
+    `manage.py import_dld`; there is no upload)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(dld.data_status())
+
+
+class JobDldView(_EvidenceView):
+    """GET: DLD sales matching the filters (query string), or the job's
+    defaults with no query. POST `{"ids": [...]}`: add those sales to the job."""
+
+    def get(self, request, pk):
+        job = self._job(request, pk)
+        defaults = dld.defaults_for(job)
+        params = {**defaults, **request.query_params.dict()} if request.query_params else defaults
+        try:
+            results = [dld.describe(t) for t in dld.search(params)]
+        except (TypeError, ValueError):
+            return Response({"code": "validation", "detail": "Check the filters."}, status=400)
+        dld_links = job.job_comparables.filter(comparable__source="dld")
+        linked = set(dld_links.values_list("comparable__source_ref", flat=True))
+        for row in results:
+            row["added"] = row["transaction_number"] in linked
+        return Response({"filters": params, "defaults": defaults, "results": results, "data": dld.data_status()})
+
+    def post(self, request, pk):
+        job = self._job(request, pk)
+        if denial := edit_denial(request.user, job, "evidence"):
+            return self._fail(denial)
+        ids = request.data.get("ids") if isinstance(request.data, dict) else None
+        if not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids) or not ids:
+            return Response({"code": "validation", "detail": "Choose at least one sale."}, status=400)
+        return Response({"added": dld.add_to_job(job, ids)}, status=201)
 
 
 # --- pasted listings ---------------------------------------------------

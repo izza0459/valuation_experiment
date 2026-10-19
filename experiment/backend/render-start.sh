@@ -6,6 +6,8 @@ set -e
 
 python manage.py migrate --noinput
 python manage.py seed_presets
+# DLD sales for the comparables search (shipped with the app); once only.
+python manage.py import_dld --if-empty data/dld/transactions-2026-10-19.csv.gz
 
 # The first admin, from DJANGO_SUPERUSER_EMAIL / _USERNAME / _PASSWORD set in
 # Render's dashboard. Fails harmlessly once the account exists.
