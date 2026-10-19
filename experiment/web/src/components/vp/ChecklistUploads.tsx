@@ -28,12 +28,15 @@ export function ChecklistUploads({
   makani = false,
   dewa = false,
   canEdit,
+  inline = false,
 }: {
   jobId: string;
   mode: "title" | "photos";
   makani?: boolean;
   dewa?: boolean;
   canEdit: boolean;
+  /** Sits inside the form grid (under its field) rather than below the form. */
+  inline?: boolean;
 }) {
   const forTitle = mode === "title";
   const { data: options } = useOptions();
@@ -114,7 +117,13 @@ export function ChecklistUploads({
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, marginTop: 24, paddingTop: 18, borderTop: "1px solid var(--border-divider)" }}>
+    <div
+      style={
+        inline
+          ? { display: "grid", gap: 12, padding: 16, borderRadius: 8, background: "var(--surface-subtle)" }
+          : { display: "grid", gap: 12, marginTop: 24, paddingTop: 18, borderTop: "1px solid var(--border-divider)" }
+      }
+    >
       <div>
         <div style={{ fontSize: 15, fontWeight: 700 }}>{forTitle ? "Title document upload" : "Makani / DEWA photo upload"}</div>
         <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>

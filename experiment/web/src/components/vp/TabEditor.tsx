@@ -9,6 +9,7 @@
  * Nothing about a particular tab is hard-coded here.
  */
 
+import { Fragment } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Icon } from "@/design-system";
 import { isFieldVisible, type FieldDef, type TabDef } from "@/lib/fieldConfig";
@@ -16,7 +17,7 @@ import type { TabState } from "@/lib/jobs";
 import { useOptions } from "@/lib/options";
 import { useTabAutosave, type SaveStatus } from "@/lib/useTabAutosave";
 import { ChecklistUploads } from "./ChecklistUploads";
-import { demoValuesFor, uploadDemoFiles } from "./demoFill";
+import { demoValuesForTab, uploadDemoFiles } from "./demoFill";
 import { FieldInput, formatComputed } from "./FieldInput";
 import { MediaTab } from "./MediaTab";
 import { Banner, F } from "./ui";
@@ -76,18 +77,10 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
     el?.querySelector<HTMLElement>("input, select, textarea, button")?.focus({ preventScroll: true });
   };
   // Fills only what is empty, editable and on screen; typed values stay.
-  // A few passes, so fields an earlier answer reveals (parking count, plot
-  // area) are filled too. Sections with uploads get dummy files as well.
+  // Fills what is empty and editable, including fields an earlier answer
+  // reveals. Sections with uploads get dummy files as well.
   const fillDemo = () => {
-    const filled: Record<string, unknown> = {};
-    for (let pass = 0; pass < 3; pass++) {
-      const values = { ...merged, ...filled };
-      const showing = tab.fields.filter((f) => isFieldVisible(f, { ...allValues, [tab.key]: values }));
-      const editable = showing.filter((f) => !f.calculated && !state.read_only_fields.includes(f.key));
-      const more = demoValuesFor(editable, values, options, options?.users ?? []);
-      if (Object.keys(more).length === 0) break;
-      Object.assign(filled, more);
-    }
+    const filled = demoValuesForTab(tab, merged, allValues, state.read_only_fields, options);
     for (const [key, value] of Object.entries(filled)) save.setField(key, value);
     const files = tab.key === "address" ? "title" : tab.key === "checklist" ? "slot_photos" : null;
     if (files) void uploadDemoFiles(jobId, files, qc);
@@ -169,7 +162,8 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
           const readOnly = tabReadOnly || field.calculated || state.read_only_fields.includes(field.key);
           const isMissing = missing.includes(field);
           return (
-            <div key={field.key} id={`field-${tab.key}-${field.key}`} style={{ gridColumn: WIDE.has(field.type) ? "span 2" : undefined, minWidth: 0 }}>
+            <Fragment key={field.key}>
+            <div id={`field-${tab.key}-${field.key}`} style={{ gridColumn: WIDE.has(field.type) ? "span 2" : undefined, minWidth: 0 }}>
             <F
               label={
                 <>
@@ -198,14 +192,20 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
               )}
             </F>
             </div>
+            {/* The title document is uploaded right where its type is chosen,
+                above the details read from it. */}
+            {field.key === "title_doc_type" && (
+              <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+                <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} inline />
+              </div>
+            )}
+            </Fragment>
           );
         })}
       </div>
 
       {tab.key === "valuation" && <ValueInWords words={state.computed.market_value_in_words} />}
 
-      {/* The title document is uploaded where its details are asked for. */}
-      {tab.key === "address" && <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} />}
 
       {tab.key === "checklist" && (merged.makani_photo === true || merged.dewa_photo === true) && (
         <ChecklistUploads

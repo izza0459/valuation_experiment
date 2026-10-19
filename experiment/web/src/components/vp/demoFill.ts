@@ -12,7 +12,8 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "@/lib/api";
-import type { FieldDef } from "@/lib/fieldConfig";
+import { isFieldVisible, type FieldDef, type TabDef } from "@/lib/fieldConfig";
+import { buildTabValues, type JobDetail } from "@/lib/jobs";
 import type { Option, UserOption } from "@/lib/options";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -178,6 +179,72 @@ export function demoValuesFor(
     if (value !== undefined) out[field.key] = value;
   }
   return out;
+}
+
+/** Demo values for one tab, in a few passes so fields an earlier answer
+ * reveals (parking count, plot area) are filled too. `allValues` is every
+ * tab's values plus `bank`, for rules that cross tabs. */
+export function demoValuesForTab(
+  tab: TabDef,
+  current: Record<string, unknown>,
+  allValues: Record<string, unknown>,
+  readOnlyFields: string[],
+  options: (Record<string, Option[]> & { users?: UserOption[] }) | undefined,
+): Record<string, unknown> {
+  const filled: Record<string, unknown> = {};
+  for (let pass = 0; pass < 3; pass++) {
+    const values = { ...current, ...filled };
+    const showing = tab.fields.filter((f) => isFieldVisible(f, { ...allValues, [tab.key]: values }));
+    const editable = showing.filter((f) => !f.calculated && !readOnlyFields.includes(f.key));
+    const more = demoValuesFor(editable, values, options, options?.users ?? []);
+    if (Object.keys(more).length === 0) break;
+    Object.assign(filled, more);
+  }
+  return filled;
+}
+
+/** Fills a whole job with demo data: every section this user may edit, then
+ * the dummy title deed, photographs and documents. Used when "Fill demo
+ * data" was pressed on the New instruction form. Returns problems, if any. */
+export async function fillJobDemo(
+  jobId: string,
+  tabs: TabDef[],
+  options: (Record<string, Option[]> & { users?: UserOption[] }) | undefined,
+  qc: QueryClient,
+): Promise<string[]> {
+  const problems: string[] = [];
+  const job = await apiFetch<JobDetail>(`/api/jobs/${jobId}/`);
+  const allValues = buildTabValues(job);
+
+  for (const tab of tabs) {
+    const state = job.tabs?.[tab.key];
+    if (!state?.can_edit || tab.fields.length === 0) continue;
+    let values = demoValuesForTab(tab, state.values, allValues, state.read_only_fields, options);
+    // Two tries: a value the server refuses is dropped and the rest saved.
+    for (let attempt = 0; attempt < 2 && Object.keys(values).length; attempt++) {
+      try {
+        await apiFetch(`/api/jobs/${jobId}/tabs/${tab.key}/`, {
+          method: "PATCH",
+          body: JSON.stringify({ base_version: state.version, values }),
+        });
+        allValues[tab.key] = { ...state.values, ...values };
+        break;
+      } catch (err) {
+        const refused = err instanceof ApiError ? (err.body?.errors as Record<string, string> | undefined) : undefined;
+        if (!refused || attempt === 1) {
+          problems.push(`${tab.label}: ${err instanceof ApiError ? err.message : "couldn't save"}`);
+          break;
+        }
+        values = Object.fromEntries(Object.entries(values).filter(([k]) => !(k in refused)));
+      }
+    }
+  }
+
+  for (const which of ["title", "photos", "documents"] as const) {
+    problems.push(...(await uploadDemoFiles(jobId, which, qc)));
+  }
+  await qc.invalidateQueries({ queryKey: ["jobs"] });
+  return problems;
 }
 
 // --- dummy files -------------------------------------------------------------
