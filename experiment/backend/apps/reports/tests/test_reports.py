@@ -478,6 +478,14 @@ class TestFieldDictionaryChanges:
         assert "Air conditioning" not in rows(ctx, "building_specification")
         assert "Built-up area" not in rows(ctx, "property_details")
 
+    def test_fields_up_to_valuation_can_be_left_out(self, job):
+        job.location.developer = "Sobha Realty"
+        job.location.save()
+        Job.objects.filter(pk=job.pk).update(report_exclusions=["location.developer", "valuation.market_rent"])
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        assert "Developer" not in rows(ctx, "property_details")
+        assert "Market Rent" not in rows(ctx, "valuation_summary")
+
     def test_the_report_date_is_today_until_issued(self, job):
         job.valuation.report_date = None
         job.valuation.save()

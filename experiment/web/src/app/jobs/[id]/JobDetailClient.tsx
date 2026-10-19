@@ -13,7 +13,7 @@
  * it. Completing a stage's sections moves the job on by itself (server:
  * transitions.sync_stage). Moving forward into a later stage needs every
  * earlier stage complete: Next (or a later stage's tab) says what is missing
- * instead. Leaving a completed Inspection stage asks what goes in the report.
+ * instead. Leaving a completed Valuation stage asks what goes in the report.
  *
  * Sections are edited in place through `TabEditor`, which renders each one
  * from the shared field config and autosaves via the per-tab PATCH endpoint.
@@ -179,7 +179,9 @@ export function JobDetailClient({ id }: { id: string }) {
     }
     return null;
   };
-  const reportStepKey = `report-fields-confirmed:${id}`;
+  // v2: the step moved from after Inspection to after Valuation, with more
+  // fields, so jobs confirmed under the old step are asked again.
+  const reportStepKey = `report-fields-confirmed-v2:${id}`;
   const reportStepDone = () => {
     try {
       return window.localStorage.getItem(reportStepKey) === "1";
@@ -196,9 +198,9 @@ export function JobDetailClient({ id }: { id: string }) {
         setNotice({ tone: "red", title: `Complete the ${block.stage} stage before moving on`, lines: block.missing });
         return;
       }
-      // Leaving a complete Inspection stage: choose what goes in the report.
-      const canChoose = Boolean(job.tabs.inspection?.can_edit);
-      if (current.stage === "inspection" && canChoose && !reportStepDone()) {
+      // Leaving a complete Valuation stage: choose what goes in the report.
+      const canChoose = Boolean(job.tabs.valuation?.can_edit);
+      if (current.stage === "valuation" && canChoose && !reportStepDone()) {
         setReportStep(key);
         return;
       }
@@ -516,7 +518,7 @@ export function JobDetailClient({ id }: { id: string }) {
         <ReportFieldsDialog
           open
           jobId={id}
-          tabs={(tabs ?? []).filter((t) => t.key === "summary" || t.key === "inspection")}
+          tabs={(tabs ?? []).filter((t) => t.stage === "setup" || t.stage === "inspection" || t.stage === "valuation")}
           excluded={Array.isArray(job.report_exclusions) ? (job.report_exclusions as string[]) : []}
           onClose={() => setReportStep(null)}
           onSaved={() => {

@@ -269,9 +269,13 @@ TABS = [
 ]
 
 # Fields the valuer may leave out of the report, in the include-in-report
-# step once the Inspection stage is complete (apps.reports.context honours
-# these keys). Marked on the fields as `report_optional`.
+# step on leaving the Valuation stage (apps.reports.context honours these
+# keys). Marked on the fields as `report_optional`. What a bank report must
+# carry (client, references, applicant, address, dates, basis, Market Value)
+# is never optional.
 REPORT_OPTIONAL = {
+    "instructions": ["bank_reference_no"],
+    "address": ["ownership_name", "latitude"],
     "summary": [
         "interest_valued", "lease_expiry", "acquisition_method", "information_provided", "market_commentary",
         "property_floor_no", "total_floors", "ground_elevation", "parking", "bua_sqft", "plot_area_sqft",
@@ -282,6 +286,11 @@ REPORT_OPTIONAL = {
         "electrical_services", "air_conditioning", "accommodation_details", "accommodation_first_floor",
         "occupancy", "front_views", "upgraded", "repairs",
     ],
+    "location": [
+        "built_about", "developer", "remaining_economic_life_years", "sub_community", "location", "amenities",
+        "property_specification", "property_condition",
+    ],
+    "valuation": ["valuation_commentary", "market_rent", "reinstatement_value"],
 }
 for _tab in TABS:
     for _field in _tab["fields"]:

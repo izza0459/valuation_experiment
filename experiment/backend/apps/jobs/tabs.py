@@ -697,8 +697,8 @@ def _follow_bank_billing_address(job, old_bank_id, supplied):
 
 
 def set_report_exclusions(job_id: int, user, excluded) -> list[str]:
-    """Which Preliminary Check and Inspection fields stay out of the report
-    (the include-in-report step). Whoever may edit the Inspection tab may set
+    """Which fields stay out of the report (the include-in-report step, on
+    leaving the Valuation stage). Whoever may edit the Valuation tab may set
     it, under the same lock and freeze rules as any edit."""
     from .field_config import REPORT_OPTIONAL
 
@@ -710,7 +710,7 @@ def set_report_exclusions(job_id: int, user, excluded) -> list[str]:
         raise ValidationFailed({"excluded": f"Not a report field: {', '.join(unknown)}."})
     with acting_as(user), transaction.atomic():
         job = Job.objects.select_for_update().get(pk=job_id)
-        if denial := edit_denial(user, job, "inspection"):
+        if denial := edit_denial(user, job, "valuation"):
             raise denial
         job.report_exclusions = sorted(set(excluded))
         job.save(update_fields=["report_exclusions", "updated_at"])

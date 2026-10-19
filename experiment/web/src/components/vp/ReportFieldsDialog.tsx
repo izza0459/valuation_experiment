@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Include-in-report step (field dictionary round 2): once the Inspection
- * stage is complete, the valuer ticks which Preliminary Check and Inspection
- * fields go into the report. Unticked ones are left out of the PDF; the
+ * Include-in-report step (field dictionary round 2): once the Valuation
+ * stage is complete, the valuer ticks which fields entered so far go into
+ * the report. Unticked ones are left out of the PDF; the
  * server keeps the list on the job (`report_exclusions`).
  */
 
@@ -23,7 +23,7 @@ export function ReportFieldsDialog({
 }: {
   open: boolean;
   jobId: string;
-  /** The Preliminary Check and Inspection tabs. */
+  /** Every tab up to and including Valuation. */
   tabs: TabDef[];
   excluded: string[];
   onClose: () => void;
@@ -63,7 +63,7 @@ export function ReportFieldsDialog({
     <Dialog
       open={open}
       title="What goes in the report?"
-      subtitle="Untick anything from the Preliminary Check or Inspection to leave it out of the report."
+      subtitle="Untick anything entered so far to leave it out of the report. Client, references, address, dates and the Market Value always go in."
       onClose={onClose}
       width={680}
       actions={
