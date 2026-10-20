@@ -499,6 +499,19 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* Previous is usually short; Next gets the rest of the row. */
+  .pagenav > button {
+    max-width: 36vw;
+  }
+  .pagenav > div {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+  .pagenav > div > button:last-child {
+    max-width: 100%;
+    min-width: 0;
+  }
   /* Choices (Purpose, bank…) fill each row instead of leaving gaps. */
   .seg {
     display: flex;

@@ -27,6 +27,7 @@ import Link from "next/link";
 import { Avatar, Button, Icon } from "@/design-system";
 import { Banner, Ring, Shell, StatusChip } from "@/components/vp/ui";
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
+import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
 import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { RightPanel } from "@/components/vp/RightPanel";
@@ -354,7 +355,7 @@ export function JobDetailClient({ id }: { id: string }) {
                       textOverflow: "ellipsis",
                     }}
                   >
-                    {stage.label}
+                    <FitText min={12}>{stage.label}</FitText>
                   </span>
                   <span
                     style={{
@@ -500,7 +501,7 @@ export function JobDetailClient({ id }: { id: string }) {
               )}
               {prev ? (
                 <Button variant="outline" size="sm" icon={<Icon name="chevron-left" size={16} />} onClick={() => go(prev.key)}>
-                  {prevLabel(prev)}
+                  <FitText>{prevLabel(prev)}</FitText>
                 </Button>
               ) : (
                 <span />
@@ -513,7 +514,7 @@ export function JobDetailClient({ id }: { id: string }) {
                 )}
                 {next && (
                   <Button size="sm" onClick={() => go(next.key)}>
-                    {nextLabel(next)}
+                    <FitText>{nextLabel(next)}</FitText>
                     <Icon name="chevron-right" size={16} />
                   </Button>
                 )}
