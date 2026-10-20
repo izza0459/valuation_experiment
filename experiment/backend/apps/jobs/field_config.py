@@ -268,33 +268,38 @@ TABS = [
     {"key": "review", "label": "Review & Send", "stage": "review", "order": 11, "fields": []},
 ]
 
-# Fields the valuer may leave out of the report, in the include-in-report
-# step on leaving the Valuation stage (apps.reports.context honours these
-# keys). Marked on the fields as `report_optional`. What a bank report must
-# carry (client, references, applicant, address, dates, basis, Market Value)
-# is never optional.
-REPORT_OPTIONAL = {
-    "instructions": ["bank_reference_no"],
-    "address": ["ownership_name", "latitude"],
-    "summary": [
-        "interest_valued", "lease_expiry", "acquisition_method", "information_provided", "market_commentary",
-        "property_floor_no", "total_floors", "ground_elevation", "parking", "bua_sqft", "plot_area_sqft",
-        "capacity_of_valuer", "departures", "assumptions", "special_assumptions",
-    ],
-    "inspection": [
-        "roof", "external_walls", "structure", "flooring", "walls", "ceiling", "lighting",
-        "electrical_services", "air_conditioning", "accommodation_details", "accommodation_first_floor",
-        "occupancy", "front_views", "upgraded", "repairs",
-    ],
-    "location": [
-        "built_about", "developer", "remaining_economic_life_years", "sub_community", "location", "amenities",
-        "property_specification", "property_condition",
-    ],
-    "valuation": ["valuation_commentary", "market_rent", "reinstatement_value"],
+# The include-in-report step (on leaving the Valuation stage) lists every
+# field of the Setup, Inspection and Valuation tabs. What a bank report must
+# carry (client, references, applicant, address, the team, dates, basis,
+# Market Value) is always in; calculated fields follow the fields they are
+# worked out from; the valuer may leave out anything else
+# (apps.reports.context honours the keys). Marked on each field as `report`
+# ("always" / "derived" / "optional") and `report_optional`.
+REPORT_ALWAYS = {
+    "instructions": {"purpose", "bank", "client_name", "billing_address", "date_of_instruction"},
+    "address": {
+        "unit_number", "building_name", "community_name", "applicant_name", "registered_valuer",
+        "title_doc_type", "title_doc_property_no", "title_doc_plot_no", "title_doc_municipality_no",
+        "title_doc_building_no", "title_doc_building_name", "title_doc_community_name", "title_doc_emirate",
+    },
+    "checklist": {"inspected_by", "valuer", "peer_reviewer"},
+    "summary": {"property_category", "no_of_bedrooms", "disclosure"},
+    "inspection": {"inspection_date", "inspection_type"},
+    "location": {"property_status"},
+    "valuation": {"valuation_date", "basis_of_valuation", "valuation_approaches", "market_value"},
 }
+REPORT_TABS = ("instructions", "address", "checklist", "summary", "inspection", "location", "valuation")
+REPORT_OPTIONAL: dict[str, list[str]] = {}
 for _tab in TABS:
     for _field in _tab["fields"]:
-        _field["report_optional"] = _field["key"] in REPORT_OPTIONAL.get(_tab["key"], ())
+        if _field["calculated"]:
+            _field["report"] = "derived"
+        elif _field["key"] in REPORT_ALWAYS.get(_tab["key"], ()) or _tab["key"] not in REPORT_TABS:
+            _field["report"] = "always"
+        else:
+            _field["report"] = "optional"
+            REPORT_OPTIONAL.setdefault(_tab["key"], []).append(_field["key"])
+        _field["report_optional"] = _field["report"] == "optional"
 
 # The workspace groups its tabs under these stages. Filling in a stage's tabs
 # moves the job on (see transitions.sync_stage); nothing is locked by stage.

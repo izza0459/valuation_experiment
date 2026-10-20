@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from django.db import transaction
 
+from apps.accounts.models import Role
 from apps.banks.models import Bank
 
 from .models import Job, Property
@@ -72,6 +73,14 @@ def create_job(user, values: dict) -> Job:
             errors["client_name"] = "Enter the organisation or client name."
     if errors:
         raise ValidationFailed(errors)
+
+    # A valuer taking the instruction in values it too, unless the form names
+    # someone else: they carry on past Setup, where ops hand the job off.
+    if Role.VALUER in (user.roles or []):
+        if by_tab["checklist"].get("valuer") in (None, ""):
+            by_tab["checklist"]["valuer"] = user.pk
+        if by_tab["address"].get("registered_valuer") in (None, ""):
+            by_tab["address"]["registered_valuer"] = by_tab["checklist"]["valuer"]
 
     with transaction.atomic():
         job = Job(

@@ -118,10 +118,26 @@ class TestCreate:
         assert entry.changed_by == admin
 
 
+    def test_anyone_signed_in_may_create(self, bank):
+        inspector = make_user("ines", roles=[Role.INSPECTOR])
+        assert create(inspector, {"bank": bank.pk}).status_code == 201
+
+    def test_a_valuer_who_takes_it_in_values_it_and_carries_on(self, bank):
+        val = make_user("val", roles=[Role.VALUER])
+        job = Job.objects.get(pk=create(val, {"bank": bank.pk}).json()["id"])
+        assert (job.valuer, job.registered_valuer) == (val, val)
+        client = APIClient()
+        client.force_authenticate(val)
+        tabs = client.get(f"/api/jobs/{job.pk}/").json()["tabs"]
+        assert tabs["summary"]["can_edit"] and tabs["valuation"]["can_edit"]
+
+    def test_unless_the_form_names_another_valuer(self, bank):
+        val, other = make_user("val", roles=[Role.VALUER]), make_user("vera", roles=[Role.VALUER])
+        job = Job.objects.get(pk=create(val, {"bank": bank.pk, "valuer": other.pk}).json()["id"])
+        assert job.valuer == other
+
+
 class TestRefusals:
-    def test_only_an_admin_may_create(self, bank):
-        valuer = make_user("val", roles=[Role.VALUER])
-        assert create(valuer, {"bank": bank.pk}).status_code == 403
 
     def test_anonymous_is_refused(self, bank):
         res = APIClient().post("/api/jobs/", {"values": {"bank": bank.pk}}, format="json")

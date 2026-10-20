@@ -23,10 +23,23 @@ export function useMe() {
   });
 }
 
-export const signIn = (email: string, password: string) =>
-  apiFetch<Me>("/api/auth/login/", { method: "POST", body: JSON.stringify({ email, password }) });
+/** A sign-out still on its way (the page doesn't wait for it). */
+let signingOut: Promise<unknown> = Promise.resolve();
 
-export const signOut = () => apiFetch<void>("/api/auth/logout/", { method: "POST" });
+export async function signIn(email: string, password: string) {
+  // Never let a late sign-out end the session this sign-in starts.
+  await signingOut;
+  return apiFetch<Me>("/api/auth/login/", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+/** Ends the session; retried once. keepalive: the request finishes even
+ * though the page moves on straight away. */
+export function signOut(): Promise<void> {
+  const send = () => apiFetch<void>("/api/auth/logout/", { method: "POST", keepalive: true });
+  const done = send().catch(() => send()).catch(() => undefined);
+  signingOut = done;
+  return done;
+}
 
 /** Only follow a same-site path after sign-in: `?next=https://evil.example`
  * must not turn the login page into an open redirect. */

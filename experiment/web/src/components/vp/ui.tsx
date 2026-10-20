@@ -418,9 +418,12 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
     if (me && !me.authenticated) router.replace(`/login?next=${encodeURIComponent(pathname ?? "/jobs")}`);
   }, [me, pathname, router]);
 
-  async function leave() {
-    await signOut().catch(() => undefined);
+  /** Leaves at once: waiting for the server (asleep on the free hosting)
+   * made the button look broken. The session is ended in the background. */
+  function leave() {
+    void signOut();
     qc.clear(); // nothing fetched as this user may be shown to the next
+    qc.setQueryData(["me"], { authenticated: false });
     router.replace("/login");
   }
 
@@ -454,7 +457,7 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
               {user.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ") || "No role"}
             </div>
           </div>
-          <button type="button" className="signout" onClick={() => void leave()}>
+          <button type="button" className="signout" onClick={leave}>
             Sign out
           </button>
         </div>

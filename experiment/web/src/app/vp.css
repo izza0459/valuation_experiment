@@ -235,6 +235,11 @@
   padding: 12px 14px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
 }
+/* A list of cards with a gap between them (no display set, so it can be
+   combined with .show-app / .hide-app). */
+.stack8 > * + * {
+  margin-top: 8px;
+}
 /* A required field still empty: the label says so. */
 .field-missing {
   color: var(--text-error);
@@ -464,10 +469,30 @@
     backdrop-filter: blur(10px);
     border-top: 1px solid var(--border-subtle) !important;
   }
+  .pagenav {
+    flex-wrap: nowrap !important;
+  }
   .pagenav button {
     max-width: 48vw;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Choices (Purpose, bank…) fill each row instead of leaving gaps. */
+  .seg {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .seg button {
+    flex: 1 1 auto;
+    border-bottom: 1px solid var(--border-default);
+    margin-bottom: -1px;
+  }
+  /* The report preview fills the screen under the bar. */
+  .reportframe iframe {
+    height: calc(100vh - 230px) !important;
+    border-radius: 8px !important;
   }
   body:has(.pagenav) {
     padding-bottom: calc(124px + env(safe-area-inset-bottom));

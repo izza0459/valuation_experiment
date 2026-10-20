@@ -88,6 +88,15 @@ export function JobDetailClient({ id }: { id: string }) {
   }, [notice]);
   // The include-in-report step, and where to go once it is saved.
   const [reportStep, setReportStep] = useState<string | null>(null);
+  // Phones: the section pills scroll sideways; keep the open one in view.
+  useEffect(() => {
+    const pill = document.querySelector<HTMLElement>(".stickybar [data-on='1']");
+    const row = pill?.parentElement;
+    if (pill && row && row.scrollWidth > row.clientWidth) {
+      const offset = pill.getBoundingClientRect().left - row.getBoundingClientRect().left;
+      row.scrollLeft += offset - (row.clientWidth - pill.offsetWidth) / 2;
+    }
+  });
 
   if (jobLoading || tabsLoading) {
     return (
@@ -375,6 +384,7 @@ export function JobDetailClient({ id }: { id: string }) {
                     <button
                       key={p.key}
                       type="button"
+                      data-on={on ? "1" : undefined}
                       onClick={() => go(p.key)}
                       title={missing.length ? `Missing: ${missing.join(", ")}` : undefined}
                       style={{
@@ -496,9 +506,9 @@ export function JobDetailClient({ id }: { id: string }) {
                 <span />
               )}
               <div className="row" style={{ gap: 8 }}>
-                {current.stage === "inspection" && Boolean(job.tabs.inspection?.can_edit) && (
-                  <Button size="sm" variant="outline" icon={<Icon name="file-text" size={16} />} onClick={() => setReportStep("")}>
-                    Report fields
+                {(current.stage === "inspection" || current.stage === "valuation") && Boolean(job.tabs.valuation?.can_edit) && (
+                  <Button size="sm" variant="outline" icon={<Icon name="file-text" size={16} />} onClick={() => setReportStep("")} aria-label="Report fields">
+                    <span className="hide-app">Report fields</span>
                   </Button>
                 )}
                 {next && (
@@ -511,7 +521,8 @@ export function JobDetailClient({ id }: { id: string }) {
             </div>
           </div>
         </div>
-        {current.stage === "valuation" && <RightPanel jobId={id} />}
+        {/* Evidence has the AVM in the page and needs the width for its table. */}
+        {current.stage === "valuation" && current.key !== "evidence" && <RightPanel jobId={id} />}
       </div>
 
       {reportStep !== null && (

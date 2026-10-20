@@ -486,6 +486,24 @@ class TestFieldDictionaryChanges:
         assert "Developer" not in rows(ctx, "property_details")
         assert "Market Rent" not in rows(ctx, "valuation_summary")
 
+    def test_any_other_field_can_be_left_out_too(self, job):
+        job.valuation.material_valuation_uncertainty = True
+        job.valuation.save()
+        job.inspection.repairs = "Cracked tile in the kitchen."
+        job.inspection.save()
+        Job.objects.filter(pk=job.pk).update(
+            report_exclusions=["valuation.material_valuation_uncertainty", "inspection.repairs"])
+        fresh = Job.objects.get(pk=job.pk)
+        ctx = build_context(fresh)
+        assert ctx["valuation"]["uncertainty"] is False and ctx["text"]["repairs"] == ""
+        # Only the report leaves them out: the job keeps its values.
+        assert fresh.valuation.material_valuation_uncertainty is True
+
+    def test_what_a_bank_report_must_carry_cannot_be_left_out(self, job):
+        from apps.jobs.field_config import REPORT_OPTIONAL
+        assert "market_value" not in REPORT_OPTIONAL["valuation"]
+        assert "applicant_name" not in REPORT_OPTIONAL["address"]
+
     def test_the_report_date_is_today_until_issued(self, job):
         job.valuation.report_date = None
         job.valuation.save()

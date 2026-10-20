@@ -48,7 +48,7 @@ class TestLogin:
         assert res.status_code == 200
         assert res.json()["user"] == {"id": 1, "name": "Dan", "email": "dan@example.com",
                                       "roles": ["valuer"], "is_admin": False,
-                                      "can_create_jobs": False}
+                                      "can_create_jobs": True}
 
     def test_the_session_then_authenticates_api_calls(self):
         make_user()

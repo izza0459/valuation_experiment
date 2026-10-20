@@ -11,10 +11,13 @@ template version and a snapshot of its inputs").
 
 from __future__ import annotations
 
+import copy
 from datetime import date, datetime
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import FieldDoesNotExist
+from django.db import models
 from django.utils import timezone
 
 from apps.jobs import calculations
@@ -108,6 +111,30 @@ def _rows(*rows):
 
 def _join(*parts, sep=", ") -> str:
     return sep.join(p for p in parts if p)
+
+
+def _without(instance, tab_key: str, excluded: set[str]):
+    """A copy of a tab's row with the fields left out of the report emptied."""
+    prefix = f"{tab_key}."
+    keys = [k[len(prefix):] for k in excluded if k.startswith(prefix)]
+    if not keys or instance is None:
+        return instance
+    clone = copy.copy(instance)
+    for key in keys:
+        try:
+            model_field = instance._meta.get_field(key)
+        except FieldDoesNotExist:
+            continue
+        if isinstance(model_field, models.BooleanField):
+            empty = False
+        elif isinstance(model_field, models.JSONField):
+            empty = []
+        elif isinstance(model_field, models.CharField | models.TextField):
+            empty = ""
+        else:
+            empty = None
+        setattr(clone, model_field.attname, empty)
+    return clone
 
 
 # --- people -----------------------------------------------------------------------
@@ -212,8 +239,14 @@ def build_context(job, *, issued: bool | None = None) -> dict:
 
     def keep(key, value):
         return None if key in excluded else value
-    summary, inspection, location = job.summary, job.inspection, job.location
-    valuation, checklist = job.valuation, job.checklist
+    # Every left-out field reads as empty, on copies so the job is untouched;
+    # rows and paragraphs that need more than that check `excluded` below.
+    prop = _without(prop, "address", excluded)
+    summary = _without(job.summary, "summary", excluded)
+    inspection = _without(job.inspection, "inspection", excluded)
+    location = _without(job.location, "location", excluded)
+    valuation = _without(job.valuation, "valuation", excluded)
+    checklist = _without(job.checklist, "checklist", excluded)
 
     plot_bearing = summary.property_category in PLOT_BEARING_CATEGORIES
     under_construction = location.property_status == "under_construction"

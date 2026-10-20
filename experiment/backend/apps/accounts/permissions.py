@@ -32,8 +32,10 @@ def has_global_role(user, role) -> bool:
 
 
 def can_create_jobs(user) -> bool:
-    """Taking an instruction in: ops people, and platform admins."""
-    return is_platform_admin(user) or has_global_role(user, Role.OPS)
+    """Taking an instruction in: anyone signed in. What they may do with the
+    job afterwards still follows their roles (ops: Setup only; a valuer who
+    takes it in becomes its valuer and carries on)."""
+    return bool(user and user.is_authenticated and user.is_active)
 
 
 def sees_all_jobs(user) -> bool:
@@ -90,7 +92,7 @@ class IsPlatformAdmin(permissions.BasePermission):
 
 
 class CanCreateJobs(permissions.BasePermission):
-    message = "Only ops or an admin can add an instruction."
+    message = "Sign in to add an instruction."
 
     def has_permission(self, request, view):
         return can_create_jobs(request.user)

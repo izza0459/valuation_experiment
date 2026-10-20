@@ -66,7 +66,18 @@ const asFilters = (raw: Record<string, unknown>): Filters => ({
 
 const num = (v: string | null) => (v ? Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
 
-export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit: boolean; onClose: () => void }) {
+export function DldFinder({
+  jobId,
+  canEdit,
+  onClose,
+  onAdded,
+}: {
+  jobId: string;
+  canEdit: boolean;
+  onClose: () => void;
+  /** Sales were added: the finder closes and the comparables show. */
+  onAdded?: (count: number) => void;
+}) {
   const qc = useQueryClient();
   // null = the job's own search, which runs as soon as the finder opens.
   const [applied, setApplied] = useState<Filters | null>(null);
@@ -102,10 +113,11 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
         method: "POST",
         body: JSON.stringify({ ids: [...picked] }),
       });
-      setNotice(`${res.added} sale${res.added === 1 ? "" : "s"} added to the comparables, ticked for the report.`);
       await qc.invalidateQueries({ queryKey: ["job-evidence", jobId] });
       setPicked(new Set());
-      await qc.invalidateQueries({ queryKey: ["dld-search", jobId] });
+      void qc.invalidateQueries({ queryKey: ["dld-search", jobId] });
+      if (onAdded) onAdded(res.added);
+      else setNotice(`${res.added} sale${res.added === 1 ? "" : "s"} added to the comparables, ticked for the report.`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't reach the server. Try again.");
     } finally {
@@ -113,6 +125,12 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
     }
   }
 
+  const pickSale = (id: number, on: boolean) => {
+    const next = new Set(picked);
+    if (on) next.add(id);
+    else next.delete(id);
+    setPicked(next);
+  };
   const set = (k: keyof Filters) => (e: { target: { value: string } }) => filters && setFilters({ ...filters, [k]: e.target.value });
   const data = result?.data;
   const sales = result?.results ?? [];
@@ -125,8 +143,8 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
 
   return (
     <div className="card" style={{ padding: 18, marginBottom: 14, display: "grid", gap: 14 }}>
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", flexWrap: "nowrap", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 16 }}>DLD sales</div>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
             Registered sale prices from the Dubai Land Department&apos;s open data.
@@ -221,7 +239,7 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
               />,
             )}
           </div>
-          <div className="row" style={{ gap: 10 }}>
+          <div className="row wrap" style={{ gap: 10 }}>
             <Button size="sm" disabled={searching} icon={<Icon name="search" size={16} />} onClick={() => search(filters)}>
               {searching ? "Searching…" : "Search"}
             </Button>
@@ -237,6 +255,12 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
             >
               Reset to this job
             </button>
+            {/* Up here as well as below, so it is in reach without scrolling. */}
+            {canEdit && picked.size > 0 && (
+              <Button size="sm" disabled={busy} icon={<Icon name="plus" size={16} />} onClick={() => void add()} style={{ marginLeft: "auto" }}>
+                Add {picked.size} selected
+              </Button>
+            )}
           </div>
 
           {sales.length > 0 && result?.widened && result.widened.length > 0 && (
@@ -250,7 +274,49 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
               its DLD area name (e.g. Marsa Dubai for Dubai Marina) or a nearby community.
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <>
+            {/* Phones: one card per sale, tap to pick. */}
+            <div className="show-app stack8">
+              {sales.map((s) => (
+                <label
+                  key={s.id}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                    padding: "10px 12px",
+                    border: `1px solid ${picked.has(s.id) ? "var(--action-primary)" : "var(--border-subtle)"}`,
+                    borderRadius: 10,
+                    cursor: s.added || !canEdit ? "default" : "pointer",
+                  }}
+                >
+                  {s.added ? (
+                    <Icon name="check" size={18} color="var(--green-600)" />
+                  ) : (
+                    <input
+                      type="checkbox"
+                      aria-label={`Add sale ${s.transaction_number}`}
+                      disabled={!canEdit}
+                      checked={picked.has(s.id)}
+                      onChange={(e) => pickSale(s.id, e.target.checked)}
+                      style={{ marginTop: 2, width: 18, height: 18 }}
+                    />
+                  )}
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ display: "block", fontSize: 14, fontWeight: 700, overflowWrap: "anywhere" }}>
+                      {[s.building, s.community].filter(Boolean).join(", ") || "—"}
+                    </span>
+                    <span style={{ display: "block", fontSize: 13, color: "var(--text-secondary)" }}>
+                      {[s.rooms, s.type, s.offplan ? "off-plan" : ""].filter(Boolean).join(" · ")} · sold {formatDate(s.date)}
+                    </span>
+                    <span className="num" style={{ display: "block", fontSize: 14 }}>
+                      AED {num(s.price_aed)} · {num(s.bua_sqft)} sqft · <b>{num(s.aed_per_sqft)}</b>/sqft
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="hide-app" style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ textAlign: "left", color: "var(--text-muted)", fontSize: 13 }}>
@@ -275,12 +341,7 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
                             aria-label={`Add sale ${s.transaction_number}`}
                             disabled={!canEdit}
                             checked={picked.has(s.id)}
-                            onChange={(e) => {
-                              const next = new Set(picked);
-                              if (e.target.checked) next.add(s.id);
-                              else next.delete(s.id);
-                              setPicked(next);
-                            }}
+                            onChange={(e) => pickSale(s.id, e.target.checked)}
                           />
                         )}
                       </td>
@@ -299,6 +360,7 @@ export function DldFinder({ jobId, canEdit, onClose }: { jobId: string; canEdit:
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {canEdit && sales.length > 0 && (

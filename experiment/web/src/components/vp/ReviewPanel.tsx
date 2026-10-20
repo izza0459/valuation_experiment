@@ -15,6 +15,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import { ApiError, apiFetch, apiUrl } from "@/lib/api";
@@ -45,9 +46,12 @@ function ReportFrame({ jobId }: { jobId: string }) {
   return (
     <div>
       <div className="row" style={{ justifyContent: "flex-end", marginBottom: 8 }}>
-        <Button size="sm" variant="outline" icon={<Icon name="external-link" size={16} />} onClick={() => window.open(src, "_blank", "noopener")}>
-          Open in a new window
-        </Button>
+        {/* Its own page in the app, with a Back button (a new window has no way back on the phone). */}
+        <Link href={`/jobs/${jobId}/report`} style={{ textDecoration: "none" }}>
+          <Button size="sm" variant="outline" icon={<Icon name="maximize-2" size={16} />}>
+            Full screen
+          </Button>
+        </Link>
       </div>
       <iframe
         title="Report for review"

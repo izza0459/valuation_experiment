@@ -47,6 +47,9 @@ export type FieldDef = {
   append?: boolean;
   /** May be left out of the report (include-in-report step). */
   report_optional?: boolean;
+  /** In the include-in-report step: always printed, worked out from other
+   * fields, or the valuer's choice. */
+  report?: "always" | "derived" | "optional";
 };
 
 export type TabDef = {

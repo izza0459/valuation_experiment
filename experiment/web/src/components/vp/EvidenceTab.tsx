@@ -100,6 +100,9 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
     setPrefill(null);
   };
   const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState<string | null>(null);
+  // Once some are ticked, the unticked ones fold away under a link.
+  const [showUnused, setShowUnused] = useState(false);
 
   const refresh = () => qc.invalidateQueries({ queryKey: key });
 
@@ -117,6 +120,11 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
   if (isError || !data) return <div style={{ color: "var(--text-error)" }}>Could not load the evidence.</div>;
 
   const ticked = data.comparables.filter((c) => c.selected).length;
+  const unused = data.comparables.filter((c) => !c.selected);
+  const shown = ticked > 0 && !showUnused ? data.comparables.filter((c) => c.selected) : data.comparables;
+  const toggle = (c: Comparable, selected: boolean) =>
+    void act(`/api/jobs/${jobId}/evidence/${c.id}/`, { method: "PATCH", body: JSON.stringify({ selected }) });
+  const remove = (c: Comparable) => void act(`/api/jobs/${jobId}/evidence/${c.id}/`, { method: "DELETE" });
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -134,15 +142,15 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
       <AvmCard jobId={jobId} run={data.avm} ticked={ticked} canEdit={canEdit} onRun={refresh} />
 
       <div>
-        <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-          <div>
+        <div className="row wrap" style={{ justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 16 }}>Comparables</div>
             <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
               Ticked ones go into the report&apos;s comparables table and the AVM.
             </div>
           </div>
           {canEdit && mode === null && (
-            <div className="row" style={{ gap: 8 }}>
+            <div className="row wrap" style={{ gap: 8 }}>
               <Button size="sm" icon={<Icon name="search" size={16} />} onClick={() => setMode("dld")}>
                 Find DLD sales
               </Button>
@@ -156,7 +164,25 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
           )}
         </div>
 
-        {mode === "dld" && <DldFinder jobId={jobId} canEdit={canEdit} onClose={close} />}
+        {added && mode === null && (
+          <div style={{ marginBottom: 10 }}>
+            <Banner tone="green" icon="check">
+              {added}
+            </Banner>
+          </div>
+        )}
+
+        {mode === "dld" && (
+          <DldFinder
+            jobId={jobId}
+            canEdit={canEdit}
+            onClose={close}
+            onAdded={(n) => {
+              setAdded(`${n} DLD sale${n === 1 ? "" : "s"} added and ticked for the report.`);
+              close();
+            }}
+          />
+        )}
 
         {mode === "paste" && (
           <PasteListing
@@ -189,80 +215,150 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
             No comparables yet. Find DLD sales, paste a listing from Bayut, Property Finder or Property Monitor, or add one by hand.
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="grid" style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ textAlign: "left", color: "var(--text-muted)", fontSize: 13 }}>
-                  <th style={{ padding: 8 }}>In report</th>
-                  <th style={{ padding: 8 }}>Building / community</th>
-                  <th style={{ padding: 8 }}>Type</th>
-                  <th style={{ padding: 8 }}>Floor · view</th>
-                  <th style={{ padding: 8, textAlign: "right" }}>BUA (sqft)</th>
-                  <th style={{ padding: 8, textAlign: "right" }}>Price (AED)</th>
-                  <th style={{ padding: 8, textAlign: "right" }}>AED / sqft</th>
-                  <th style={{ padding: 8 }}>Date</th>
-                  <th style={{ padding: 8 }}>Source</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.comparables.map((c) => (
-                  <tr key={c.id} style={{ borderTop: "1px solid var(--border-divider)", opacity: c.selected ? 1 : 0.55 }}>
-                    <td style={{ padding: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={c.selected}
-                        disabled={!canEdit}
-                        aria-label="Include in report"
-                        onChange={(e) =>
-                          void act(`/api/jobs/${jobId}/evidence/${c.id}/`, {
-                            method: "PATCH",
-                            body: JSON.stringify({ selected: e.target.checked }),
-                          })
-                        }
-                      />
-                    </td>
-                    <td style={{ padding: 8 }} title={c.notes || undefined}>
-                      {[c.building_name, c.community_name].filter(Boolean).join(", ") || "—"}
-                      {c.notes && <Icon name="message-square" size={13} color="var(--text-muted)" />}
-                    </td>
-                    <td style={{ padding: 8 }}>{[c.beds !== null ? `${c.beds} BR` : "", c.property_type].filter(Boolean).join(" ") || "—"}</td>
-                    <td style={{ padding: 8 }}>{[c.floor, c.view].filter(Boolean).join(" · ") || "—"}</td>
-                    <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.bua_sqft)}</td>
-                    <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.price_aed)}</td>
-                    <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.aed_per_sqft)}</td>
-                    <td style={{ padding: 8, whiteSpace: "nowrap" }}>
-                      {c.status === "sold" ? "Sold" : "Asking"}
-                      {c.transaction_date ? ` · ${formatDate(c.transaction_date)}` : ""}
-                    </td>
-                    <td style={{ padding: 8, whiteSpace: "nowrap" }}>
-                      {c.link ? (
-                        <a href={c.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--text-accent)" }}>
-                          {c.source_label} <Icon name="external-link" size={13} />
-                        </a>
-                      ) : (
-                        c.source_label
-                      )}
-                    </td>
-                    <td style={{ padding: 8 }}>
-                      {canEdit && (
-                        <button
-                          type="button"
-                          aria-label="Remove comparable"
-                          onClick={() => void act(`/api/jobs/${jobId}/evidence/${c.id}/`, { method: "DELETE" })}
-                          style={{ border: 0, background: "none", cursor: "pointer", padding: 4 }}
-                        >
-                          <Icon name="trash-2" size={16} color="var(--text-muted)" />
-                        </button>
-                      )}
-                    </td>
+          <>
+            {/* Phones: one card per comparable. */}
+            <div className="show-app stack8">
+              {shown.map((c) => (
+                <CompCard key={c.id} c={c} canEdit={canEdit} onToggle={toggle} onRemove={remove} />
+              ))}
+            </div>
+            <div className="hide-app" style={{ overflowX: "auto" }}>
+              <table className="grid" style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: "var(--text-muted)", fontSize: 13 }}>
+                    <th style={{ padding: 8 }}>In report</th>
+                    <th style={{ padding: 8 }}>Building / community</th>
+                    <th style={{ padding: 8 }}>Type · floor · view</th>
+                    <th style={{ padding: 8, textAlign: "right" }}>BUA (sqft)</th>
+                    <th style={{ padding: 8, textAlign: "right" }}>Price (AED)</th>
+                    <th style={{ padding: 8, textAlign: "right" }}>AED / sqft</th>
+                    <th style={{ padding: 8 }}>Date · source</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {shown.map((c) => (
+                    <tr key={c.id} style={{ borderTop: "1px solid var(--border-divider)", opacity: c.selected ? 1 : 0.55 }}>
+                      <td style={{ padding: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={c.selected}
+                          disabled={!canEdit}
+                          aria-label="Include in report"
+                          onChange={(e) => toggle(c, e.target.checked)}
+                        />
+                      </td>
+                      <td style={{ padding: 8 }} title={c.notes || undefined}>
+                        {[c.building_name, c.community_name].filter(Boolean).join(", ") || "—"}
+                        {c.notes && <Icon name="message-square" size={13} color="var(--text-muted)" />}
+                      </td>
+                      <td style={{ padding: 8 }}>{describe(c)}</td>
+                      <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.bua_sqft)}</td>
+                      <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.price_aed)}</td>
+                      <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.aed_per_sqft)}</td>
+                      <td style={{ padding: 8 }}>
+                        <div style={{ whiteSpace: "nowrap" }}>
+                          {c.status === "sold" ? "Sold" : "Asking"}
+                          {c.transaction_date ? ` · ${formatDate(c.transaction_date)}` : ""}
+                        </div>
+                        <Source c={c} />
+                      </td>
+                      <td style={{ padding: 8 }}>{canEdit && <RemoveButton onClick={() => remove(c)} />}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {ticked > 0 && unused.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowUnused(!showUnused)}
+                style={{ marginTop: 10, border: 0, background: "none", padding: 0, minHeight: 0, cursor: "pointer", color: "var(--text-accent)", fontFamily: "inherit", fontSize: 14 }}
+              >
+                {showUnused ? "Hide the ones not used" : `Show ${unused.length} not used in the report`}
+              </button>
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+const describe = (c: Comparable) =>
+  [[c.beds !== null ? `${c.beds} BR` : "", c.property_type].filter(Boolean).join(" "), c.floor, c.view]
+    .filter(Boolean)
+    .join(" · ") || "—";
+
+function Source({ c }: { c: Comparable }) {
+  return c.link ? (
+    <a href={c.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--text-accent)", fontSize: 13 }}>
+      {c.source_label} <Icon name="external-link" size={12} />
+    </a>
+  ) : (
+    <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{c.source_label}</span>
+  );
+}
+
+function RemoveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Remove comparable"
+      onClick={onClick}
+      style={{ border: 0, background: "none", cursor: "pointer", padding: 4, minHeight: 0, display: "flex" }}
+    >
+      <Icon name="trash-2" size={16} color="var(--text-muted)" />
+    </button>
+  );
+}
+
+/** A comparable on a phone: what it is, its price and rate, tick and remove. */
+function CompCard({
+  c,
+  canEdit,
+  onToggle,
+  onRemove,
+}: {
+  c: Comparable;
+  canEdit: boolean;
+  onToggle: (c: Comparable, selected: boolean) => void;
+  onRemove: (c: Comparable) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        alignItems: "flex-start",
+        padding: "10px 12px",
+        border: "1px solid var(--border-subtle)",
+        borderRadius: 10,
+        opacity: c.selected ? 1 : 0.6,
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={c.selected}
+        disabled={!canEdit}
+        aria-label="Include in report"
+        onChange={(e) => onToggle(c, e.target.checked)}
+        style={{ marginTop: 3, width: 18, height: 18 }}
+      />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, overflowWrap: "anywhere" }}>
+          {[c.building_name, c.community_name].filter(Boolean).join(", ") || "—"}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{describe(c)}</div>
+        <div className="num" style={{ fontSize: 14, marginTop: 2 }}>
+          AED {num(c.price_aed)} · {num(c.bua_sqft)} sqft · <b>{num(c.aed_per_sqft)}</b>/sqft
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          {c.status === "sold" ? "Sold" : "Asking"}
+          {c.transaction_date ? ` ${formatDate(c.transaction_date)}` : ""} · <Source c={c} />
+        </div>
+      </div>
+      {canEdit ? <RemoveButton onClick={() => onRemove(c)} /> : <span />}
     </div>
   );
 }
@@ -470,8 +566,8 @@ function AvmCard({
 
   return (
     <div className="card" style={{ padding: 18, display: "grid", gap: 12, background: "var(--surface-subtle)" }}>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
+      <div className="row wrap" style={{ justifyContent: "space-between", gap: 10 }}>
+        <div style={{ minWidth: 0, flex: "1 1 240px" }}>
           <div style={{ fontSize: 16 }}>Suggested value (AVM)</div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             Median AED/sqft of the {ticked} ticked comparable{ticked === 1 ? "" : "s"} × the subject&apos;s BUA. You set and
@@ -489,7 +585,7 @@ function AvmCard({
 
       {run ? (
         <>
-          <div className="row wrap" style={{ gap: 28, alignItems: "baseline" }}>
+          <div className="row wrap" style={{ gap: "12px 28px", alignItems: "baseline" }}>
             <div>
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>SUGGESTED</div>
               <div style={{ fontSize: 24 }}>{aed(run.suggested_value)}</div>

@@ -2,9 +2,10 @@
 
 /**
  * Include-in-report step (field dictionary round 2): once the Valuation
- * stage is complete, the valuer ticks which fields entered so far go into
- * the report. Unticked ones are left out of the PDF; the
- * server keeps the list on the job (`report_exclusions`).
+ * stage is complete, the valuer sees every field entered so far and unticks
+ * any to leave out of the report. What a bank report must carry is always
+ * in (ticked, greyed); calculated fields follow the fields they come from.
+ * The server keeps the list on the job (`report_exclusions`).
  */
 
 import { useState } from "react";
@@ -41,6 +42,16 @@ export function ReportFieldsDialog({
       else next.add(key);
       return next;
     });
+  /** Ticks or unticks every optional field of a tab. */
+  const setAll = (keys: string[], include: boolean) =>
+    setOff((prev) => {
+      const next = new Set(prev);
+      for (const k of keys) {
+        if (include) next.delete(k);
+        else next.add(k);
+      }
+      return next;
+    });
 
   async function save() {
     setBusy(true);
@@ -59,13 +70,16 @@ export function ReportFieldsDialog({
     }
   }
 
+  const withFields = tabs.filter((t) => t.fields.length > 0);
+  const oldServer = !tabs.some((t) => t.fields.some((f) => f.report));
+
   return (
     <Dialog
       open={open}
       title="What goes in the report?"
-      subtitle="Untick anything entered so far to leave it out of the report. Client, references, address, dates and the Market Value always go in."
+      subtitle="Every field entered so far. Untick anything to leave it out. Greyed ones a bank report always carries."
       onClose={onClose}
-      width={680}
+      width={720}
       actions={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -77,26 +91,52 @@ export function ReportFieldsDialog({
         </>
       }
     >
-      <div style={{ display: "grid", gap: 18, maxHeight: "60vh", overflowY: "auto" }}>
-        {!tabs.some((t) => t.fields.some((f) => f.report_optional)) && (
+      <div style={{ display: "grid", gap: 18, maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
+        {oldServer && (
           <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
-            The server hasn&apos;t said which fields can be left out. It is probably running an older version: redeploy
-            or restart the API, then reload this page.
+            The server is running an older version, so only some fields can be left out. Redeploy or restart the
+            API, then reload this page.
           </div>
         )}
-        {tabs.map((tab) => {
-          const fields = tab.fields.filter((f) => f.report_optional);
-          if (fields.length === 0) return null;
+        {withFields.map((tab) => {
+          const optional = tab.fields
+            .filter((f) => (f.report ? f.report === "optional" : f.report_optional))
+            .map((f) => `${tab.key}.${f.key}`);
+          const allOn = optional.every((k) => !off.has(k));
           return (
             <div key={tab.key}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{tab.label}</div>
+              <div className="row" style={{ justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{tab.label}</div>
+                {optional.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAll(optional, !allOn)}
+                    style={{ border: 0, background: "none", color: "var(--text-link)", fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: 0, minHeight: 0 }}
+                  >
+                    {allOn ? "Untick all" : "Tick all"}
+                  </button>
+                )}
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "6px 16px" }}>
-                {fields.map((f) => {
+                {tab.fields.map((f) => {
                   const key = `${tab.key}.${f.key}`;
+                  const kind = f.report ?? (f.report_optional ? "optional" : "always");
+                  const fixed = kind !== "optional";
                   return (
-                    <label key={key} className="row" style={{ gap: 8, fontSize: 14, cursor: "pointer" }}>
-                      <input type="checkbox" checked={!off.has(key)} onChange={() => toggle(key)} />
-                      {f.label}
+                    <label
+                      key={key}
+                      className="row"
+                      title={kind === "always" ? "Always in a bank report" : kind === "derived" ? "Worked out from other fields" : undefined}
+                      style={{ gap: 8, fontSize: 14, cursor: fixed ? "default" : "pointer", color: fixed ? "var(--text-muted)" : undefined, alignItems: "flex-start" }}
+                    >
+                      <input
+                        type="checkbox"
+                        style={{ marginTop: 3, flexShrink: 0 }}
+                        checked={fixed || !off.has(key)}
+                        disabled={fixed}
+                        onChange={() => toggle(key)}
+                      />
+                      <span style={{ minWidth: 0 }}>{f.label}</span>
                     </label>
                   );
                 })}
@@ -104,6 +144,9 @@ export function ReportFieldsDialog({
             </div>
           );
         })}
+        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          Photos and documents are picked on their own tabs (&quot;Include in report&quot;); comparables on Evidence.
+        </div>
         {error && <div style={{ fontSize: 13, color: "var(--text-error)" }}>{error}</div>}
       </div>
     </Dialog>

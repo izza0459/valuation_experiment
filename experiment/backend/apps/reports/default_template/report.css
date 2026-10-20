@@ -29,6 +29,15 @@ body { font: 10pt/1.5 "Helvetica", "Arial", sans-serif; color: var(--ink); margi
   body { background: #fff; max-width: 210mm; margin: 8mm auto; padding: 18mm; box-shadow: 0 1px 8px rgba(0, 0, 0, 0.15); box-sizing: border-box; }
   section { margin-bottom: 14mm; padding-bottom: 8mm; border-bottom: 1px dashed var(--rule); }
 }
+/* Phones (and the app's preview): the page fills the screen, text unshrunk. */
+@media screen and (max-width: 760px) {
+  html { background: #fff; }
+  body { margin: 0; padding: 16px; box-shadow: none; font-size: 15px; }
+  h1 { font-size: 24pt; margin-top: 12mm; }
+  table { table-layout: fixed; }
+  th, td { overflow-wrap: anywhere; }
+  .cover-table { width: 100%; }
+}
 section { break-before: page; }
 section.cover { break-before: auto; }
 
