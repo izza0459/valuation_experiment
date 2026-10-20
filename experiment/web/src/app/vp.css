@@ -240,6 +240,27 @@
 .stack8 > * + * {
   margin-top: 8px;
 }
+/* The date picker's calendar: seven columns everywhere, compact buttons
+   (the phone rules below would otherwise make each day 44px tall). */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  gap: 2px;
+  text-align: center;
+}
+.cal button {
+  min-height: 0 !important;
+}
+.cal-day {
+  height: 34px;
+  padding: 0;
+}
+@media (max-width: 700px) {
+  .cal-day {
+    height: 38px;
+    font-size: 15px !important;
+  }
+}
 /* A required field still empty: the label says so. */
 .field-missing {
   color: var(--text-error);

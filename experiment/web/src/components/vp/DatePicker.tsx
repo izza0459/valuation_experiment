@@ -128,12 +128,17 @@ export function DatePicker({
         <div
           role="dialog"
           aria-label="Choose a date"
+          className="cal"
           style={{
             position: "absolute",
             top: "calc(100% + 6px)",
             left: 0,
             zIndex: 30,
-            width: 290,
+            // The field's width on a phone, a comfortable size elsewhere.
+            width: "100%",
+            minWidth: 272,
+            maxWidth: 320,
+            boxSizing: "border-box",
             background: "var(--surface-card)",
             border: "1px solid var(--border-subtle)",
             borderRadius: 10,
@@ -150,7 +155,8 @@ export function DatePicker({
               <Icon name="chevron-right" size={16} />
             </button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, textAlign: "center" }}>
+          {/* Columns set by class: phone CSS flattens inline grids to one column. */}
+          <div className="cal-grid">
             {DAYS.map((d) => (
               <span key={d} style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>{d}</span>
             ))}
@@ -162,9 +168,9 @@ export function DatePicker({
                 <button
                   key={day}
                   type="button"
+                  className="cal-day"
                   onClick={() => setPicked(day)}
                   style={{
-                    height: 32,
                     border: day === todayIso && !on ? "1px solid var(--border-active)" : "1px solid transparent",
                     borderRadius: 6,
                     background: on ? "var(--action-primary)" : "transparent",
