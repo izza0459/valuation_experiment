@@ -10,7 +10,7 @@ from apps.jobs.models import Job
 from apps.jobs.tabs import TabError
 
 from .delivery import describe_delivery, request_delivery
-from .generate import generate_report, preview_html
+from .generate import generate_report, preview_html, stored_pdf_key
 from .models import ReportVersion
 from .render import PdfEngineUnavailable
 from .tasks import request_send
@@ -77,9 +77,13 @@ class ReportPdfView(_JobReportView):
     def get(self, request, pk, version_id):
         job = self._job(request, pk)
         version = get_object_or_404(ReportVersion, pk=version_id, job=job)
-        if not version.pdf_s3_key or not default_storage.exists(version.pdf_s3_key):
+        if not version.pdf_s3_key and not version.input_snapshot:
             raise Http404("This report version has no stored PDF.")
-        response = FileResponse(default_storage.open(version.pdf_s3_key), content_type="application/pdf")
+        try:
+            key = stored_pdf_key(version)  # rebuilt from its snapshot if the file was lost
+        except PdfEngineUnavailable as exc:
+            raise Http404(str(exc)) from exc
+        response = FileResponse(default_storage.open(key), content_type="application/pdf")
         filename = f"{job.file_stem}.pdf"
         response["Content-Disposition"] = f'inline; filename="{filename}"'
         return response

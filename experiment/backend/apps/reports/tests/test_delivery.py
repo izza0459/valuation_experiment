@@ -87,6 +87,28 @@ class TestSendToBank:
         assert "api.brevo.com" in url and kwargs["headers"]["api-key"] == "test-key"
         assert f'"name": "{issued.file_stem}.pdf"' in kwargs["data"]
 
+    def test_a_lost_pdf_is_rebuilt_from_what_was_signed(self, issued, boss, mailoutbox, monkeypatch):
+        """Free hosting wipes stored files on every deploy."""
+        from django.core.files.storage import default_storage
+
+        from apps.reports import generate
+        from apps.reports.models import ReportVersion
+
+        version = ReportVersion.objects.get(job=issued, issued_at__isnull=False)
+        default_storage.delete(version.pdf_s3_key)
+        rendered = []
+        monkeypatch.setattr(generate, "render_pdf", lambda html: rendered.append(html) or b"%PDF-rebuilt")
+        assert send(boss, issued, email="rana@bank.example").status_code == 201
+        assert ReportDelivery.objects.get().status == "sent"
+        (mail,) = mailoutbox
+        assert mail.attachments[0][1] == b"%PDF-rebuilt"
+        # From the stored snapshot, not the live job.
+        assert version.input_snapshot["meta"]["ref_no"] in rendered[0]
+        # And the download works again too, without rebuilding twice.
+        res = client_for(boss).get(f"/api/jobs/{issued.pk}/report/{version.pk}/pdf/")
+        assert res.status_code == 200 and b"".join(res.streaming_content) == b"%PDF-rebuilt"
+        assert len(rendered) == 1
+
     def test_the_job_offers_the_bank_contacts_and_the_log(self, issued, boss):
         send(boss, issued, email="rana@bank.example")
         data = client_for(boss).get(f"/api/jobs/{issued.pk}/").json()

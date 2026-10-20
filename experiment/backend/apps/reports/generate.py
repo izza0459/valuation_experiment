@@ -43,3 +43,20 @@ def render_version_html(version: ReportVersion) -> str:
     """Re-renders a stored version from its own snapshot and template, not
     from the live job, so an issued report can always be reproduced."""
     return render_html(version.template, version.input_snapshot)
+
+
+def stored_pdf_key(version: ReportVersion) -> str:
+    """The storage key of a version's PDF, rebuilding the file from the
+    version's own snapshot and template when it has gone missing (hosting
+    without persistent storage loses files on every deploy). The content is
+    what was signed; only the file is new. Photos and documents that were
+    lost too are left out, as when a report is rendered without them."""
+    key = version.pdf_s3_key
+    if key and default_storage.exists(key):
+        return key
+    job = version.job
+    pdf = render_pdf(render_version_html(version))
+    name = key or f"reports/{job.reference_root}/{job.file_stem}-version-{version.pk}.pdf"
+    version.pdf_s3_key = default_storage.save(name, ContentFile(pdf))
+    version.save(update_fields=["pdf_s3_key"])
+    return version.pdf_s3_key

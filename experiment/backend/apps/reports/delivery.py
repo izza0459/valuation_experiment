@@ -19,6 +19,7 @@ from django.utils import timezone
 from apps.accounts.permissions import is_platform_admin
 from apps.jobs.tabs import TabError
 
+from .generate import stored_pdf_key
 from .models import ReportDelivery
 
 logger = logging.getLogger(__name__)
@@ -120,7 +121,8 @@ def send_delivery(delivery_id: int) -> ReportDelivery:
             bcc=settings.REPORT_EMAIL_BCC,
             reply_to=[delivery.requested_by.email] if delivery.requested_by and delivery.requested_by.email else None,
         )
-        with default_storage.open(version.pdf_s3_key) as pdf:
+        # Rebuilt from the issued snapshot if the stored file was lost.
+        with default_storage.open(stored_pdf_key(version)) as pdf:
             email.attach(f"{job.file_stem}.pdf", pdf.read(), "application/pdf")
         email.send(fail_silently=False)
     except Exception as exc:
