@@ -74,7 +74,7 @@
 <body class="{{ 'draft' if meta.is_draft else 'final' }}">
 
 {# ---------- Cover ---------- #}
-<section class="cover">
+<section class="cover" id="s-cover">
   <div class="logo">{{ firm.name }}</div>
   <h1>Valuation Report</h1>
   <p class="cover-address">{{ property.address or "—" }}</p>
@@ -96,7 +96,7 @@
 </section>
 
 {# ---------- 1 Executive summary ---------- #}
-<section>
+<section id="s-summary">
   <h2>1. Executive Summary</h2>
   {% if exec_photos %}
   <div class="photo-row">{% for p in exec_photos %}{{ photo(p) }}{% endfor %}</div>
@@ -118,7 +118,7 @@
 </section>
 
 {# ---------- 2 Terms of engagement ---------- #}
-<section>
+<section id="s-terms">
   <h2>2. Terms of Engagement</h2>
   <h3>Addressee</h3>
   <p>{{ client.name }}{% if client.billing_address %}<br>{{ client.billing_address }}{% endif %}{% if client.po_box %}<br>PO Box {{ client.po_box }}{% endif %}</p>
@@ -163,7 +163,7 @@
 </section>
 
 {# ---------- 3 Due diligence ---------- #}
-<section>
+<section id="s-diligence">
   <h2>3. Extent of Due Diligence</h2>
   <p>{% if inspection_type %}The subject property was inspected{% if inspector %} by {{ inspector }}{% endif %}{% if inspection_date %} on {{ inspection_date }}{% endif %} ({{ inspection_type }}). The inspection was non-intrusive and limited to accessible, visible areas.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
 
@@ -181,7 +181,7 @@
 </section>
 
 {# ---------- 4 Property analysis ---------- #}
-<section>
+<section id="s-property">
   <h2>4. Property Analysis</h2>
   <h3>Location</h3>
   {% if text.sub_community %}<p class="prose">{{ text.sub_community }}</p>{% endif %}
@@ -219,13 +219,13 @@
 </section>
 
 {# ---------- 5 Market commentary ---------- #}
-<section>
+<section id="s-market">
   <h2>5. Market Commentary</h2>
   {% if text.market_commentary %}<p class="prose">{{ text.market_commentary }}</p>{% else %}<p>—</p>{% endif %}
 </section>
 
 {# ---------- 6 Valuation methodology ---------- #}
-<section>
+<section id="s-methodology">
   <h2>6. Valuation Methodology</h2>
   <p>The market approach, comparable method, has been used: the property is valued by reference to prices achieved for, or asked for, similar properties, adjusted for the differences between them and the subject.</p>
   {% if text.valuation_commentary %}<h3>Valuation commentary</h3><p class="prose">{{ text.valuation_commentary }}</p>{% endif %}
@@ -244,7 +244,7 @@
 </section>
 
 {# ---------- 7 Opinion of market value ---------- #}
-<section>
+<section id="s-opinion">
   <h2>7. Opinion of Market Value</h2>
   <p>Having carefully considered the matter, we are of the opinion that the {{ valuation.basis or "value" }} of the {% if interest %}{{ interest }} {% endif %}interest in the subject property, {{ "subject to the existing tenancy" if tenanted else "assuming vacant possession" }}, as at {{ dates.valuation or "the valuation date" }}, is fairly represented in the sum of:</p>
   <div class="value-box">
@@ -418,7 +418,7 @@
   <h3>Premise of Value – Highest and Best Use</h3>
   <p>The use, from a market participant’s perspective, that produces the highest value for an asset. It must be physically possible, legally permissible and financially feasible, and may be the current use or an alternative use.</p>
 </section>
-<section>
+<section id="s-documents">
   <h2>Appendix 4 – Documents Received</h2>
   {% if documents %}{% for d in documents %}
   <div class="document">
@@ -431,7 +431,7 @@
   {% endfor %}
   {% else %}<p class="note">No documents have been attached.</p>{% endif %}
 </section>
-<section>
+<section id="s-photos">
   <h2>Appendix 5 – Inspection Photographs</h2>
   {% if photos %}<div class="photo-grid">{% for p in photos %}{{ photo(p) }}{% endfor %}</div>
   {% else %}<p class="note">No photographs have been attached.</p>{% endif %}

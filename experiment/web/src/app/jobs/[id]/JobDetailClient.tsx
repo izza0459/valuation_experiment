@@ -21,7 +21,7 @@
  * required/visible rules, so there is one answer to "is this section done?".
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
 import { Avatar, Button, Icon } from "@/design-system";
@@ -31,6 +31,8 @@ import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
 import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { RightPanel } from "@/components/vp/RightPanel";
+import { LiveReport } from "@/components/vp/LiveReport";
+import { useMedia } from "@/lib/media";
 import { TabEditor } from "@/components/vp/TabEditor";
 import { useFieldConfig, type TabDef } from "@/lib/fieldConfig";
 import { buildTabValues, useJob, type JobDetail } from "@/lib/jobs";
@@ -74,6 +76,24 @@ function stageDone(stage: NavStage, job: JobDetail, pages: Page[]): boolean {
   return inStage.length > 0 && inStage.every((p) => (job.tabs[p.key]?.completion.pct ?? 0) === 100);
 }
 
+/** Whether the report shows beside the form: a per-browser preference. */
+const LIVE_REPORT_KEY = "live-report";
+function readLiveReport() {
+  try {
+    return window.localStorage.getItem(LIVE_REPORT_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+function subscribeLiveReport(onChange: () => void) {
+  window.addEventListener(LIVE_REPORT_KEY, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(LIVE_REPORT_KEY, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
 export function JobDetailClient({ id }: { id: string }) {
   const { data: job, isLoading: jobLoading, isError } = useJob(id);
   const { data: tabs, isLoading: tabsLoading } = useFieldConfig();
@@ -89,6 +109,19 @@ export function JobDetailClient({ id }: { id: string }) {
   }, [notice]);
   // The include-in-report step, and where to go once it is saved.
   const [reportStep, setReportStep] = useState<string | null>(null);
+  // The report beside the form (wide screens only); remembered per browser.
+  const liveReport = useSyncExternalStore(subscribeLiveReport, readLiveReport, () => true);
+  const toggleLiveReport = (on: boolean) => {
+    try {
+      window.localStorage.setItem(LIVE_REPORT_KEY, on ? "on" : "off");
+    } catch {
+      /* storage blocked: nothing to remember it in */
+    }
+    window.dispatchEvent(new Event(LIVE_REPORT_KEY));
+  };
+  // Photos and documents print too, so their lists are part of what reloads it.
+  const photosList = useMedia(id, "photos");
+  const docsList = useMedia(id, "documents");
   // Phones: the section pills scroll sideways; keep the open one in view.
   useEffect(() => {
     const pill = document.querySelector<HTMLElement>(".stickybar [data-on='1']");
@@ -227,6 +260,15 @@ export function JobDetailClient({ id }: { id: string }) {
     go((firstOpen ?? inStage[0]).key);
   };
 
+  // Review and Send show the report themselves; an issued job no longer changes.
+  const showLiveReport = liveReport && !job.is_locked && current.stage !== "review" && current.stage !== "send";
+  const reportSignature = [
+    job.updated_at,
+    ...Object.entries(job.tabs ?? {}).map(([k, t]) => `${k}:${t.version}`),
+    ...(photosList.data?.items ?? []).map((p) => `${p.id}:${p.include_in_report}:${p.caption}`),
+    ...(docsList.data?.items ?? []).map((d) => `${d.id}:${d.include_in_report}`),
+  ].join("|");
+
   const property = (job.property ?? {}) as Record<string, string>;
   const assignees = (job.assignees ?? []) as Assignee[];
   const ownerOf = (role: string) => assignees.find((a) => a.roles.includes(role))?.name;
@@ -273,7 +315,16 @@ export function JobDetailClient({ id }: { id: string }) {
           </div>
 
           <div className="row jobmeta" style={{ gap: 12, flexShrink: 0 }}>
-            {!isLocked && current.stage !== "review" && current.stage !== "send" && <ReportActions jobId={id} />}
+            {!isLocked && current.stage !== "review" && current.stage !== "send" && (
+              <>
+                {!liveReport && (
+                  <button type="button" className="livereport-toggle hide-app" onClick={() => toggleLiveReport(true)}>
+                    <Icon name="file-text" size={16} /> Show report beside the form
+                  </button>
+                )}
+                <ReportActions jobId={id} />
+              </>
+            )}
             <StatusChip s={job.status_label as string} />
             <div className="row" style={{ gap: 0 }}>
               {assignees.map((person, i) => (
@@ -522,8 +573,12 @@ export function JobDetailClient({ id }: { id: string }) {
             </div>
           </div>
         </div>
-        {/* Evidence has the AVM in the page and needs the width for its table. */}
-        {current.stage === "valuation" && current.key !== "evidence" && <RightPanel jobId={id} />}
+        {showLiveReport ? (
+          <LiveReport jobId={id} tabKey={current.key} signature={reportSignature} onClose={() => toggleLiveReport(false)} />
+        ) : (
+          /* Evidence has the AVM in the page and needs the width for its table. */
+          current.stage === "valuation" && current.key !== "evidence" && <RightPanel jobId={id} />
+        )}
       </div>
 
       {reportStep !== null && (
