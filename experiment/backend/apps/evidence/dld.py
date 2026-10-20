@@ -65,6 +65,11 @@ COMMUNITY_AREAS = {
     "al jaddaf": ["jadaf", "jaddaf"],
     "jaddaf": ["jadaf", "jaddaf"],
     "dubai south": ["madinat al mataar"],
+    "dubai world trade centre": ["trade center second", "trade center first"],
+    "dubai world trade center": ["trade center second", "trade center first"],
+    "trade centre": ["trade center"],
+    "dwtc": ["trade center second", "trade center first"],
+    "one central": ["trade center second"],
 }
 
 PLACE_FIELDS = ("area_name", "master_project", "project_name", "building_name")

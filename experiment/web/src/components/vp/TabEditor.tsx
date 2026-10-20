@@ -196,7 +196,8 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
                 above the details read from it. */}
             {field.key === "title_doc_type" && (
               <div style={{ gridColumn: "span 2", minWidth: 0 }}>
-                <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} inline />
+                <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} inline
+                  lockedReason={state.read_only_reason} />
               </div>
             )}
             </Fragment>
@@ -214,6 +215,7 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
           makani={merged.makani_photo === true}
           dewa={merged.dewa_photo === true}
           canEdit={!tabReadOnly}
+          lockedReason={state.read_only_reason}
         />
       )}
     </div>

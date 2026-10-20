@@ -29,6 +29,7 @@ export function ChecklistUploads({
   dewa = false,
   canEdit,
   inline = false,
+  lockedReason = "",
 }: {
   jobId: string;
   mode: "title" | "photos";
@@ -37,6 +38,8 @@ export function ChecklistUploads({
   canEdit: boolean;
   /** Sits inside the form grid (under its field) rather than below the form. */
   inline?: boolean;
+  /** Why uploading is closed (job in review, issued, or another role's stage). */
+  lockedReason?: string;
 }) {
   const forTitle = mode === "title";
   const { data: options } = useOptions();
@@ -142,6 +145,11 @@ export function ChecklistUploads({
         {!forTitle && dewa && <Need label="DEWA photo" done={photoItems.some((p) => p.slot === "dewa")} />}
       </div>
 
+      {!canEdit && (
+        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          Uploading is closed here{lockedReason ? `: ${lockedReason}` : "."}
+        </div>
+      )}
       {canEdit && (
         <>
           <div

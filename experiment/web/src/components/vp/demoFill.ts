@@ -5,9 +5,12 @@
  * The values go through the normal save, so the server validates them like
  * anything typed.
  *
- * The property is a real one in the loaded DLD sales (Sobha Hartland, The
- * Crest, 2-bed apartment, ~1,085 sqft), so the Evidence tab's DLD search
- * finds matching sales for a demo job straight away.
+ * The property is Office 504, 5th Floor, The Offices 5, One Central, Dubai
+ * World Trade Centre: a fitted office on DWTC's long leasehold. DLD registers
+ * the area as Trade Center Second, where the loaded DLD sales include office
+ * sales, so the Evidence tab's DLD search finds comparables straight away.
+ * Details that aren't public (plot / municipality numbers, Makani, DEWA,
+ * lease expiry, size, value) are plausible placeholders.
  */
 
 import type { QueryClient } from "@tanstack/react-query";
@@ -24,65 +27,67 @@ const BY_KEY: Record<string, unknown> = {
   billing_address: "PO Box 12345, Dubai, United Arab Emirates",
   contact_name: "Ahmed Khan",
   contact_number: "+971 50 123 4567",
-  // What the DLD search matches on: community, building, type, beds, BUA.
-  unit_number: "1407",
-  building_name: "Sobha Hartland - The Crest",
-  community_name: "Sobha Hartland",
-  latitude: "25.180500",
-  longitude: "55.311500",
-  applicant_name: ["Demo Applicant"],
-  ownership_name: ["Demo Owner"],
-  title_doc_property_no: "1407",
-  title_doc_plot_no: "614-1234",
-  title_doc_municipality_no: "614-5678",
-  title_doc_building_no: "1",
-  title_doc_building_name: "Sobha Hartland - The Crest",
-  title_doc_community_name: "Sobha Hartland",
+  // What the DLD search matches on: community, building, type, size.
+  unit_number: "Office 504",
+  building_name: "The Offices 5, One Central",
+  community_name: "Dubai World Trade Centre",
+  latitude: "25.222900",
+  longitude: "55.285300",
+  applicant_name: ["Demo Applicant LLC"],
+  ownership_name: ["Demo Owner LLC"],
+  title_doc_property_no: "504",
+  title_doc_plot_no: "335-0000 (placeholder)",
+  title_doc_municipality_no: "335-0000 (placeholder)",
+  title_doc_building_no: "5",
+  title_doc_building_name: "The Offices 5",
+  title_doc_community_name: "Trade Center Second",
   title_doc_emirate: "Dubai",
+  lease_expiry: "2108-12-31",
   // Check List: what a normal full inspection records.
   dld_location_checked: true,
   makani_photo: true,
   dewa_photo: true,
   newly_handed_over: false,
   satellite_measurement: false,
-  makani_number: "31245 89012",
-  dewa_number: "2001234567",
-  property_floor_no: "14",
-  floor_configuration: "B+G+4P+40",
-  total_floors: "45",
-  ground_elevation: "5",
-  no_of_bedrooms: "2",
+  makani_number: "00000 00000 (placeholder)",
+  dewa_number: "0000000000 (placeholder)",
+  property_floor_no: "5",
+  floor_configuration: "B+G+12",
+  total_floors: "12",
+  ground_elevation: "6",
+  no_of_bedrooms: "0",
   parking: true,
-  no_of_parkings: "1",
-  bua_sqft: "1085",
+  no_of_parkings: "2",
+  bua_sqft: "1600",
   plot_area_sqft: "3000",
   departures: "None",
-  rent_if_any: "150000",
-  sale_price_if_any: "2335000",
-  front_views: "Downtown and Burj Khalifa view",
-  rear_views: "Lagoon and community view",
+  rent_if_any: "240000",
+  sale_price_if_any: "4000000",
+  front_views: "Sheikh Zayed Road and Museum of the Future",
+  rear_views: "One Central plaza",
   upgraded: false,
-  upgrade_comment: "Kitchen and flooring upgraded by the owner.",
+  upgrade_comment: "Partitioned meeting rooms added by the occupier.",
   repairs: "None noted.",
-  built_about: "2022",
-  built_date: "2022-06-30",
-  developer: "Sobha Realty",
-  remaining_economic_life_years: "50",
-  market_value: "2335000",
-  market_rent: "150000",
-  reinstatement_note: "Not applicable for an apartment.",
+  built_about: "2019",
+  built_date: "2019-03-31",
+  developer: "Dubai World Trade Centre (DWTC)",
+  remaining_economic_life_years: "55",
+  market_value: "4000000",
+  market_rent: "240000",
+  reinstatement_note: "Not applicable: the office forms part of a larger building.",
   reinstatement_value: "900000",
   material_valuation_uncertainty: false,
 };
 
 /** Preferred option per field where the first preset isn't the typical case. */
 const PREFER: Record<string, string> = {
-  property_category: "apartment",
+  property_category: "fitted_office",
   property_status: "complete",
   inspection_type: "full",
   basis_of_valuation: "market_value",
   valuation_approaches: "market_approach_comparable_method",
-  interest_valued: "international_freehold",
+  // One Central is held on DWTC's long leasehold, not freehold.
+  interest_valued: "international_long_leasehold",
   purpose: "mortgage_security",
   title_doc_type: "title_deed",
   occupancy: "owner_occupied",
