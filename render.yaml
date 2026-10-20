@@ -59,6 +59,18 @@ services:
         sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
+      # Report email: the free plan blocks SMTP, so it goes through an email
+      # service's API. EMAIL_API_PROVIDER = brevo / resend / sendgrid;
+      # DEFAULT_FROM_EMAIL must be a sender verified with that service.
+      - key: EMAIL_API_PROVIDER
+        sync: false
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      # Demo: every report goes here instead of the bank. Remove for real use.
+      - key: REPORT_EMAIL_REDIRECT_TO
+        sync: false
 
   - type: web
     name: valuation-web

@@ -192,9 +192,24 @@ EMAIL_BACKEND = (
     if EMAIL_HOST_USER
     else "django.core.mail.backends.console.EmailBackend"
 )
+# Or send through an email service's web API (HTTPS), for hosting that
+# blocks SMTP such as Render's free plan: EMAIL_API_PROVIDER = brevo, resend
+# or sendgrid, with that service's EMAIL_API_KEY. Takes precedence over SMTP.
+EMAIL_API_PROVIDER = env("EMAIL_API_PROVIDER", default="").strip().lower()
+EMAIL_API_PROVIDERS = {"brevo", "resend", "sendgrid"}
+if EMAIL_API_PROVIDER:
+    if EMAIL_API_PROVIDER not in EMAIL_API_PROVIDERS:
+        raise ImproperlyConfigured(
+            f"EMAIL_API_PROVIDER must be one of {', '.join(sorted(EMAIL_API_PROVIDERS))}."
+        )
+    EMAIL_BACKEND = f"anymail.backends.{EMAIL_API_PROVIDER}.EmailBackend"
+    ANYMAIL = {f"{EMAIL_API_PROVIDER.upper()}_API_KEY": env("EMAIL_API_KEY", default="")}
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "valuations@localhost")
 # Optional: always copy this address (e.g. the sender's own mailbox) on reports sent to a bank.
 REPORT_EMAIL_BCC = env.list("REPORT_EMAIL_BCC", default=[])
+# Demo / staging: every report goes to these addresses instead of the bank
+# contact picked, marked with who it would have gone to. Unset in production.
+REPORT_EMAIL_REDIRECT_TO = env.list("REPORT_EMAIL_REDIRECT_TO", default=[])
 
 # S3 storage (UAE region per CLAUDE.md). Left unconfigured for local dev;
 # uploads fall back to local filesystem until AWS credentials are supplied.

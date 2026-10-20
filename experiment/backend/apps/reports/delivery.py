@@ -105,11 +105,18 @@ def send_delivery(delivery_id: int) -> ReportDelivery:
         f"{greeting}\n\n{note}Please find attached our valuation report, ref. {ref}{their_ref}."
         f"\n\nKind regards,\n{firm}\n"
     )
+    subject = f"Valuation report {ref}" + (f" / {job.bank_reference_no}" if job.bank_reference_no else "")
+    to = [delivery.recipient_email]
+    # Demo / staging: the report goes to our own inbox, never to the bank.
+    if settings.REPORT_EMAIL_REDIRECT_TO:
+        to = list(settings.REPORT_EMAIL_REDIRECT_TO)
+        subject = f"[DEMO for {delivery.recipient_email}] {subject}"
+        body = f"[Demo: in production this would go to {delivery.recipient_email}.]\n\n{body}"
     try:
         email = EmailMessage(
-            subject=f"Valuation report {ref}" + (f" / {job.bank_reference_no}" if job.bank_reference_no else ""),
+            subject=subject,
             body=body,
-            to=[delivery.recipient_email],
+            to=to,
             bcc=settings.REPORT_EMAIL_BCC,
             reply_to=[delivery.requested_by.email] if delivery.requested_by and delivery.requested_by.email else None,
         )

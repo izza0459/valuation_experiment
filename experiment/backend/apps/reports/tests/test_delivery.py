@@ -52,6 +52,41 @@ class TestSendToBank:
         delivery = ReportDelivery.objects.get()
         assert (delivery.status, delivery.error) == ("failed", "smtp down")
 
+    def test_a_demo_sends_it_to_our_own_inbox_not_the_bank(self, issued, boss, mailoutbox, settings):
+        settings.REPORT_EMAIL_REDIRECT_TO = ["demo@example.test"]
+        assert send(boss, issued, email="rana@bank.example").status_code == 201
+        (mail,) = mailoutbox
+        assert mail.to == ["demo@example.test"]
+        assert mail.subject.startswith("[DEMO for rana@bank.example]")
+        assert "rana@bank.example" in mail.body
+        # The log still says which contact was picked.
+        assert ReportDelivery.objects.get().recipient_email == "rana@bank.example"
+
+    def test_it_can_go_through_an_email_api_instead_of_smtp(self, issued, boss, settings, monkeypatch):
+        """Render's free plan blocks SMTP; Brevo/Resend/SendGrid are called over HTTPS."""
+        settings.EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
+        settings.ANYMAIL = {"BREVO_API_KEY": "test-key"}
+        calls = []
+
+        class Reply:
+            status_code = 201
+            text = '{"messageId": "<1@brevo>"}'
+            content = text.encode()
+
+            def json(self):
+                return {"messageId": "<1@brevo>"}
+
+        def fake_request(self, method, url, **kwargs):
+            calls.append((url, kwargs))
+            return Reply()
+
+        monkeypatch.setattr("requests.Session.request", fake_request)
+        assert send(boss, issued, email="rana@bank.example").status_code == 201
+        assert ReportDelivery.objects.get().status == "sent"
+        (url, kwargs) = calls[0]
+        assert "api.brevo.com" in url and kwargs["headers"]["api-key"] == "test-key"
+        assert f'"name": "{issued.file_stem}.pdf"' in kwargs["data"]
+
     def test_the_job_offers_the_bank_contacts_and_the_log(self, issued, boss):
         send(boss, issued, email="rana@bank.example")
         data = client_for(boss).get(f"/api/jobs/{issued.pk}/").json()
