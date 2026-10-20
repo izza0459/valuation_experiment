@@ -250,3 +250,11 @@ REPORT_FIRM_ADDRESS = env(
 # region) through STORAGES without touching the report code.
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+# Hosting whose disk is wiped on restart (Render's free plan): keep a copy of
+# the most recent job's files in the database (apps.media_files.storage).
+FILE_COPIES_IN_DB = env.bool("FILE_COPIES_IN_DB", default=False)
+if FILE_COPIES_IN_DB:
+    STORAGES = {
+        "default": {"BACKEND": "apps.media_files.storage.LatestJobCopyStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }

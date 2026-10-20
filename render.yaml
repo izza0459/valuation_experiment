@@ -50,6 +50,10 @@ services:
         value: "true"
       - key: REPORT_FIRM_NAME
         value: Bayut Valuation Services
+      # The free plan's disk is wiped on every restart: keep the most recent
+      # job's photos, documents and PDFs in the database too.
+      - key: FILE_COPIES_IN_DB
+        value: "true"
       # Filled in by you in Render's dashboard; never committed.
       - key: REPORT_FIRM_LEGAL_NAME
         sync: false

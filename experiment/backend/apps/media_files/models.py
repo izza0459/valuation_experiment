@@ -64,3 +64,18 @@ class Document(StoredFile):
 
     def __str__(self):
         return f"Document<{self.job}:{self.caption or self.original_name or self.s3_key}>"
+
+
+class FileCopy(models.Model):
+    """A copy, in the database, of a file the storage wrote to disk, for
+    hosting whose disk is wiped on every restart (Render's free plan). Only
+    the most recent job's files are kept: see apps.media_files.storage."""
+
+    name = models.CharField(max_length=512, unique=True)
+    # The job's reference without a revision suffix ("BYT-2026-00006").
+    job_ref = models.CharField(max_length=64, db_index=True)
+    data = models.BinaryField()
+    saved_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
