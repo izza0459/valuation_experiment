@@ -69,7 +69,7 @@ class TestConditionalRules:
         [
             ("checklist", "satellite_measurement"),
             ("summary", "plot_area_sqm"),
-            ("inspection", "accommodation_first_floor"),
+            ("inspection", "accommodation_by_storey"),
             ("inspection", "rear_views"),
             # Regression: these two were left always-visible, so an apartment
             # showed a plot-area source and a calculated plot sqft.
@@ -86,7 +86,7 @@ class TestConditionalRules:
         for _, field in all_fields():
             rule = field["visible_if"]
             if rule:
-                assert rule["op"] in {"eq", "in", "is_true"}, field["key"]
+                assert rule["op"] in {"eq", "in", "not_in", "is_true"}, field["key"]
 
 
 class TestPresetValues:

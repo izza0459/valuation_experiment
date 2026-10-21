@@ -21,7 +21,13 @@ from django.db import models
 from django.utils import timezone
 
 from apps.jobs import calculations
-from apps.jobs.constants import FIGURE_BLANK, PARKING_PRESENT, PLOT_BEARING_CATEGORIES, TENANTED_OCCUPANCIES
+from apps.jobs.constants import (
+    FIGURE_BLANK,
+    PARKING_PRESENT,
+    PLOT_BEARING_CATEGORIES,
+    TENANTED_OCCUPANCIES,
+    storeys_for,
+)
 from apps.jobs.field_config import TABS, get_tab, where
 from apps.jobs.tabs import tab_completion, visibility_context
 from apps.media_files.checks import exec_summary_photos, media_blockers
@@ -87,6 +93,13 @@ def humanise(slug: str) -> str:
     return (slug or "").replace("_", " ").strip().capitalize()
 
 
+# Fields taken off the form whose stored values older reports still print.
+LEGACY_FIELDS = {
+    ("inspection", "accommodation_first_floor"): {"free_text": False, "options_key": "accommodation_room",
+                                                  "custom": True},
+}
+
+
 class Labels:
     """Stored preset keys ('international_freehold') back to the labels the
     valuer picked ('International Freehold'). Inactive presets are included:
@@ -99,7 +112,9 @@ class Labels:
     def __call__(self, tab_key: str, field_key: str, value) -> str:
         if value in (None, ""):
             return ""
-        field = next(f for f in get_tab(tab_key)["fields"] if f["key"] == field_key)
+        field = next((f for f in get_tab(tab_key)["fields"] if f["key"] == field_key), None)
+        if field is None:  # a field no longer on the form, whose values older jobs still hold
+            field = LEGACY_FIELDS[(tab_key, field_key)]
         if field["free_text"]:
             return str(value)
         label = self._by_key.get((field["options_key"], value))
@@ -359,16 +374,25 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         if summary.parking == "assumed":
             parking_text += " (assumed)"
 
+    # Villas and the like storey by storey (CRM feedback IN-05); jobs recorded
+    # before that keep their ground and first floor lists.
+    by_storey = inspection.accommodation_by_storey if isinstance(inspection.accommodation_by_storey, dict) else {}
+    storey_rows = [
+        {"floor": label, "rooms": labels.many("inspection", "accommodation_by_storey", by_storey.get(key))}
+        for key, label in storeys_for(inspection.floors_above_ground, inspection.has_basement)
+        if by_storey.get(key)
+    ] if plot_bearing and by_storey else []
+
     # One row per floor: the ground floor (or the unit, named by its floor),
     # then a villa's or townhouse's first floor.
-    accommodation = _rows(
+    accommodation = storey_rows + _rows(
         {"floor": labels("inspection", "occupancy_title", inspection.occupancy_title)
                   or ("Ground floor" if plot_bearing else ""),
          "rooms": labels.many("inspection", "accommodation_details", inspection.accommodation_details)}
-        if "inspection.accommodation_details" not in excluded else None,
+        if "inspection.accommodation_details" not in excluded and not storey_rows else None,
         {"floor": "First floor",
          "rooms": labels.many("inspection", "accommodation_first_floor", inspection.accommodation_first_floor)}
-        if plot_bearing and inspection.accommodation_first_floor
+        if plot_bearing and inspection.accommodation_first_floor and not storey_rows
         and "inspection.accommodation_first_floor" not in excluded else None,
         {"floor": "Designated parking spaces", "rooms": [parking_text]}
         if parking_text and "summary.parking" not in excluded else None,

@@ -25,7 +25,21 @@ type Props = {
   invalid?: boolean;
   /** The job's property category: library entries are offered for it only. */
   propertyCategory?: string;
+  /** The rest of the tab's values (the storeys follow the floors and basement). */
+  siblings?: Record<string, unknown>;
 };
+
+/** Storeys of a villa (backend apps/jobs/constants.STOREYS). */
+const STOREYS: [string, string][] = [
+  ["basement", "Basement"], ["ground", "Ground floor"], ["first", "First floor"], ["second", "Second floor"],
+  ["third", "Third floor"], ["fourth", "Fourth floor"], ["fifth", "Fifth floor"],
+];
+
+export function storeysFor(floors: unknown, basement: unknown): [string, string][] {
+  const n = Math.max(1, Math.min(Number(floors) || 1, 6));
+  const above = STOREYS.filter(([k]) => k !== "basement").slice(0, n);
+  return [...(basement === true ? [STOREYS[0]] : []), ...above];
+}
 
 /** Coordinates keep their decimals; every other figure is a whole number. */
 const KEEPS_DECIMALS = new Set(["latitude", "longitude", "bua_sqm"]);
@@ -61,7 +75,7 @@ function toLocalInput(iso: unknown): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function FieldInput({ field, value, onChange, options, users, readOnly, invalid, propertyCategory }: Props) {
+export function FieldInput({ field, value, onChange, options, users, readOnly, invalid, propertyCategory, siblings }: Props) {
   const choices = field.type === "user" ? users : options;
 
   if (readOnly) return <ReadOnlyValue field={field} value={value} choices={choices} />;
@@ -174,6 +188,28 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
             </Chip>
           ))}
           {field.custom && <CustomEntry onAdd={(text) => !selected.includes(text) && onChange([...selected, text])} />}
+        </div>
+      );
+    }
+
+    case "storeys": {
+      // One block of rooms per storey, each with the full list and Custom.
+      const byStorey = (value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Record<string, string[]>;
+      return (
+        <div style={{ display: "grid", gap: 12 }}>
+          {storeysFor(siblings?.floors_above_ground, siblings?.has_basement).map(([key, label]) => (
+            <div key={key} style={{ padding: 12, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{label}</div>
+              <FieldInput
+                field={{ ...field, key: `${field.key}.${key}`, type: "multiselect", custom: true }}
+                value={byStorey[key] ?? []}
+                onChange={(rooms) => onChange({ ...byStorey, [key]: rooms })}
+                options={options}
+                users={users}
+                readOnly={false}
+              />
+            </div>
+          ))}
         </div>
       );
     }
@@ -491,6 +527,13 @@ function displayValue(field: FieldDef, value: unknown, choices: Option[]): strin
       return field.free_text ? str(value) : labelFor(choices, value);
     case "multiselect":
       return Array.isArray(value) && value.length ? value.map((v) => labelFor(choices, v)).join(", ") : "—";
+    case "storeys": {
+      const byStorey = (value && typeof value === "object" ? value : {}) as Record<string, string[]>;
+      const lines = STOREYS.filter(([k]) => byStorey[k]?.length).map(
+        ([k, label]) => `${label}: ${byStorey[k].map((v) => labelFor(choices, v)).join(", ")}`,
+      );
+      return lines.length ? lines.join("\n") : "—";
+    }
     case "library":
       return Array.isArray(value)
         ? value.length

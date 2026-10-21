@@ -10,6 +10,23 @@ calculation it guards can never drift apart.
 # A duplex follows the villa flow and fields (CRM feedback IN-06).
 PLOT_BEARING_CATEGORIES = ("villa", "custom_villa", "townhouse", "duplex")
 
+# Villas (and the like) are recorded storey by storey (CRM feedback IN-05):
+# a basement if there is one, then the ground floor and up to five above it.
+STOREYS = [
+    ("basement", "Basement"), ("ground", "Ground floor"), ("first", "First floor"), ("second", "Second floor"),
+    ("third", "Third floor"), ("fourth", "Fourth floor"), ("fifth", "Fifth floor"),
+]
+MAX_FLOORS_ABOVE_GROUND = 6
+
+
+def storeys_for(floors_above_ground, has_basement) -> list[tuple[str, str]]:
+    """The storeys a property has: `floors_above_ground` counts the ground
+    floor (G+1 is 2)."""
+    floors = max(1, min(int(floors_above_ground or 1), MAX_FLOORS_ABOVE_GROUND))
+    above = [s for s in STOREYS if s[0] != "basement"][:floors]
+    return ([STOREYS[0]] if has_basement else []) + above
+
+
 # Parking that the report counts as present.
 PARKING_PRESENT = ("yes", "assumed")
 

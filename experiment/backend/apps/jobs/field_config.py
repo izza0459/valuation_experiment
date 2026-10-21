@@ -20,12 +20,15 @@ from .constants import PARKING_PRESENT, PLOT_BEARING_CATEGORIES
 FIELD_TYPES = {
     "text", "textarea", "number", "decimal", "boolean", "date", "datetime",
     "select", "multiselect", "user", "library", "names",
+    # Rooms per storey of a villa (CRM feedback IN-05).
+    "storeys",
 }
 
 # Purposes that name a free-text client organisation instead of a bank.
 NON_BANK_PURPOSES = ["audit_purpose", "internal_purpose"]
 MORTGAGE = {"field": "instructions.purpose", "op": "eq", "value": "mortgage_security"}
 PLOT_BEARING = {"field": "summary.property_category", "op": "in", "value": list(PLOT_BEARING_CATEGORIES)}
+NOT_PLOT_BEARING = {"field": "summary.property_category", "op": "not_in", "value": list(PLOT_BEARING_CATEGORIES)}
 
 
 def field(key, label, type, *, required=False, default=None, options_key=None,
@@ -227,10 +230,14 @@ TABS = [
                   help_text="Built from the electricity, water and sewerage statuses, for the report."),
             field("air_conditioning", "Air Conditioning", "multiselect", options_key="air_conditioning"),
             field("occupancy_title", "Occupancy Title (floor)", "select", options_key="occupancy_title"),
-            field("accommodation_details", "Accommodation (ground floor / unit)", "multiselect",
-                  options_key="accommodation_room", custom=True),
-            field("accommodation_first_floor", "Accommodation (first floor)", "multiselect",
-                  options_key="accommodation_room", visible_if=PLOT_BEARING, custom=True),
+            field("accommodation_details", "Accommodation", "multiselect",
+                  options_key="accommodation_room", custom=True, visible_if=NOT_PLOT_BEARING),
+            # Villas, townhouses and duplexes: one block of rooms per storey (IN-05).
+            field("floors_above_ground", "Floors above ground", "number", visible_if=PLOT_BEARING,
+                  help_text="The ground floor counts: G+1 is 2. Up to 6."),
+            field("has_basement", "Basement", "boolean", default=False, visible_if=PLOT_BEARING),
+            field("accommodation_by_storey", "Accommodation by storey", "storeys",
+                  options_key="accommodation_room", custom=True, visible_if=PLOT_BEARING),
             field("occupancy", "Occupancy", "select", options_key="occupancy"),
             field("rent_if_any", "Rent if any (AED p.a.)", "decimal"),
             field("sale_price_if_any", "Sale Price if any (AED)", "decimal"),

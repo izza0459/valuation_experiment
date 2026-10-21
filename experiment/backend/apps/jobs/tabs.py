@@ -273,6 +273,8 @@ def is_field_visible(field: dict, context: dict) -> bool:
         return actual == rule["value"]
     if op == "in":
         return isinstance(rule["value"], list) and actual in rule["value"]
+    if op == "not_in":
+        return isinstance(rule["value"], list) and actual not in rule["value"]
     if op == "is_true":
         return bool(actual)
     return True
@@ -607,6 +609,29 @@ def _coerce_multiselect(raw, field, mf, current):
     return value
 
 
+def _coerce_storeys(raw) -> dict:
+    """{storey: [rooms]}: listed rooms by key, custom ones as typed."""
+    from .constants import STOREYS
+
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise _Invalid("Must be rooms by storey.")
+    known = {key for key, _ in STOREYS}
+    cleaned = {}
+    for storey, rooms in raw.items():
+        if storey not in known:
+            raise _Invalid(f"Unknown storey: {storey}.")
+        if not isinstance(rooms, list) or not all(isinstance(r, str) for r in rooms):
+            raise _Invalid("Each storey needs a list of rooms.")
+        rooms = list(dict.fromkeys(r.strip() for r in rooms if r.strip()))
+        if any(len(r) > 100 for r in rooms):
+            raise _Invalid("A custom entry can be at most 100 characters.")
+        if rooms:
+            cleaned[storey] = rooms
+    return cleaned
+
+
 def _coerce_names(raw, mf):
     """One or more names (owners, applicants), stored one per line."""
     if raw is None:
@@ -695,6 +720,8 @@ def coerce(field: dict, mf, raw, current):
             return _coerce_library(raw, mf)
         if kind == "names":
             return _coerce_names(raw, mf)
+        if kind == "storeys":
+            return _coerce_storeys(raw)
     except DjangoValidationError as exc:
         raise _Invalid(exc.messages[0]) from exc
     raise _Invalid(f"Unsupported field type {kind!r}.")

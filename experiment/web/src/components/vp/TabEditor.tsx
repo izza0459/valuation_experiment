@@ -36,7 +36,7 @@ type Props = {
 const DEMO_FILL = process.env.NEXT_PUBLIC_DEMO_FILL !== "false";
 
 /** Fields that need the full width: long text and pick-lists. */
-const WIDE = new Set(["textarea", "library", "multiselect"]);
+const WIDE = new Set(["textarea", "library", "multiselect", "storeys"]);
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -196,6 +196,7 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
                   readOnly={readOnly}
                   invalid={Boolean(save.errors[field.key])}
                   propertyCategory={propertyCategory}
+                  siblings={merged}
                 />
               )}
             </F>

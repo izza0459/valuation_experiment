@@ -2,7 +2,7 @@ import builtins
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.core.validators import MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
@@ -14,7 +14,7 @@ from apps.common.models import (
 )
 
 from . import calculations
-from .constants import ECONOMIC_LIFE_YEARS, PLOT_BEARING_CATEGORIES, REPAIRS_DEFAULT
+from .constants import ECONOMIC_LIFE_YEARS, MAX_FLOORS_ABOVE_GROUND, PLOT_BEARING_CATEGORIES, REPAIRS_DEFAULT
 from .workflow import (
     IssueBlockedError,
     JobLockedError,
@@ -787,7 +787,15 @@ class InspectionData(JobTabData):
     # Rooms on the ground floor (or in the unit), and on the first floor of
     # a villa or townhouse.
     accommodation_details = models.JSONField(default=list, blank=True)
+    # Kept for jobs recorded before floor-by-floor; villas now use the storeys below.
     accommodation_first_floor = models.JSONField(default=list, blank=True)
+    # Villas, townhouses and duplexes, storey by storey (CRM feedback IN-05):
+    # {"basement": [...], "ground": [...], "first": [...], ...}.
+    floors_above_ground = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(MAX_FLOORS_ABOVE_GROUND)],
+    )
+    has_basement = models.BooleanField(default=False)
+    accommodation_by_storey = models.JSONField(default=dict, blank=True)
     occupancy = models.CharField(max_length=40, choices=OCCUPANCY_CHOICES, blank=True)
     rent_if_any = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     tenant_name = models.CharField(max_length=255, blank=True)

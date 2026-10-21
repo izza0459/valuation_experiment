@@ -19,13 +19,15 @@ export type FieldType =
   | "user"
   | "library"
   /** One or more names (owners, applicants), edited as a list. */
-  | "names";
+  | "names"
+  /** Rooms per storey of a villa: {basement: [...], ground: [...], ...}. */
+  | "storeys";
 
 export type VisibilityRule = {
   /** Dotted path resolved against the job's values, e.g.
    * "summary.property_category" or "bank.rules.requires_service_charge". */
   field: string;
-  op: "eq" | "in" | "is_true";
+  op: "eq" | "in" | "not_in" | "is_true";
   value?: unknown;
 };
 
@@ -107,6 +109,8 @@ export function isFieldVisible(
       return actual === rule.value;
     case "in":
       return Array.isArray(rule.value) && rule.value.includes(actual as never);
+    case "not_in":
+      return Array.isArray(rule.value) && !rule.value.includes(actual as never);
     case "is_true":
       return Boolean(actual);
     default:
