@@ -29,6 +29,9 @@ type Props = {
   state: TabState;
   /** Every tab's saved values plus `bank`, for rules that cross tabs. */
   allValues: Record<string, unknown>;
+  /** Fields entered elsewhere on the page, not autosaved here (the call
+   * status, remark and booked date are logged with Save call). */
+  omit?: string[];
 };
 
 /** The "Fill demo data" button; set NEXT_PUBLIC_DEMO_FILL=false to hide it
@@ -40,7 +43,7 @@ const WIDE = new Set(["textarea", "library", "multiselect", "storeys"]);
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-export function TabEditor({ jobId, tab, state, allValues }: Props) {
+export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
   const qc = useQueryClient();
   const { data: options, isError: optionsFailed } = useOptions();
   const save = useTabAutosave(jobId, tab.key, state);
@@ -69,7 +72,7 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
   // Rules can reach across tabs, and a field just edited here can change
   // what is visible here before it has even been saved.
   const context = { ...allValues, [tab.key]: merged };
-  const visible = tab.fields.filter((f) => isFieldVisible(f, context));
+  const visible = tab.fields.filter((f) => isFieldVisible(f, context) && !omit?.includes(f.key));
 
   const paused = save.status === "conflict" || save.status === "blocked";
   const tabReadOnly = !state.can_edit || paused;

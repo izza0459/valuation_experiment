@@ -30,6 +30,10 @@ import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
 import { ReviewerChanges } from "@/components/vp/ReviewerChanges";
+import { CallForm } from "@/components/vp/CallForm";
+
+/** Logged together with Save call (CallForm), not autosaved field by field. */
+const CALL_FIELDS = ["call_status", "call_remark", "inspection_booked_at"];
 import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { RightPanel } from "@/components/vp/RightPanel";
 import { TabEditor } from "@/components/vp/TabEditor";
@@ -497,8 +501,18 @@ export function JobDetailClient({ id }: { id: string }) {
                   )}
                   {/* Keyed so each section gets its own autosave state, and
                       leaving one flushes whatever was typed last. */}
-                  <TabEditor key={current.key} jobId={id} tab={current.tab} state={job.tabs[current.key]} allValues={allValues} />
-                  {current.key === "scheduling" && <CallLog calls={job.call_log ?? []} />}
+                  <TabEditor key={current.key} jobId={id} tab={current.tab} state={job.tabs[current.key]} allValues={allValues}
+                    omit={current.key === "scheduling" ? CALL_FIELDS : undefined} />
+                  {current.key === "scheduling" && (
+                    <>
+                      <CallForm
+                        jobId={id}
+                        canEdit={Boolean(job.tabs.scheduling?.can_edit)}
+                        current={String(job.tabs.scheduling?.values.call_status ?? "")}
+                      />
+                      <CallLog calls={job.call_log ?? []} />
+                    </>
+                  )}
                 </>
               )
             )}

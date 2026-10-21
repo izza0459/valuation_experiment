@@ -96,3 +96,36 @@ class TestWhoAndWhen:
     def test_jobs_past_scheduling_count_it_done(self, job):
         Job.objects.filter(pk=job.pk).update(status=S.VALUATION_IN_PROGRESS)
         assert completion(job)["pct"] == 100
+
+
+class TestSaveCall:
+    """One log entry per Save call, not per keystroke."""
+
+    def call(self, user, job, **body):
+        return client_for(user).post(f"/api/jobs/{job.pk}/calls/", body, format="json")
+
+    def test_each_save_is_one_entry(self, job, dan, presets):
+        job = at_scheduling(job)
+        assert self.call(dan, job, call_status="utc", call_remark="No answer").status_code == 201
+        assert self.call(dan, job, call_status="utc", call_remark="No answer").status_code == 201
+        assert CallAttempt.objects.filter(job=job).count() == 2
+
+    @pytest.mark.parametrize("body,field", [
+        ({"call_status": "utc"}, "call_remark"),
+        ({"call_status": "answered_not_scheduled", "call_remark": "  "}, "call_remark"),
+        ({"call_status": "answered_scheduled"}, "inspection_booked_at"),
+        ({"call_status": "not_called"}, "call_status"),
+        ({}, "call_status"),
+    ])
+    def test_incomplete_calls_are_not_logged(self, job, dan, presets, body, field):
+        job = at_scheduling(job)
+        res = self.call(dan, job, **body)
+        assert res.status_code == 400 and field in res.json()["errors"]
+        assert not CallAttempt.objects.filter(job=job).exists()
+
+    def test_a_booked_call_moves_the_job_on(self, job, dan, presets):
+        job = at_scheduling(job)
+        res = self.call(dan, job, call_status="answered_scheduled", inspection_booked_at="2026-10-23T10:30:00+04:00")
+        assert res.status_code == 201, res.json()
+        job.refresh_from_db()
+        assert job.status == S.INSPECTION_SCHEDULED

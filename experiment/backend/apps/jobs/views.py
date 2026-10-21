@@ -268,6 +268,23 @@ class JobReportFieldsView(APIView):
         return Response({"excluded": excluded})
 
 
+class JobCallView(APIView):
+    """POST {"call_status", "call_remark", "inspection_booked_at"}: log one call
+    on the Scheduling stage (the Save call button, CRM feedback SC-03/SC-04)."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+
+    def post(self, request, pk):
+        from .calls import log_call
+
+        job = get_object_or_404(Job.objects.all(), pk=pk)
+        self.check_object_permissions(request, job)
+        try:
+            return Response(log_call(job.pk, request.user, request.data), status=201)
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+
+
 class JobReviewerEditsView(APIView):
     """POST: the valuer accepts the peer reviewer's wording changes (CRM
     feedback PR-01), which lets the reviewer sign off."""
