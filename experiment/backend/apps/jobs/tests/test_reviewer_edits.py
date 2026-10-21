@@ -34,16 +34,26 @@ class TestReviewerEditing:
         assert edit.accepted_at is None
         assert AuditLog.objects.filter(job=in_review, field_name="valuation_commentary").exists()
 
-    def test_but_not_the_figures(self, in_review):
+    def test_figures_too_and_they_are_tracked(self, in_review):
         res = patch(client_for(in_review.peer_reviewer), in_review, "valuation", {"market_value": "900000"})
-        assert res.status_code == 403 and "wording only" in res.json()["detail"]
+        assert res.status_code == 200, res.json()
+        edit = ReviewerEdit.objects.get(job=in_review, field_key="market_value")
+        assert str(edit.new_value) == "900000"
+
+    def test_but_not_who_works_on_the_job(self, in_review, dan):
+        res = patch(client_for(in_review.peer_reviewer), in_review, "checklist", {"valuer": dan.pk})
+        assert res.status_code == 403 and "who works on the job" in res.json()["detail"]
+
+    def test_nor_scheduling(self, in_review):
+        res = patch(client_for(in_review.peer_reviewer), in_review, "scheduling", {"call_remark": "x"})
+        assert res.status_code in (403, 409)
 
     def test_the_tab_says_which_fields_are_the_reviewers(self, in_review):
         tabs = client_for(in_review.peer_reviewer).get(f"/api/jobs/{in_review.pk}/").json()["tabs"]
         assert tabs["valuation"]["can_edit"] is True
-        assert "market_value" in tabs["valuation"]["read_only_fields"]
-        assert "valuation_commentary" not in tabs["valuation"]["read_only_fields"]
-        assert tabs["photos"]["can_edit"] is False
+        assert "market_value" not in tabs["valuation"]["read_only_fields"]
+        assert "valuer" in tabs["checklist"]["read_only_fields"]
+        assert tabs["photos"]["can_edit"] is False and tabs["scheduling"]["can_edit"] is False
 
     def test_everyone_else_stays_frozen(self, in_review, dan):
         res = patch(client_for(dan), in_review, "valuation", {"valuation_commentary": "x"})

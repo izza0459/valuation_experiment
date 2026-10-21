@@ -735,16 +735,20 @@ def coerce(field: dict, mf, raw, current):
 # --- writing ------------------------------------------------------------------
 
 
-# What the peer reviewer may change during review (CRM feedback PR-01): the
-# report's wording. Figures, dates and choices stay with the valuer, who sets
-# and signs the value (RICS); the reviewer returns the job for those.
-REVIEWER_EDITABLE_TYPES = {"textarea", "library"}
+# What the peer reviewer may change during review (CRM feedback PR-01):
+# everything the report prints above the Appendix, figures included. Not the
+# team on the job (who works on it isn't report content), nor the Scheduling
+# stage (not in the report). Every change is kept and the valuer accepts them
+# before sign-off.
+REVIEWER_TABS = ("instructions", "address", "checklist", "summary", "inspection", "location", "valuation")
 
 
 def reviewer_fields(tab_key) -> set[str]:
+    if tab_key not in REVIEWER_TABS:
+        return set()
     return {
         f["key"] for f in get_tab(tab_key)["fields"]
-        if f["type"] in REVIEWER_EDITABLE_TYPES and not f["calculated"]
+        if not f["calculated"] and f["key"] not in ASSIGNMENT_FIELDS
     }
 
 
@@ -823,11 +827,18 @@ def _follow_bank_billing_address(job, old_bank_id, supplied):
 
 def _record_reviewer_edits(job, tab_key, user, before, cleaned) -> None:
     """Field, old and new value, who and when (CRM feedback PR-01)."""
+    import json
+
+    from django.core.serializers.json import DjangoJSONEncoder
+
+    def plain(value):  # figures and dates as text, so they can be kept as JSON
+        return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
+
     labels = {f["key"]: f["label"] for f in get_tab(tab_key)["fields"]}
     for key, (_, _, value) in cleaned.items():
         if before[key] != value:
             ReviewerEdit.objects.create(job=job, tab_key=tab_key, field_key=key, label=labels.get(key, key),
-                                        old_value=before[key], new_value=value, by=user)
+                                        old_value=plain(before[key]), new_value=plain(value), by=user)
 
 
 def accept_reviewer_edits(job_id: int, user) -> int:
@@ -920,8 +931,8 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
             if reviewing(user, job):
                 if beyond := sorted(set(values) - reviewer_fields(tab_key)):
                     raise NotPermitted(
-                        "During review the peer reviewer can change the wording only. Return the job to the "
-                        f"valuer to change: {', '.join(beyond)}."
+                        "During review the peer reviewer can change the report's content, not who works on "
+                        f"the job: {', '.join(beyond)}."
                     )
             else:
                 _check_may_assign(user, job, values.keys())

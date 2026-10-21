@@ -15,6 +15,7 @@ import { formatDateTime } from "./format";
 
 const asText = (v: unknown): string => {
   if (v === null || v === undefined || v === "") return "(empty)";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
   if (Array.isArray(v)) {
     return v.map((e) => (e && typeof e === "object" ? `${(e as { title?: string }).title ?? ""}: ${(e as { body?: string }).body ?? ""}` : String(e))).join("\n");
   }
@@ -62,14 +63,14 @@ export function ReviewerChanges({
           <div className="row" style={{ gap: 8, fontSize: 15, fontWeight: 700 }}>
             <Icon name="edit-3" size={16} />
             {pending.length
-              ? `${pending.length} wording change${pending.length === 1 ? "" : "s"} by the peer reviewer${canAccept ? " to accept" : ""}`
+              ? `${pending.length} change${pending.length === 1 ? "" : "s"} by the peer reviewer${canAccept ? " to accept" : ""}`
               : "Peer review"}
           </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
             {reviewing
               ? pending.length
-                ? "The valuer accepts these before you can sign off. Figures stay with the valuer: return the job to change them."
-                : "You can change the report's wording on any section; figures are read-only. Every change is shown to the valuer."
+                ? "The valuer accepts these before you can sign off."
+                : "You can change anything the report prints, figures included, on any section. Every change is shown to the valuer, who accepts it before sign-off."
               : "Sign-off waits until you accept them. Each shows the text before and after."}
           </div>
         </div>
