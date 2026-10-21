@@ -122,8 +122,11 @@ class TestBlockers:
         assert not any("placeholder" in b for b in issue_blockers(Job.objects.get(pk=approved.pk)))
 
     def test_a_placeholder_left_in_the_valuers_own_text_blocks_too(self, approved):
-        ReportTemplate.objects.filter(version="t1").update(html="<p>{{ text.assumptions }}</p>")
-        approved.summary.assumptions = "[PLACEHOLDER – replace with approved wording: the lease terms]"
+        ReportTemplate.objects.filter(version="t1").update(
+            html="{% for a in text.assumptions %}<p>{{ a.body }}</p>{% endfor %}")
+        approved.summary.has_assumptions = True
+        approved.summary.assumptions = [
+            {"title": "Lease", "body": "[PLACEHOLDER – replace with approved wording: the lease terms]"}]
         approved.summary.save()
         assert any("the lease terms" in b for b in issue_blockers(Job.objects.get(pk=approved.pk)))
 

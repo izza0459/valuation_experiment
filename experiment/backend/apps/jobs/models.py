@@ -751,7 +751,11 @@ class SummaryData(JobTabData):
     disclosure = models.TextField(blank=True)
     capacity_of_valuer = models.CharField(max_length=20, choices=CAPACITY_CHOICES, default="external")
     departures = models.TextField(default="None", blank=True)
-    assumptions = models.TextField(blank=True)
+    # Yes / No, then the paragraphs picked from the library (or Custom), each
+    # edited for this job (report text inputs, Oct 2026).
+    has_assumptions = models.BooleanField(default=False)
+    assumptions = models.JSONField(default=list, blank=True, help_text="[{title, body}]")
+    has_special_assumptions = models.BooleanField(default=False)
     special_assumptions = models.JSONField(default=list, blank=True, help_text="[{title, body}]")
     other_matters = models.JSONField(default=list, blank=True, help_text="[{title, body}]")
 

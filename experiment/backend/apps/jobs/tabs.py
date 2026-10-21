@@ -977,6 +977,10 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
         version.version += 1
         version.save(update_fields=["version"])
 
+        from . import suggest  # report text ticked from what was just saved
+
+        suggest.apply(job, tab_key, cleaned)
+
         from .transitions import sync_stage  # transitions imports this module
 
         sync_stage(job, user)

@@ -49,7 +49,7 @@ services:
       - key: CELERY_TASK_ALWAYS_EAGER
         value: "true"
       - key: REPORT_FIRM_NAME
-        value: Bayut Valuation Services
+        value: Bayut Prime
       # The free plan's disk is wiped on every restart: keep the most recent
       # job's photos, documents and PDFs in the database too.
       - key: FILE_COPIES_IN_DB

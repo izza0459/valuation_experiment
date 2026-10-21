@@ -232,7 +232,7 @@ PEER_REVIEW_REQUIRES_INDEPENDENT_REVIEWER = env.bool("PEER_REVIEW_REQUIRES_INDEP
 
 # Printed on every report. Placeholders until the final branding arrives
 # (CLAUDE.md §11).
-REPORT_FIRM_NAME = env("REPORT_FIRM_NAME", default="Bayut Valuation Services")
+REPORT_FIRM_NAME = env("REPORT_FIRM_NAME", default="Bayut Prime")
 # Demo: signing off doesn't wait for signatories' RERA licences on file or for
 # approved wording in place of placeholder text. Missing required fields still
 # block. Set DEMO_MODE=false before any report goes to a bank.

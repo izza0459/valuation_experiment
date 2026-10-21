@@ -12,6 +12,7 @@ template version and a snapshot of its inputs").
 from __future__ import annotations
 
 import copy
+import re
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -138,6 +139,40 @@ def _row(label, value, *, always=True):
 
 def _rows(*rows):
     return [r for r in rows if r is not None]
+
+
+def _entries(value) -> list[dict]:
+    """Library entries [{title, body}]; text saved before assumptions became a
+    list reads as one untitled entry."""
+    if isinstance(value, list):
+        return [e for e in value if isinstance(e, dict) and (e.get("body") or "").strip()]
+    if isinstance(value, str) and value.strip():
+        return [{"title": "", "body": value}]
+    return []
+
+
+# A blank left in report text for the valuer to fill in: "[date]", "[client]".
+BLANK = re.compile(r"\[[^\[\]\n]{1,160}\]")
+
+
+def unfilled_blanks(context: dict) -> list[str]:
+    """Where the report's own text still has a [blank]: "Assumptions › Desktop
+    Valuation: [date], [client]". The reinstatement [●] is checked on its own."""
+    text = context.get("text", {})
+    found = []
+
+    def scan(where, value):
+        blanks = list(dict.fromkeys(m for m in BLANK.findall(value or "") if m != "[\u25cf]"))
+        if blanks:
+            found.append(f"{where}: {', '.join(blanks[:4])}{' …' if len(blanks) > 4 else ''}")
+
+    for key, label in (("assumptions", "Assumptions"), ("special_assumptions", "Special Assumptions")):
+        for entry in text.get(key) or []:
+            scan(f"{label} › {entry.get('title') or 'text'}", entry.get("body"))
+    for key, label in (("condition", "Property Condition"), ("specification", "Property Specification"),
+                       ("repairs", "Repairs")):
+        scan(label, text.get(key))
+    return found
 
 
 def _join(*parts, sep=", ") -> str:
@@ -545,8 +580,11 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         "inspector": str(job.inspected_by) if job.inspected_by else "",
         "text": {
             "disclosure": summary.disclosure,
-            "assumptions": keep("summary.assumptions", summary.assumptions) or "",
-            "special_assumptions": keep("summary.special_assumptions", summary.special_assumptions) or [],
+            # Yes / No, then the paragraphs adopted (report text inputs, Oct 2026).
+            "assumptions": _entries(keep("summary.assumptions", summary.assumptions))
+            if summary.has_assumptions else [],
+            "special_assumptions": _entries(keep("summary.special_assumptions", summary.special_assumptions))
+            if summary.has_special_assumptions else [],
             # No longer entered (Other Matters joined the assumptions library);
             # kept so older jobs still print theirs.
             "other_matters": summary.other_matters or [],

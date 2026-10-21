@@ -10,6 +10,8 @@ only renamed. Used by migration 0004 and by `seed_presets`.
 
 from django.utils.text import slugify
 
+from . import report_text
+
 PLACEHOLDER = "[PLACEHOLDER – replace with approved wording] "
 
 
@@ -170,17 +172,11 @@ UNITS = [*APARTMENTS, "fitted_office", "shell_core_office", "fitted_retail", "sh
 # A body given here is the approved wording: it replaces a placeholder body,
 # never text an admin has since written.
 LIBRARY = {
-    "specification": [
-        ("Standard Property (Inspected)", [], []), ("Modified Property (Inspected)", [], []),
-        ("Custom Specification", [], []), ("Standard Property (Desktop)", [], []),
-        ("Shell & Core Office/Retail (Desktop)", [], []), ("Shell & Core Office/Retail (Inspected)", [], []),
-        ("Fitted Office/Retail (Desktop)", [], []), ("Fitted Office/Retail (Inspected)", [], []),
-        ("Under Construction", [], []), ("Vacant Land", [], []), ("Fully Upgraded", [], []),
-    ],
-    "condition": [
-        ("Developer Standard Condition", ["Developer standard"], []), ("Good Condition", ["Good"], []),
-        ("Average Condition", ["Average"], []), ("Maintenance Required", [], []),
-    ],
+    # "Valuation Report Text Inputs" (Oct 2026): the approved wording, and Custom.
+    "assumption": [(t, [], [], b) for t, b in [*report_text.ASSUMPTIONS, report_text.CUSTOM]],
+    "special_assumption": [(t, [], [], b) for t, b in [*report_text.SPECIAL_ASSUMPTIONS, report_text.CUSTOM]],
+    "specification": [(t, [], [], b) for t, b in [*report_text.SPECIFICATIONS, report_text.CUSTOM]],
+    "condition": [(t, [], [], b) for t, b in [*report_text.CONDITIONS, report_text.CUSTOM]],
     "market_commentary": [
         ("Apartment", [], APARTMENTS), ("Villa", [], VILLAS),
         ("Office", [], ["fitted_office", "shell_core_office"]),
@@ -236,7 +232,7 @@ def sync(PresetOption, TextLibraryItem):
                     break
             if row is None:
                 row = TextLibraryItem(category=category, body=f"{PLACEHOLDER}{title}.")
-            if body and (not row.body or row.body.startswith(PLACEHOLDER)):
+            if body and (not row.body or row.body.startswith(PLACEHOLDER) or not body[0]):
                 row.body = body[0]
             row.title, row.order, row.active, row.property_categories = title, order, True, categories
             row.save()

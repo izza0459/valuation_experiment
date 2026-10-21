@@ -39,8 +39,8 @@
 
 {% macro entries(items) -%}
 {% for item in items %}
-  <h4>{{ item.title }}</h4>
-  <p class="prose">{{ item.body }}</p>
+  {% if item.title and item.title != "Custom" %}<h4>{{ item.title }}</h4>{% endif %}
+  <div class="paras">{{ item.body|paras }}</div>
 {% endfor %}
 {%- endmacro %}
 
@@ -148,13 +148,16 @@
   <h3>Knowledge and skills of valuer</h3>
   <p>We confirm that we have sufficient knowledge of the relevant local and national property markets, and the skills and understanding to undertake the valuation competently.</p>
 
+  {# Report text inputs (Oct 2026): the opening paragraphs print in every report. #}
   <h3>Assumptions</h3>
-  <p>An assumption is a matter reasonably accepted as fact in the context of the valuation without specific investigation or verification. Assumptions adopted in this valuation are set out in the body of this report and in Appendix 2.</p>
-  {% if text.assumptions %}<p class="prose">{{ text.assumptions }}</p>{% endif %}
+  <p>In preparing this valuation, {{ firm.name }} has relied on a number of assumptions. These are matters treated as true for the purposes of this assignment without independent investigation or verification. They form part of the basis on which the valuation has been prepared and should be read together with the opinion of value set out in this report.</p>
+  <p>An Assumption is defined in the RICS Valuation – Global Standards (the “Red Book”) as: <em>“A supposition taken to be true. It involves facts, conditions or situations affecting the subject of, or approach to, a valuation that, by agreement, do not need to be verified by the valuer as part of the valuation process. Typically, an assumption is made where specific investigation by the valuer is not required in order to prove that something is true.”</em></p>
+  <p>In preparing this valuation, we have adopted a number of Assumptions. These are referred to throughout this report and set out in full in Appendix 2.</p>
+  {% if text.assumptions %}{{ entries(text.assumptions) }}{% endif %}
 
   <h3>Special assumptions</h3>
-  {% if text.special_assumptions %}<p>The following Special Assumptions have been adopted:</p>{{ entries(text.special_assumptions) }}{% else %}<p>No Special Assumptions have been adopted.</p>{% endif %}
-  <p>A Special Assumption is one that assumes facts differing from those existing at the valuation date, or that would not be made by a typical market participant on that date.</p>
+  <p>A Special Assumption is defined in the RICS Valuation – Global Standards (the “Red Book”) as: <em>“An assumption that either assumes facts that differ from the actual facts existing at the valuation date or that would not be made by a typical market participant in a transaction on the valuation date.”</em></p>
+  {% if text.special_assumptions %}<p>For the purpose of this report, {{ firm.name }} has adopted the following Special Assumptions.</p>{{ entries(text.special_assumptions) }}{% else %}<p>No Special Assumptions have been adopted.</p>{% endif %}
 
   {% if text.other_matters %}
   <h3>Other matters</h3>
@@ -196,7 +199,7 @@
   {% endif %}
 
   <h3>Description</h3>
-  {% if text.specification %}<p class="prose">{{ text.specification }}</p>{% else %}<p>—</p>{% endif %}
+  {% if text.specification %}<div class="paras">{{ text.specification|paras }}</div>{% else %}<p>—</p>{% endif %}
 
   <h3>Accommodation</h3>
   <table class="grid">
@@ -212,7 +215,7 @@
   {% if text.amenities %}<h3>Communal amenities</h3><p class="prose">{{ text.amenities }}</p>{% endif %}
 
   <h3>Condition</h3>
-  {% if text.condition %}<p class="prose">{{ text.condition }}</p>{% else %}<p>—</p>{% endif %}
+  {% if text.condition %}<div class="paras">{{ text.condition|paras }}</div>{% else %}<p>—</p>{% endif %}
   {% if text.repairs %}<p class="prose"><strong>Repairs noted:</strong> {{ text.repairs }}</p>{% endif %}
 
   <h3>Tenancy</h3>

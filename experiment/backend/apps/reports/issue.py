@@ -30,7 +30,7 @@ from apps.jobs.models import Job, JobTransition
 from apps.jobs.workflow import IssueBlockedError, JobLockedError, JobStatus, validate_issue_preconditions
 from apps.media_files.checks import missing_files
 
-from .context import build_context, outstanding_items
+from .context import build_context, outstanding_items, unfilled_blanks
 from .models import ReportVersion
 from .render import choose_template, pdf_engine_available, render_html, render_pdf
 
@@ -69,6 +69,11 @@ def _blockers(job, html: str) -> list[str]:
             f"{len(gone)} photograph/document file(s) are missing from storage: {', '.join(gone[:3])}"
             + (" and others." if len(gone) > 3 else ".")
         )
+
+    # Blanks the valuer has to fill in ("[date]") never go to a bank.
+    if blanks := unfilled_blanks(build_context(job, issued=True)):
+        blockers.append("Fill in the [blanks] in the report text: " + "; ".join(blanks[:5])
+                        + (" and more." if len(blanks) > 5 else "."))
 
     # The reinstatement figure is never optional wording: it blocks even in a demo.
     if FIGURE_BLANK in html:

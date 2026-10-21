@@ -584,8 +584,8 @@ class TestEndpoints:
 
     def test_library_options_carry_their_text(self, job, dan, presets):
         data = client_for(dan).get("/api/options/").json()
-        item = data["special_assumption"][0]
-        assert item["report_text"].startswith("[PLACEHOLDER")
+        item = next(o for o in data["special_assumption"] if o["label"] == "Granted")
+        assert item["report_text"].startswith("We understand that the property is held under a granted title.")
 
     def test_seed_is_idempotent_and_keeps_admin_edits(self, presets):
         from apps.presets.models import PresetOption

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from jinja2 import StrictUndefined
 from jinja2.sandbox import SandboxedEnvironment
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from .models import ReportTemplate
 
@@ -34,9 +34,32 @@ def _css_string(value) -> str:
     return out
 
 
+def _paragraphs(text) -> Markup:
+    """Report text as paragraphs, with lines starting "- " as bullet points.
+    Escaped first: the text is the valuer's, not markup."""
+    out = []
+    for block in str(text or "").replace("\r\n", "\n").split("\n\n"):
+        # Runs of plain lines and of bullet lines, in order.
+        runs: list[tuple[bool, list[str]]] = []
+        for line in (x.strip() for x in block.split("\n") if x.strip()):
+            bullet = line.startswith(("- ", "• "))
+            item = line[2:].strip() if bullet else line
+            if runs and runs[-1][0] == bullet:
+                runs[-1][1].append(item)
+            else:
+                runs.append((bullet, [item]))
+        for bullet, items in runs:
+            if bullet:
+                out.append("<ul>" + "".join(f"<li>{escape(x)}</li>" for x in items) + "</ul>")
+            else:
+                out.append("<p>" + "<br>".join(str(escape(x)) for x in items) + "</p>")
+    return Markup("".join(out))
+
+
 def _environment() -> SandboxedEnvironment:
     env = SandboxedEnvironment(autoescape=True, undefined=StrictUndefined, trim_blocks=True, lstrip_blocks=True)
     env.filters["cssstr"] = _css_string
+    env.filters["paras"] = _paragraphs
     return env
 
 

@@ -271,13 +271,16 @@ class TestPresets:
 
 class TestLibrary:
     def test_adds_edits_and_filters(self, client):
+        # The approved wording loads with the migrations; this adds one more.
+        assumptions = TextLibraryItem.objects.filter(category="assumption").count()
+        specials = TextLibraryItem.objects.filter(category="special_assumption").count()
         res = client.post("/api/admin/library/", {"category": "assumption", "title": " Vacant possession ",
                                                   "body": "Assumed vacant."}, format="json")
         assert res.status_code == 201 and res.json()["title"] == "Vacant possession"
         client.patch(f"/api/admin/library/{res.json()['id']}/", {"body": "Changed."}, format="json")
         assert TextLibraryItem.objects.get(pk=res.json()["id"]).body == "Changed."
-        assert len(client.get("/api/admin/library/?category=assumption").json()) == 1
-        assert client.get("/api/admin/library/?category=special_assumption").json() == []
+        assert len(client.get("/api/admin/library/?category=assumption").json()) == assumptions + 1
+        assert len(client.get("/api/admin/library/?category=special_assumption").json()) == specials
 
     def test_the_category_must_be_real(self, client):
         res = client.post("/api/admin/library/", {"category": "nonsense", "title": "x", "body": "y"}, format="json")

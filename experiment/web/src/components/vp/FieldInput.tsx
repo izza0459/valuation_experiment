@@ -231,6 +231,22 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
   }
 }
 
+/** Blanks still to fill in ("[date]", "[client]"): the report can't be
+ * issued while one is left (backend apps/reports/context.unfilled_blanks). */
+const BLANK = /\[[^[\]\n]{1,160}\]/g;
+
+function Blanks({ text }: { text: string }) {
+  const blanks = [...new Set((text.match(BLANK) ?? []).filter((b) => b !== "[●]"))];
+  if (blanks.length === 0) return null;
+  return (
+    <div style={{ fontSize: 13, color: "#8a5300", marginTop: 6 }}>
+      Fill in {blanks.length === 1 ? "this blank" : `these ${blanks.length} blanks`} before the report is issued:{" "}
+      {blanks.slice(0, 6).join(", ")}
+      {blanks.length > 6 ? " …" : ""}
+    </div>
+  );
+}
+
 /** "Custom": type something the list doesn't have; it prints as typed. */
 function CustomEntry({ onAdd }: { onAdd: (text: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -385,7 +401,8 @@ function LibraryField({
 
   const matches = options.filter(
     (o) =>
-      (!asList || !picked.has(o.label)) &&
+      // Custom can be added as often as needed; library entries once each.
+      (!asList || o.label === "Custom" || !picked.has(o.label)) &&
       (o.label + " " + (o.report_text ?? "")).toLowerCase().includes(query.toLowerCase()),
   );
 
@@ -417,14 +434,20 @@ function LibraryField({
               </button>
             </div>
             <Textarea
-              rows={3}
+              rows={entry.body.length > 400 ? 8 : 4}
               value={entry.body}
+              placeholder={entry.title === "Custom" ? "Write the paragraph for this report" : undefined}
               onChange={(e) => onChange(entries.map((x, j) => (j === i ? { ...x, body: e.target.value } : x)))}
             />
+            <Blanks text={entry.body} />
           </div>
         ))
       ) : (
-        <Textarea rows={4} value={str(value)} invalid={invalid} onChange={(e) => onChange(e.target.value)} />
+        <>
+          <Textarea rows={str(value).length > 400 ? 8 : 4} value={str(value)} invalid={invalid}
+            onChange={(e) => onChange(e.target.value)} />
+          <Blanks text={str(value)} />
+        </>
       )}
 
       <div>

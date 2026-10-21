@@ -45,6 +45,9 @@ const NEEDS_JOB_REFRESH = new Set([
   "peer_reviewer",
   "counter_signatory",
   "registered_valuer",
+  // These tick report text on other sections (backend apps/jobs/suggest.py).
+  "inspection_type",
+  "interest_valued",
   // Scheduling: each save adds to the call log shown under the form.
   "call_status",
   "call_remark",
