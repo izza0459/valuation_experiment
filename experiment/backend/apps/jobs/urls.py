@@ -5,6 +5,7 @@ from .views import (
     CsrfView,
     FieldConfigView,
     JobActivityView,
+    JobFunnelView,
     JobKpiView,
     JobReportFieldsView,
     JobReviseView,
@@ -23,6 +24,7 @@ urlpatterns = [
     path("options/", OptionsView.as_view(), name="options"),
     # Before the router so it isn't captured as /jobs/<pk>/.
     path("jobs/kpis/", JobKpiView.as_view(), name="job-kpis"),
+    path("jobs/funnel/", JobFunnelView.as_view(), name="job-funnel"),
     path("jobs/<int:pk>/activity/", JobActivityView.as_view(), name="job-activity"),
     path("jobs/<int:pk>/revise/", JobReviseView.as_view(), name="job-revise"),
     path("jobs/<int:pk>/transitions/", JobTransitionView.as_view(), name="job-transitions"),

@@ -33,14 +33,16 @@ import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { RightPanel } from "@/components/vp/RightPanel";
 import { TabEditor } from "@/components/vp/TabEditor";
 import { useFieldConfig, type TabDef } from "@/lib/fieldConfig";
-import { buildTabValues, useJob, type JobDetail } from "@/lib/jobs";
+import { buildTabValues, useJob, type CallAttempt, type JobDetail } from "@/lib/jobs";
+import { formatDateTime } from "@/components/vp/format";
 import { useMe } from "@/lib/auth";
 
-type NavStage = "setup" | "inspection" | "valuation" | "review" | "send";
+type NavStage = "setup" | "scheduling" | "inspection" | "valuation" | "review" | "send";
 
 /** The main tabs, and whose stage each is (a role on the job). */
 const NAV: { key: NavStage; label: string; role: string; roleLabel: string }[] = [
   { key: "setup", label: "Setup", role: "admin", roleLabel: "Ops" },
+  { key: "scheduling", label: "Scheduling", role: "inspector", roleLabel: "Inspector" },
   { key: "inspection", label: "Inspection", role: "valuer", roleLabel: "Valuer" },
   { key: "valuation", label: "Valuation", role: "valuer", roleLabel: "Valuer" },
   { key: "review", label: "Review", role: "peer_reviewer", roleLabel: "Peer reviewer" },
@@ -51,6 +53,7 @@ const NAV: { key: NavStage; label: string; role: string; roleLabel: string }[] =
 const STAGE_FOR_STATUS: Record<string, NavStage> = {
   instruction_received: "setup",
   setup: "setup",
+  scheduling: "scheduling",
   inspection_scheduled: "inspection",
   inspected: "inspection",
   valuation_in_progress: "valuation",
@@ -153,23 +156,26 @@ export function JobDetailClient({ id }: { id: string }) {
     Boolean(job.tabs.instructions?.can_edit) &&
     !job.tabs.inspection?.can_edit &&
     !job.tabs.summary?.can_edit;
-  const statusStage = opsView ? "setup" : STAGE_FOR_STATUS[job.status] ?? "setup";
+  // Ops look after Setup and book the inspection on Scheduling.
+  const OPS_STAGES: NavStage[] = ["setup", "scheduling"];
+  const jobStage = STAGE_FOR_STATUS[job.status] ?? "setup";
+  const statusStage = opsView && !OPS_STAGES.includes(jobStage) ? "scheduling" : jobStage;
   const defaultPage =
     navPages.find((p) => p.stage === statusStage && p.tab && completionOf(p.key).pct < 100) ??
     navPages.find((p) => p.stage === statusStage) ??
     navPages[0];
-  const current = navPages.find((p) => p.key === active && (!opsView || p.stage === "setup")) ?? defaultPage;
+  const current = navPages.find((p) => p.key === active && (!opsView || OPS_STAGES.includes(p.stage))) ?? defaultPage;
   const index = navPages.findIndex((p) => p.key === current.key);
   const prev = index > 0 ? navPages[index - 1] : null;
   const nextPage = index < navPages.length - 1 ? navPages[index + 1] : null;
   // For ops the walk ends with Setup: the next stage is the valuer's.
-  const next = opsView && nextPage && nextPage.stage !== "setup" ? null : nextPage;
+  const next = opsView && nextPage && !OPS_STAGES.includes(nextPage.stage) ? null : nextPage;
   const setupDone = (pages.filter((p) => p.stage === "setup" && p.tab)).every((p) => (job.tabs[p.key]?.completion.pct ?? 0) === 100);
   const valuerName = (job.assignees as { name: string; roles: string[] }[] | undefined)?.find((a) => a.roles.includes("valuer"))?.name;
   const stageLabel = (key: NavStage) => NAV.find((s) => s.key === key)?.label ?? key;
   const stagePages = navPages.filter((p) => p.stage === current.stage);
 
-  const STAGE_ORDER: NavStage[] = ["setup", "inspection", "valuation", "review", "send"];
+  const STAGE_ORDER: NavStage[] = ["setup", "scheduling", "inspection", "valuation", "review", "send"];
   /** What is still missing in a data-entry stage, as "Section: field, field". */
   const missingIn = (stage: NavStage): string[] =>
     pages
@@ -303,7 +309,7 @@ export function JobDetailClient({ id }: { id: string }) {
             const selected = stage.key === current.stage;
             const now = stage.key === statusStage && !done;
             const owner = ownerOf(stage.role);
-            const greyed = opsView && stage.key !== "setup";
+            const greyed = opsView && !OPS_STAGES.includes(stage.key);
             return (
               <button
                 key={stage.key}
@@ -482,6 +488,7 @@ export function JobDetailClient({ id }: { id: string }) {
                   {/* Keyed so each section gets its own autosave state, and
                       leaving one flushes whatever was typed last. */}
                   <TabEditor key={current.key} jobId={id} tab={current.tab} state={job.tabs[current.key]} allValues={allValues} />
+                  {current.key === "scheduling" && <CallLog calls={job.call_log ?? []} />}
                 </>
               )
             )}
@@ -491,12 +498,12 @@ export function JobDetailClient({ id }: { id: string }) {
               className="row pagenav"
               style={{ justifyContent: "space-between", marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-divider)" }}
             >
-              {opsView && current.stage === "setup" && !next && (
+              {opsView && OPS_STAGES.includes(current.stage) && !next && (
                 <span className="row" style={{ gap: 8, fontSize: 14, color: setupDone ? "var(--green-600)" : "var(--text-muted)", order: 2 }}>
                   <Icon name={setupDone ? "check-circle" : "user-check"} size={16} />
-                  {setupDone
-                    ? `Setup complete. Handed off to the valuer${valuerName ? ` (${valuerName})` : ""}.`
-                    : "Complete Setup to hand the job off to the valuer."}
+                  {setupDone && STAGE_ORDER.indexOf(jobStage) > STAGE_ORDER.indexOf("scheduling")
+                    ? `Inspection booked. Handed off to the valuer${valuerName ? ` (${valuerName})` : ""}.`
+                    : "Book the inspection to hand the job off to the valuer."}
                 </span>
               )}
               {prev ? (
@@ -550,5 +557,33 @@ export function JobDetailClient({ id }: { id: string }) {
         />
       )}
     </Shell>
+  );
+}
+
+/** Every call made to book the inspection, newest first (CRM feedback SC-04). */
+function CallLog({ calls }: { calls: CallAttempt[] }) {
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Call log</div>
+      {calls.length === 0 ? (
+        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>No calls logged yet. Each save above is logged here.</div>
+      ) : (
+        <div className="stack8">
+          {calls.map((c) => (
+            <div key={c.id} style={{ padding: "10px 12px", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 14 }}>
+              <div className="row wrap" style={{ justifyContent: "space-between", gap: 8 }}>
+                <b style={{ fontWeight: 700 }}>{c.status_label}</b>
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  {formatDateTime(c.at)}
+                  {c.by ? ` · ${c.by}` : ""}
+                </span>
+              </div>
+              {c.booked_for && <div>Booked for {formatDateTime(c.booked_for)}</div>}
+              {c.remark && <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{c.remark}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

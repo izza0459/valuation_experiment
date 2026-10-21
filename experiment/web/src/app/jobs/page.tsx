@@ -12,6 +12,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Avatar, Button, Icon, Input, Select, Table, Tabs } from "@/design-system";
 import { PageHead, Shell, StatusChip } from "@/components/vp/ui";
+import { PipelineFunnel } from "@/components/vp/PipelineFunnel";
 import { formatDateTime } from "@/components/vp/format";
 import { useMe } from "@/lib/auth";
 import { JOB_STATUS_LABELS, useJobKpis, useJobs, type JobFilters, type JobListItem } from "@/lib/jobs";
@@ -60,6 +61,9 @@ export default function JobsPage() {
           sub={kpis && kpis.avg_turnaround_hours === null ? "No issued jobs yet" : undefined}
         />
       </div>
+
+      {/* Admins: the pipeline by stage (CRM feedback DB-01..03). */}
+      {me?.authenticated && me.user.is_admin && <PipelineFunnel />}
 
       <div className="card" style={{ padding: 0 }}>
         <Tabs
@@ -127,7 +131,11 @@ export default function JobsPage() {
                 <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>{j.property_label}</div>
                 <div className="row" style={{ justifyContent: "space-between", gap: 10, fontSize: 13, color: "var(--text-muted)" }}>
                   <span>{j.valuer_name || "Unassigned"}</span>
-                  <span>{j.progress?.sub_status ?? ""}</span>
+                  <span>
+                    {j.inspection_booked_at && j.progress?.stage === "inspection"
+                      ? `Booked ${formatDateTime(j.inspection_booked_at)}`
+                      : j.progress?.sub_status ?? ""}
+                  </span>
                 </div>
               </Link>
             ))}
@@ -168,6 +176,11 @@ export default function JobsPage() {
                     <div style={{ display: "grid", gap: 3, justifyItems: "start" }}>
                       <StatusChip s={j.progress.stage_label} />
                       <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{j.progress.sub_status}</span>
+                      {j.inspection_booked_at && j.progress.stage === "inspection" && (
+                        <span style={{ fontSize: 12.5, color: "var(--text-accent)" }}>
+                          Booked {formatDateTime(j.inspection_booked_at)}
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <StatusChip s={j.status_label} />

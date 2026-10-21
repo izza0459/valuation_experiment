@@ -444,6 +444,21 @@ class Job(SoftDeleteModel):
         return f"By {who}, {timezone.localtime(self.coi_confirmed_at):%d %b %Y %H:%M}"
 
     @builtins.property
+    def map_link(self) -> str:
+        """Google Maps at the property's coordinates, to navigate there (CRM
+        feedback SC-02); no key needed for a link."""
+        prop = self.property
+        if prop.latitude is None or prop.longitude is None:
+            return ""
+        return f"https://www.google.com/maps/search/?api=1&query={prop.latitude},{prop.longitude}"
+
+    @builtins.property
+    def inspection_booked_at(self):
+        """When the inspection was booked for, from the Scheduling stage."""
+        scheduling = getattr(self, "scheduling", None)
+        return scheduling.inspection_booked_at if scheduling else None
+
+    @builtins.property
     def reference_root(self) -> str:
         """The reference of version 1. Every revision's reference is built on
         it, so the bank sees one Valuation Ref No. across re-issues."""
@@ -471,7 +486,7 @@ class Job(SoftDeleteModel):
     def bank_code(self) -> str:
         return self.bank.code if self.bank_id else ""
 
-    TAB_DATA_RELATIONS = ("checklist", "summary", "inspection", "location", "valuation")
+    TAB_DATA_RELATIONS = ("scheduling", "checklist", "summary", "inspection", "location", "valuation")
 
     @transaction.atomic
     def create_revision(self, *, by=None):
@@ -602,6 +617,48 @@ class JobTabData(models.Model):
                 f"{type(self).__name__} cannot be modified. Create a revision instead."
             )
         super().save(*args, **kwargs)
+
+
+class SchedulingData(JobTabData):
+    """Booking the inspection with the contact (CRM feedback SC-01..04)."""
+
+    NOT_CALLED = "not_called"
+    ANSWERED_NOT_SCHEDULED = "answered_not_scheduled"
+    ANSWERED_SCHEDULED = "answered_scheduled"
+    UNABLE_TO_CONTACT = "utc"
+    CALL_STATUS_CHOICES = [
+        (NOT_CALLED, "Not Called"),
+        (ANSWERED_NOT_SCHEDULED, "Answered – Not Scheduled"),
+        (ANSWERED_SCHEDULED, "Answered – Scheduled"),
+        (UNABLE_TO_CONTACT, "UTC (Unable to contact)"),
+    ]
+
+    job = models.OneToOneField(Job, on_delete=models.CASCADE, related_name="scheduling")
+    call_status = models.CharField(max_length=30, choices=CALL_STATUS_CHOICES, default=NOT_CALLED)
+    call_remark = models.TextField(blank=True)
+    inspection_booked_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"SchedulingData<{self.job}>"
+
+
+class CallAttempt(models.Model):
+    """Every save on the Scheduling stage, so repeat UTC cases and earlier
+    booked dates stay visible (CRM feedback SC-04)."""
+
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="call_attempts")
+    status = models.CharField(max_length=30, choices=SchedulingData.CALL_STATUS_CHOICES)
+    remark = models.TextField(blank=True)
+    booked_for = models.DateTimeField(null=True, blank=True)
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                           related_name="+")
+    at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-at", "-id"]
+
+    def __str__(self):
+        return f"CallAttempt<{self.job_id} {self.status}>"
 
 
 class ChecklistData(JobTabData):

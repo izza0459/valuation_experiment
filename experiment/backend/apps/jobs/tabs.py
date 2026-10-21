@@ -39,12 +39,14 @@ from apps.reports.models import ReportTemplate
 
 from .field_config import TABS, get_tab
 from .models import (
+    CallAttempt,
     ChecklistData,
     InspectionData,
     Job,
     JobTabVersion,
     LocationData,
     Property,
+    SchedulingData,
     SummaryData,
     ValuationData,
     split_names,
@@ -52,6 +54,7 @@ from .models import (
 from .workflow import FROZEN_STATUSES, JobLockedError
 
 TAB_MODELS = {
+    "scheduling": SchedulingData,
     "checklist": ChecklistData,
     "summary": SummaryData,
     "inspection": InspectionData,
@@ -70,6 +73,8 @@ TAB_EDIT_ROLES = {
     "checklist": {Role.INSPECTOR, Role.VALUER},
     "instructions": {Role.ADMIN, Role.OPS, Role.VALUER},
     "address": {Role.ADMIN, Role.OPS, Role.VALUER},
+    # Booking the inspection: the inspector, with ops and the valuer.
+    "scheduling": {Role.ADMIN, Role.OPS, Role.INSPECTOR, Role.VALUER},
     "summary": {Role.VALUER},
     "inspection": {Role.INSPECTOR, Role.VALUER},
     "location": {Role.VALUER},
@@ -96,6 +101,13 @@ ASSIGNMENT_ROLES = {Role.ADMIN, Role.VALUER}
 # keeps; they are rounded to the column's precision (~0.1 m). Every other
 # figure (money, areas, elevation) is a whole number: decimals are rounded
 # half-up to the nearest unit, and thousands separators are accepted.
+INSPECTOR_LABEL = "Inspector (assign on the Check List)"
+BOOKED_LABEL = "Inspection booked"
+# Statuses past Scheduling: its tab counts as done there.
+PAST_SCHEDULING = {
+    "inspection_scheduled", "inspected", "valuation_in_progress", "peer_review", "approved_signed", "issued",
+}
+
 # The document type of the consent a COI "Yes" needs (CRM feedback LG-01).
 COI_CONSENT_DOC = "coi_consent"
 COI_CONSENT_LABEL = "Consent received (proof)"
@@ -274,6 +286,7 @@ def visibility_context(job) -> dict:
     context = {tab["key"]: tab_values(job, tab["key"]) for tab in TABS if tab["fields"]}
     # Uploads a form field depends on: a Yes on the COI check needs the consent.
     context["uploads"] = {"coi_consent": job.documents.filter(doc_type=COI_CONSENT_DOC).exists()}
+    context["job"] = {"status": job.status}
     bank = job.bank
     context["bank"] = {"name": job.organisation_name, "rules": (bank.rules if bank else None) or {}}
     return context
@@ -297,6 +310,18 @@ def tab_completion(tab_key: str, context: dict) -> dict:
         required.append(COI_CONSENT_LABEL)
         if not context.get("uploads", {}).get("coi_consent"):
             missing.append(COI_CONSENT_LABEL)
+    # Setup hands over to Scheduling once an inspector is assigned (CRM feedback SC-01).
+    if tab_key == "instructions":
+        required.append(INSPECTOR_LABEL)
+        if not context.get("checklist", {}).get("inspected_by"):
+            missing.append(INSPECTOR_LABEL)
+    if tab_key == "scheduling":
+        status = context.get("job", {}).get("status")
+        if status in PAST_SCHEDULING:
+            return {"pct": 100, "missing": []}  # booked before the stage existed, or done
+        required.append(BOOKED_LABEL)
+        if values.get("call_status") != "answered_scheduled" and BOOKED_LABEL not in missing:
+            missing.append(BOOKED_LABEL)
     if not required:
         return {"pct": 100, "missing": []}
     return {"pct": round((len(required) - len(missing)) / len(required) * 100), "missing": missing}
@@ -362,6 +387,7 @@ def job_tab_state(job, user=None) -> dict:
 STAGE_FOR_STATUS = {
     "instruction_received": "setup",
     "setup": "setup",
+    "scheduling": "scheduling",
     "inspection_scheduled": "inspection",
     "inspected": "inspection",
     "valuation_in_progress": "valuation",
@@ -369,7 +395,7 @@ STAGE_FOR_STATUS = {
     "approved_signed": "review",
     "issued": "issued",
 }
-STAGE_LABELS = {"setup": "Setup", "inspection": "Inspection", "valuation": "Valuation",
+STAGE_LABELS = {"setup": "Setup", "scheduling": "Scheduling", "inspection": "Inspection", "valuation": "Valuation",
                 "review": "Review", "issued": "Issued"}
 
 
@@ -378,7 +404,7 @@ def job_progress(job) -> dict:
     the section of it being worked on (the first that isn't complete)."""
     stage = STAGE_FOR_STATUS.get(job.status, "setup")
     sub = ""
-    if stage in ("setup", "inspection", "valuation"):
+    if stage in ("setup", "scheduling", "inspection", "valuation"):
         context = visibility_context(job)
         for tab in sorted(TABS, key=lambda t: t["order"]):
             if tab["stage"] != stage:
@@ -743,6 +769,22 @@ def _follow_bank_billing_address(job, old_bank_id, supplied):
     job.billing_address = bank.billing_address if bank and bank.sla_signed else ""
 
 
+def _log_call(job, scheduling, user, cleaned) -> None:
+    """Each save on Scheduling is one call attempt in the log; a booked date
+    also becomes the inspection date if none is entered yet (CRM feedback SC-04)."""
+    if not {"call_status", "call_remark", "inspection_booked_at"} & cleaned.keys():
+        return
+    booked = scheduling.inspection_booked_at if scheduling.call_status == "answered_scheduled" else None
+    CallAttempt.objects.create(job=job, status=scheduling.call_status, remark=scheduling.call_remark,
+                               booked_for=booked, by=user)
+    if booked:
+        inspection = job.inspection
+        if inspection.inspection_date is None:
+            inspection.inspection_date = timezone.localtime(booked).date() if timezone.is_aware(booked) \
+                else booked.date()
+            inspection.save(update_fields=["inspection_date"])
+
+
 def set_report_exclusions(job_id: int, user, excluded) -> list[str]:
     """Which fields stay out of the report (the include-in-report step, on
     leaving the Valuation stage). Whoever may edit the Valuation tab may set
@@ -824,6 +866,8 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
             # Who confirmed the COI result, and when (CRM feedback LG-01).
             job.coi_confirmed_by, job.coi_confirmed_at = user, timezone.now()
             touched.add("job")
+        if tab_key == "scheduling":
+            _log_call(job, targets["tab"], user, cleaned)
         if "bua_sqm" in cleaned and cleaned["bua_sqm"][2] is None:
             targets["tab"].bua_sqft = None  # sqft follows sqm, cleared too
 

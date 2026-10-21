@@ -238,6 +238,30 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
 }
 
 function ComputedValue({ field, value }: { field: FieldDef; value: unknown }) {
+  // Scheduling: the contact's phone is tap-to-call, the map opens Google Maps.
+  const link =
+    typeof value === "string" && value
+      ? field.key === "contact_number"
+        ? `tel:${value.replace(/[^+0-9]/g, "")}`
+        : field.key === "map_link"
+          ? value
+          : null
+      : null;
+  if (link) {
+    return (
+      <a
+        href={link}
+        target={field.key === "map_link" ? "_blank" : undefined}
+        rel="noopener noreferrer"
+        className="row"
+        style={{ gap: 8, minHeight: 44, padding: "0 14px", borderRadius: 6, background: "var(--surface-subtle)",
+          color: "var(--text-accent)", fontWeight: 700, textDecoration: "none" }}
+      >
+        <Icon name={field.key === "map_link" ? "map-pin" : "phone"} size={16} />
+        {field.key === "map_link" ? "Open in Google Maps" : String(value)}
+      </a>
+    );
+  }
   return (
     <div
       className="num"

@@ -45,6 +45,10 @@ const NEEDS_JOB_REFRESH = new Set([
   "peer_reviewer",
   "counter_signatory",
   "registered_valuer",
+  // Scheduling: each save adds to the call log shown under the form.
+  "call_status",
+  "call_remark",
+  "inspection_booked_at",
 ]);
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

@@ -512,5 +512,6 @@ export function formatComputed(key: string, value: unknown): string {
   if (key === "forced_sale_value") return `AED ${formatWhole(value)}`;
   if (key === "report_date") return formatDate(value as string);
   if (key === "remaining_economic_life") return `${str(value)} years`;
+  if (key === "inspection_booked_at") return formatDateTime(value as string);
   return str(value);
 }

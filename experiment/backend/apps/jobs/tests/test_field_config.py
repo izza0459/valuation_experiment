@@ -22,7 +22,7 @@ def find_field(tab_key, field_key):
 class TestStructure:
     def test_tabs_match_the_spec(self):
         assert [tab["key"] for tab in serialize_config()] == [
-            "instructions", "address", "checklist", "summary", "inspection", "photos",
+            "instructions", "address", "scheduling", "checklist", "summary", "inspection", "photos",
             "location", "valuation", "documents", "evidence", "review",
         ]
         assert [tab["order"] for tab in TABS] == sorted(tab["order"] for tab in TABS)

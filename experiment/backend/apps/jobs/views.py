@@ -91,7 +91,7 @@ class JobViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         the default manager."""
         queryset = visible_jobs(
             Job.objects.select_related(
-                "bank", "property", "summary", "checklist", "inspection", "location", "valuation",
+                "bank", "property", "summary", "checklist", "inspection", "location", "valuation", "scheduling",
                 "valuer", "registered_valuer",
             ),
             self.request.user,
@@ -297,6 +297,30 @@ class JobActivityView(APIView):
                 for e in entries
             ]
         )
+
+
+class JobFunnelView(APIView):
+    """GET: the admin pipeline funnel (CRM feedback DB-01, DB-02), or with
+    `?stage=` the counts by section within one stage (DB-03). Dates: `range`
+    = today / week / month / 30d, or `from` / `to` (YYYY-MM-DD). Admins only."""
+
+    permission_classes = [IsAuthenticated, IsPlatformAdmin]
+
+    def get(self, request):
+        from . import dashboard
+
+        params = request.query_params
+        try:
+            begin, end = dashboard.date_range(params.get("range"), params.get("from"), params.get("to"))
+        except ValueError:
+            return Response({"code": "validation", "detail": "Dates must be YYYY-MM-DD."}, status=400)
+        jobs = Job.objects.all()
+        stage = params.get("stage")
+        if stage:
+            if stage not in dict(dashboard.STAGES):
+                return Response({"code": "validation", "detail": "No such stage."}, status=400)
+            return Response({"stage": stage, "sections": dashboard.sections(jobs, stage, begin, end)})
+        return Response(dashboard.funnel(jobs, begin, end))
 
 
 class JobKpiView(APIView):

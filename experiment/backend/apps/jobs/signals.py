@@ -1,9 +1,9 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import ChecklistData, InspectionData, Job, LocationData, SummaryData, ValuationData
+from .models import ChecklistData, InspectionData, Job, LocationData, SchedulingData, SummaryData, ValuationData
 
-TAB_DATA_MODELS = [ChecklistData, SummaryData, InspectionData, LocationData, ValuationData]
+TAB_DATA_MODELS = [SchedulingData, ChecklistData, SummaryData, InspectionData, LocationData, ValuationData]
 
 
 @receiver(post_save, sender=Job)

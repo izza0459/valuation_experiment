@@ -216,7 +216,9 @@ def transition_log(job) -> list[dict]:
 
 # The status a job reaches once a stage's tabs are all complete.
 STAGE_REACHES = [
-    ("setup", JobStatus.INSPECTION_SCHEDULED),
+    ("setup", JobStatus.SCHEDULING),
+    # Booking the inspection on Scheduling moves the job to Inspection (SC-04).
+    ("scheduling", JobStatus.INSPECTION_SCHEDULED),
     ("inspection", JobStatus.VALUATION_IN_PROGRESS),
 ]
 

@@ -19,6 +19,19 @@ export type JobListItem = {
   date_time_request_received: string | null;
   created_at: string;
   updated_at: string;
+  /** When the inspection is booked for (Scheduling stage). */
+  inspection_booked_at?: string | null;
+};
+
+/** A call made to book the inspection (Scheduling stage). */
+export type CallAttempt = {
+  id: number;
+  status: string;
+  status_label: string;
+  remark: string;
+  booked_for: string | null;
+  by: string;
+  at: string;
 };
 
 /** One tab as the server sees it: see backend/apps/jobs/tabs.py. */
@@ -83,6 +96,7 @@ export type JobDetail = JobListItem & {
   bank_contacts?: { name: string; email: string }[];
   /** Where the issued report has been sent. */
   deliveries?: Delivery[];
+  call_log?: CallAttempt[];
 } & Record<string, unknown>;
 
 export type Delivery = {
@@ -180,6 +194,7 @@ export function buildTabValues(job: JobDetail): Record<string, unknown> {
 export const JOB_STATUS_LABELS: Record<string, string> = {
   instruction_received: "Instruction Received",
   setup: "Setup",
+  scheduling: "Scheduling",
   inspection_scheduled: "Inspection Scheduled",
   inspected: "Inspected",
   valuation_in_progress: "Valuation In Progress",

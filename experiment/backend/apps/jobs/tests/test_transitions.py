@@ -64,6 +64,8 @@ def fill_everything(job):
     job.property.applicant_name = "A. Applicant"
     job.property.save()
     for model, values in (
+        (job.scheduling, {"call_status": "answered_scheduled",
+                          "inspection_booked_at": datetime.datetime(2026, 8, 26, 10, 0, tzinfo=datetime.UTC)}),
         (job.summary, {"interest_valued": "international_freehold", "property_category": "apartment",
                        "bua_sqm": "48.22", "disclosure": "No conflicts."}),
         (job.inspection, {"inspection_date": datetime.date(2026, 8, 26), "inspection_type": "full"}),
@@ -356,9 +358,13 @@ class TestStagesFollowTheTabs:
         summary = {"interest_valued": "international_freehold", "property_category": "apartment",
                    "bua_sqm": "48.22", "disclosure": "No conflicts."}
         assert self.patch(dan, job, "summary", summary) == S.SETUP
-        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.INSPECTION_SCHEDULED
+        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.SCHEDULING
+        # Booking the inspection on Scheduling moves it on (CRM feedback SC-04).
+        assert self.patch(dan, job, "scheduling", {"call_status": "answered_scheduled",
+                                                   "inspection_booked_at": "2026-08-27T10:00:00+04:00"}) == \
+            S.INSPECTION_SCHEDULED
         moves = list(JobTransition.objects.filter(job=job).order_by("id").values_list("to_status", flat=True))
-        assert moves == [S.SETUP, S.INSPECTION_SCHEDULED]
+        assert moves == [S.SETUP, S.SCHEDULING, S.INSPECTION_SCHEDULED]
 
     def test_it_never_moves_a_job_back_or_out_of_review(self, job, dan):
         fill_everything(job)

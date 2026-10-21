@@ -117,6 +117,29 @@ TABS = [
                   help_text="Printed as the property's address on the report."),
         ],
     },
+    # --- Scheduling (inspector): booking the inspection (CRM feedback SC-01..04) ---------
+    {
+        "key": "scheduling",
+        "label": "Scheduling",
+        "stage": "scheduling",
+        "order": 2.5,
+        "fields": [
+            # Carried over from Setup, read-only.
+            field("organisation_name", "Bank", "text", calculated=True),
+            field("contact_name", "POC name", "text", calculated=True),
+            field("contact_number", "POC phone", "text", calculated=True),
+            field("map_link", "Map link", "text", calculated=True,
+                  help_text="From the coordinates on Property Address."),
+            field("call_status", "Call status", "select", required=True, options_key="call_status"),
+            field("call_remark", "Remark", "textarea", required=True,
+                  visible_if={"field": "scheduling.call_status", "op": "in",
+                              "value": ["answered_not_scheduled", "utc"]},
+                  help_text="Why it isn't booked yet, or when to call back."),
+            field("inspection_booked_at", "Inspection date and time", "datetime", required=True,
+                  visible_if={"field": "scheduling.call_status", "op": "eq", "value": "answered_scheduled"},
+                  help_text="Saving it moves the job to Inspection."),
+        ],
+    },
     # --- Inspection (valuer) --------------------------------------------------------
     {
         "key": "checklist",
@@ -186,6 +209,8 @@ TABS = [
         "stage": "inspection",
         "order": 5,
         "fields": [
+            field("inspection_booked_at", "Booked for", "datetime", calculated=True,
+                  help_text="From the Scheduling stage."),
             field("inspection_date", "Inspection Date", "date", required=True),
             field("inspection_type", "Inspection Type", "select", required=True, options_key="inspection_type"),
             field("roof", "Roof", "select", options_key="roof"),
@@ -326,6 +351,7 @@ for _tab in TABS:
 # moves the job on (see transitions.sync_stage); nothing is locked by stage.
 STAGES = [
     {"key": "setup", "label": "Setup"},
+    {"key": "scheduling", "label": "Scheduling"},
     {"key": "inspection", "label": "Inspection"},
     {"key": "valuation", "label": "Valuation"},
     {"key": "review", "label": "Review & Send"},

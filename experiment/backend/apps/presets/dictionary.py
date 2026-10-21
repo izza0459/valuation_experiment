@@ -26,6 +26,10 @@ PRESETS = {
     "purpose": [o("Mortgage Security"), o("Audit Purpose"), o("Internal Purpose")],
     "parking": [o("Yes"), o("No"), o("Assumed")],
     "coi_check": [o("Yes"), o("No")],
+    "call_status": [
+        o("Not Called", "not_called"), o("Answered – Not Scheduled", "answered_not_scheduled"),
+        o("Answered – Scheduled", "answered_scheduled"), o("UTC (Unable to contact)", "utc"),
+    ],
     "title_doc_type": [
         o("Title Deed"), o("Initial Contract of Sale"), o("Sales and Purchase Agreement (SPA)", "spa"),
         o("Usufruct Certificate"), o("Sale Certificate"), o("Site Plan"), o("Site Affection Plan"),

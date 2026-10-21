@@ -63,6 +63,8 @@ class JobListSerializer(serializers.ModelSerializer):
     # Status and sub-status for the dashboard: the stage the job is in and
     # the section being worked on (the first one not yet complete).
     progress = serializers.SerializerMethodField()
+    # The inspector's list shows when each inspection is booked for.
+    inspection_booked_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Job
@@ -70,7 +72,7 @@ class JobListSerializer(serializers.ModelSerializer):
             "id", "bayut_internal_reference_no", "bank_reference_no", "bank_name",
             "property_label", "property_type", "valuer_name", "purpose",
             "status", "status_label", "progress", "version", "is_locked",
-            "date_time_request_received", "created_at", "updated_at",
+            "date_time_request_received", "created_at", "updated_at", "inspection_booked_at",
         ]
 
     def get_progress(self, job) -> dict:
@@ -112,6 +114,8 @@ class JobDetailSerializer(serializers.ModelSerializer):
     can_send_report = serializers.SerializerMethodField()
     bank_contacts = serializers.SerializerMethodField()
     deliveries = serializers.SerializerMethodField()
+    # Every call made to book the inspection, newest first (CRM feedback SC-04).
+    call_log = serializers.SerializerMethodField()
     checklist = ChecklistDataSerializer(read_only=True)
     summary = SummaryDataSerializer(read_only=True)
     inspection = InspectionDataSerializer(read_only=True)
@@ -121,6 +125,13 @@ class JobDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = "__all__"
+
+    def get_call_log(self, job) -> list:
+        return [
+            {"id": c.id, "status": c.status, "status_label": c.get_status_display(), "remark": c.remark,
+             "booked_for": c.booked_for, "by": str(c.by) if c.by else "", "at": c.at}
+            for c in job.call_attempts.select_related("by")
+        ]
 
     def get_bank_rules(self, job) -> dict:
         return (job.bank.rules if job.bank_id else None) or {}

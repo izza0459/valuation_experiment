@@ -10,6 +10,8 @@ from apps.accounts.models import Role
 class JobStatus:
     INSTRUCTION_RECEIVED = "instruction_received"
     SETUP = "setup"
+    # Calling the contact to book the inspection (CRM feedback SC-01).
+    SCHEDULING = "scheduling"
     INSPECTION_SCHEDULED = "inspection_scheduled"
     INSPECTED = "inspected"
     VALUATION_IN_PROGRESS = "valuation_in_progress"
@@ -20,6 +22,7 @@ class JobStatus:
     CHOICES = [
         (INSTRUCTION_RECEIVED, "Instruction Received"),
         (SETUP, "Setup"),
+        (SCHEDULING, "Scheduling"),
         (INSPECTION_SCHEDULED, "Inspection Scheduled"),
         (INSPECTED, "Inspected"),
         (VALUATION_IN_PROGRESS, "Valuation In Progress"),
@@ -37,6 +40,7 @@ class JobStatus:
 PRE_REVIEW_STATUSES = [
     JobStatus.INSTRUCTION_RECEIVED,
     JobStatus.SETUP,
+    JobStatus.SCHEDULING,
     JobStatus.INSPECTION_SCHEDULED,
     JobStatus.INSPECTED,
     JobStatus.VALUATION_IN_PROGRESS,
@@ -44,7 +48,10 @@ PRE_REVIEW_STATUSES = [
 
 ALLOWED_TRANSITIONS = {
     JobStatus.INSTRUCTION_RECEIVED: {JobStatus.SETUP, JobStatus.PEER_REVIEW},
-    JobStatus.SETUP: {JobStatus.INSPECTION_SCHEDULED, JobStatus.PEER_REVIEW},
+    # Straight to inspection_scheduled stays allowed for jobs set up before
+    # the Scheduling stage existed.
+    JobStatus.SETUP: {JobStatus.SCHEDULING, JobStatus.INSPECTION_SCHEDULED, JobStatus.PEER_REVIEW},
+    JobStatus.SCHEDULING: {JobStatus.INSPECTION_SCHEDULED, JobStatus.PEER_REVIEW},
     JobStatus.INSPECTION_SCHEDULED: {JobStatus.INSPECTED, JobStatus.PEER_REVIEW},
     JobStatus.INSPECTED: {JobStatus.VALUATION_IN_PROGRESS, JobStatus.PEER_REVIEW},
     JobStatus.VALUATION_IN_PROGRESS: {JobStatus.PEER_REVIEW},
@@ -84,8 +91,12 @@ class TransitionRule:
 TRANSITION_RULES = {
     (JobStatus.INSTRUCTION_RECEIVED, JobStatus.SETUP):
         TransitionRule("Start setup", {Role.ADMIN, Role.VALUER}),
+    (JobStatus.SETUP, JobStatus.SCHEDULING):
+        TransitionRule("Start scheduling", {Role.ADMIN, Role.OPS, Role.VALUER}),
     (JobStatus.SETUP, JobStatus.INSPECTION_SCHEDULED):
         TransitionRule("Schedule inspection", {Role.ADMIN, Role.VALUER}),
+    (JobStatus.SCHEDULING, JobStatus.INSPECTION_SCHEDULED):
+        TransitionRule("Inspection booked", {Role.ADMIN, Role.OPS, Role.INSPECTOR, Role.VALUER}),
     (JobStatus.INSPECTION_SCHEDULED, JobStatus.INSPECTED):
         TransitionRule("Mark inspected", {Role.INSPECTOR, Role.VALUER}),
     (JobStatus.INSPECTED, JobStatus.VALUATION_IN_PROGRESS):
