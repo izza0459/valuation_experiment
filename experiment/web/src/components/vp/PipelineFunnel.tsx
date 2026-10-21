@@ -108,7 +108,7 @@ export function PipelineFunnel() {
       {funnel.isError ? (
         <div style={{ color: "var(--text-error)", fontSize: 14 }}>Couldn&apos;t load the pipeline.</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 10 }}>
+        <div className="funnel-grid">
           {(funnel.data?.stages ?? []).map((s) => (
             <button
               key={s.key}
@@ -117,6 +117,7 @@ export function PipelineFunnel() {
                 setOpen(open === s.key ? null : s.key);
                 setOpenSection(null);
               }}
+              title={s.drop ? "Change from the previous stage" : undefined}
               style={{
                 textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
                 border: `1px solid ${open === s.key ? "var(--action-primary)" : "var(--border-subtle)"}`,
@@ -129,10 +130,10 @@ export function PipelineFunnel() {
                 {!s.drop
                   ? " "
                   : s.drop.count > 0
-                    ? `−${s.drop.count}${s.drop.pct !== null ? ` (${s.drop.pct}%)` : ""} from previous`
+                    ? `−${s.drop.count}${s.drop.pct !== null ? ` (${s.drop.pct}%)` : ""}`
                     : s.drop.count < 0
-                      ? `+${-s.drop.count} more than previous`
-                      : "None lost"}
+                      ? `+${-s.drop.count}`
+                      : "No drop"}
               </div>
             </button>
           ))}

@@ -362,7 +362,7 @@ export function JobDetailClient({ id }: { id: string }) {
                       textOverflow: "ellipsis",
                     }}
                   >
-                    <FitText min={12}>{stage.label}</FitText>
+                    <FitText min={11}>{stage.label}</FitText>
                   </span>
                   <span
                     style={{
