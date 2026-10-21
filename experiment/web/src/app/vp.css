@@ -261,6 +261,18 @@
     font-size: 15px !important;
   }
 }
+/* Peer reviewer changes waiting for the valuer (jobs list). */
+.changes-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fff3cd;
+  color: #7a4d00;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+}
 /* A required field still empty: the label says so. */
 .field-missing {
   color: var(--text-error);

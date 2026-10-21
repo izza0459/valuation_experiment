@@ -8,6 +8,7 @@ from .views import (
     JobFunnelView,
     JobKpiView,
     JobReportFieldsView,
+    JobReviewerEditsView,
     JobReviseView,
     JobTabView,
     JobTransitionView,
@@ -30,5 +31,6 @@ urlpatterns = [
     path("jobs/<int:pk>/transitions/", JobTransitionView.as_view(), name="job-transitions"),
     path("jobs/<int:pk>/tabs/<str:tab>/", JobTabView.as_view(), name="job-tab"),
     path("jobs/<int:pk>/report-fields/", JobReportFieldsView.as_view(), name="job-report-fields"),
+    path("jobs/<int:pk>/reviewer-edits/accept/", JobReviewerEditsView.as_view(), name="job-reviewer-edits"),
     path("", include(router.urls)),
 ]

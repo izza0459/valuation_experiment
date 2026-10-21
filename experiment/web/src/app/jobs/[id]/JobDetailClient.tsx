@@ -29,6 +29,7 @@ import { Banner, Ring, Shell, StatusChip } from "@/components/vp/ui";
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
+import { ReviewerChanges } from "@/components/vp/ReviewerChanges";
 import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { RightPanel } from "@/components/vp/RightPanel";
 import { TabEditor } from "@/components/vp/TabEditor";
@@ -441,6 +442,15 @@ export function JobDetailClient({ id }: { id: string }) {
           )}
         </div>
       )}
+
+      {/* The peer reviewer's wording changes, for the valuer to accept (PR-01). */}
+      <ReviewerChanges
+        jobId={id}
+        edits={job.reviewer_edits ?? []}
+        canAccept={Boolean(job.can_accept_reviewer_edits)}
+        reviewing={job.status === "peer_review" && Boolean(me?.authenticated && (job.assignees as Assignee[] | undefined)
+          ?.some((a) => a.id === me.user.id && a.roles.includes("peer_reviewer")))}
+      />
 
       {job.issue_in_progress && (
         <Banner tone="blue" icon="loader">

@@ -17,7 +17,7 @@ from .field_config import TABS, serialize_config
 from .intake import create_job
 from .models import Job, JobTransition
 from .serializers import JobDetailSerializer, JobListSerializer
-from .tabs import TabError, job_tab_state, patch_tab, set_report_exclusions
+from .tabs import TabError, accept_reviewer_edits, job_tab_state, patch_tab, set_report_exclusions
 from .transitions import perform_transition, transition_log
 from .workflow import JobStatus
 
@@ -266,6 +266,22 @@ class JobReportFieldsView(APIView):
         except TabError as exc:
             return Response(exc.payload(), status=exc.status)
         return Response({"excluded": excluded})
+
+
+class JobReviewerEditsView(APIView):
+    """POST: the valuer accepts the peer reviewer's wording changes (CRM
+    feedback PR-01), which lets the reviewer sign off."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+
+    def post(self, request, pk):
+        job = get_object_or_404(Job.objects.all(), pk=pk)
+        self.check_object_permissions(request, job)
+        try:
+            accepted = accept_reviewer_edits(job.pk, request.user)
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response({"accepted": accepted})
 
 
 class JobActivityView(APIView):

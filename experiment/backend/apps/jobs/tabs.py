@@ -46,12 +46,13 @@ from .models import (
     JobTabVersion,
     LocationData,
     Property,
+    ReviewerEdit,
     SchedulingData,
     SummaryData,
     ValuationData,
     split_names,
 )
-from .workflow import FROZEN_STATUSES, JobLockedError
+from .workflow import FROZEN_STATUSES, JobLockedError, JobStatus
 
 TAB_MODELS = {
     "scheduling": SchedulingData,
@@ -378,10 +379,14 @@ def job_tab_state(job, user=None) -> dict:
             # "locked" / "frozen": nobody can edit it now.
             tab_state["read_only_code"] = denial.code if denial else ""
             # Fields on an otherwise editable tab that this user may not change.
-            tab_state["read_only_fields"] = (
-                [] if may_assign(user, job)
-                else [f["key"] for f in get_tab(key)["fields"] if f["key"] in ASSIGNMENT_FIELDS]
-            )
+            if reviewing(user, job):
+                wording = reviewer_fields(key)
+                tab_state["read_only_fields"] = [f["key"] for f in get_tab(key)["fields"] if f["key"] not in wording]
+            else:
+                tab_state["read_only_fields"] = (
+                    [] if may_assign(user, job)
+                    else [f["key"] for f in get_tab(key)["fields"] if f["key"] in ASSIGNMENT_FIELDS]
+                )
     return state
 
 
@@ -730,11 +735,31 @@ def coerce(field: dict, mf, raw, current):
 # --- writing ------------------------------------------------------------------
 
 
+# What the peer reviewer may change during review (CRM feedback PR-01): the
+# report's wording. Figures, dates and choices stay with the valuer, who sets
+# and signs the value (RICS); the reviewer returns the job for those.
+REVIEWER_EDITABLE_TYPES = {"textarea", "library"}
+
+
+def reviewer_fields(tab_key) -> set[str]:
+    return {
+        f["key"] for f in get_tab(tab_key)["fields"]
+        if f["type"] in REVIEWER_EDITABLE_TYPES and not f["calculated"]
+    }
+
+
+def reviewing(user, job) -> bool:
+    """The assigned peer reviewer, while the job is with them."""
+    return job.status == JobStatus.PEER_REVIEW and Role.PEER_REVIEWER in roles_on_job(user, job)
+
+
 def edit_denial(user, job, tab_key) -> TabError | None:
     """Why `user` can't edit this tab right now, or None if they can.
 
     The one place this is decided: the PATCH endpoint enforces it and the job
     detail reports it, so the UI never offers an edit the server will refuse."""
+    if not job.is_locked and reviewing(user, job) and reviewer_fields(tab_key):
+        return None  # the wording only; patch_tab refuses anything else
     if is_platform_admin(user):
         role_ok = True
     else:
@@ -794,6 +819,26 @@ def _follow_bank_billing_address(job, old_bank_id, supplied):
         return
     bank = job.bank
     job.billing_address = bank.billing_address if bank and bank.sla_signed else ""
+
+
+def _record_reviewer_edits(job, tab_key, user, before, cleaned) -> None:
+    """Field, old and new value, who and when (CRM feedback PR-01)."""
+    labels = {f["key"]: f["label"] for f in get_tab(tab_key)["fields"]}
+    for key, (_, _, value) in cleaned.items():
+        if before[key] != value:
+            ReviewerEdit.objects.create(job=job, tab_key=tab_key, field_key=key, label=labels.get(key, key),
+                                        old_value=before[key], new_value=value, by=user)
+
+
+def accept_reviewer_edits(job_id: int, user) -> int:
+    """The valuer (or an admin) accepts the reviewer's changes; returns how many."""
+    with acting_as(user), transaction.atomic():
+        job = Job.objects.select_for_update().get(pk=job_id)
+        if not (is_platform_admin(user) or Role.VALUER in roles_on_job(user, job)):
+            raise NotPermitted("Only the valuer on this job can accept the reviewer's changes.")
+        return job.reviewer_edits.filter(accepted_at__isnull=True).update(
+            accepted_at=timezone.now(), accepted_by=user
+        )
 
 
 def _log_call(job, scheduling, user, cleaned) -> None:
@@ -872,7 +917,14 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
         else:
             if denial := edit_denial(user, job, tab_key):
                 raise denial
-            _check_may_assign(user, job, values.keys())
+            if reviewing(user, job):
+                if beyond := sorted(set(values) - reviewer_fields(tab_key)):
+                    raise NotPermitted(
+                        "During review the peer reviewer can change the wording only. Return the job to the "
+                        f"valuer to change: {', '.join(beyond)}."
+                    )
+            else:
+                _check_may_assign(user, job, values.keys())
 
         version, _ = JobTabVersion.objects.get_or_create(job=job, tab_key=tab_key)
         if version.version != base_version:
@@ -886,9 +938,12 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
         old_bank_id = job.bank_id
 
         touched = set()
+        before = {key: getattr(targets[t], mf.attname) for key, (t, mf, _) in cleaned.items()}
         for target, mf, value in cleaned.values():
             setattr(targets[target], mf.attname, value)
             touched.add(target)
+        if not intake and reviewing(user, job):
+            _record_reviewer_edits(job, tab_key, user, before, cleaned)
         if "coi_check" in cleaned and cleaned["coi_check"][2] != (job.tracker_coi_check or ""):
             # Who confirmed the COI result, and when (CRM feedback LG-01).
             job.coi_confirmed_by, job.coi_confirmed_at = user, timezone.now()

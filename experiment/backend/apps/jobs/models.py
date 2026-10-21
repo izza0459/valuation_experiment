@@ -642,6 +642,31 @@ class SchedulingData(JobTabData):
         return f"SchedulingData<{self.job}>"
 
 
+class ReviewerEdit(models.Model):
+    """A change the peer reviewer made to the report's wording during review
+    (CRM feedback PR-01). The valuer accepts them before the report is signed
+    off; the audit log records the same change as every other edit."""
+
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="reviewer_edits")
+    tab_key = models.CharField(max_length=30)
+    field_key = models.CharField(max_length=60)
+    label = models.CharField(max_length=120)
+    old_value = models.JSONField(null=True, blank=True)
+    new_value = models.JSONField(null=True, blank=True)
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                           related_name="+")
+    at = models.DateTimeField(auto_now_add=True)
+    accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name="+")
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-at", "-id"]
+
+    def __str__(self):
+        return f"ReviewerEdit<{self.job_id} {self.tab_key}.{self.field_key}>"
+
+
 class CallAttempt(models.Model):
     """Every save on the Scheduling stage, so repeat UTC cases and earlier
     booked dates stay visible (CRM feedback SC-04)."""

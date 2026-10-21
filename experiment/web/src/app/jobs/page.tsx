@@ -125,7 +125,12 @@ export default function JobsPage() {
             {rows.map((j) => (
               <Link key={j.id} href={`/jobs/${j.id}`} className="job-card">
                 <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
-                  <b className="num" style={{ fontSize: 15 }}>{j.bayut_internal_reference_no}</b>
+                  <b className="num" style={{ fontSize: 15 }}>
+                    {j.bayut_internal_reference_no}
+                    {j.reviewer_changes_to_accept ? (
+                      <span className="changes-badge">{j.reviewer_changes_to_accept} to accept</span>
+                    ) : null}
+                  </b>
                   <StatusChip s={j.progress?.stage_label ?? j.status_label} />
                 </div>
                 <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>{j.property_label}</div>
@@ -149,6 +154,11 @@ export default function JobsPage() {
                 render: (j: JobListItem) => (
                   <Link href={`/jobs/${j.id}`} style={{ textDecoration: "none" }}>
                     {j.bayut_internal_reference_no}
+                    {j.reviewer_changes_to_accept ? (
+                      <span className="changes-badge" title="Peer reviewer changes for the valuer to accept">
+                        {j.reviewer_changes_to_accept} to accept
+                      </span>
+                    ) : null}
                   </Link>
                 ),
               },

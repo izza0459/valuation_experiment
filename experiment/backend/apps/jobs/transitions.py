@@ -132,7 +132,11 @@ def signoff_ready(job) -> list[str]:
 
     if not job.peer_reviewer_id:
         return ["Assign a peer reviewer on the Check List."]
-    return [b.replace("Counter-signatory", "Peer reviewer") for b in issue_blockers(_as_signed_off(job))]
+    blockers = [b.replace("Counter-signatory", "Peer reviewer") for b in issue_blockers(_as_signed_off(job))]
+    # The reviewer's own changes need the valuer's acceptance first (CRM feedback PR-01).
+    if pending := job.reviewer_edits.filter(accepted_at__isnull=True).count():
+        blockers.append(f"The valuer hasn't accepted the reviewer's {pending} change{'s' if pending != 1 else ''} yet.")
+    return blockers
 
 
 def issue_ready(job) -> list[str]:

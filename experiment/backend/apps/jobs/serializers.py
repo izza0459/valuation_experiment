@@ -65,6 +65,8 @@ class JobListSerializer(serializers.ModelSerializer):
     progress = serializers.SerializerMethodField()
     # The inspector's list shows when each inspection is booked for.
     inspection_booked_at = serializers.DateTimeField(read_only=True)
+    # The valuer's badge: reviewer changes still to accept (PR-01).
+    reviewer_changes_to_accept = serializers.SerializerMethodField()
 
     class Meta:
         model = Job
@@ -73,7 +75,11 @@ class JobListSerializer(serializers.ModelSerializer):
             "property_label", "property_type", "valuer_name", "purpose",
             "status", "status_label", "progress", "version", "is_locked",
             "date_time_request_received", "created_at", "updated_at", "inspection_booked_at",
+            "reviewer_changes_to_accept",
         ]
+
+    def get_reviewer_changes_to_accept(self, job) -> int:
+        return job.reviewer_edits.filter(accepted_at__isnull=True).count()
 
     def get_progress(self, job) -> dict:
         from .tabs import job_progress
@@ -116,6 +122,9 @@ class JobDetailSerializer(serializers.ModelSerializer):
     deliveries = serializers.SerializerMethodField()
     # Every call made to book the inspection, newest first (CRM feedback SC-04).
     call_log = serializers.SerializerMethodField()
+    # The peer reviewer's wording changes, and whether this user may accept them (PR-01).
+    reviewer_edits = serializers.SerializerMethodField()
+    can_accept_reviewer_edits = serializers.SerializerMethodField()
     checklist = ChecklistDataSerializer(read_only=True)
     summary = SummaryDataSerializer(read_only=True)
     inspection = InspectionDataSerializer(read_only=True)
@@ -125,6 +134,20 @@ class JobDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = "__all__"
+
+    def get_reviewer_edits(self, job) -> list:
+        return [
+            {"id": e.id, "tab": e.tab_key, "field": e.field_key, "label": e.label, "old": e.old_value,
+             "new": e.new_value, "by": str(e.by) if e.by else "", "at": e.at,
+             "accepted_by": str(e.accepted_by) if e.accepted_by else "", "accepted_at": e.accepted_at}
+            for e in job.reviewer_edits.select_related("by", "accepted_by")
+        ]
+
+    def get_can_accept_reviewer_edits(self, job) -> bool:
+        from apps.accounts.permissions import is_platform_admin, roles_on_job
+
+        user = self.context["request"].user
+        return is_platform_admin(user) or "valuer" in roles_on_job(user, job)
 
     def get_call_log(self, job) -> list:
         return [

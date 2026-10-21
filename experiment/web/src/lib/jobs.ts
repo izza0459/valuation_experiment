@@ -21,6 +21,22 @@ export type JobListItem = {
   updated_at: string;
   /** When the inspection is booked for (Scheduling stage). */
   inspection_booked_at?: string | null;
+  /** Peer reviewer changes still to accept (the valuer's badge). */
+  reviewer_changes_to_accept?: number;
+};
+
+/** A wording change the peer reviewer made during review. */
+export type ReviewerEdit = {
+  id: number;
+  tab: string;
+  field: string;
+  label: string;
+  old: unknown;
+  new: unknown;
+  by: string;
+  at: string;
+  accepted_by: string;
+  accepted_at: string | null;
 };
 
 /** A call made to book the inspection (Scheduling stage). */
@@ -97,6 +113,8 @@ export type JobDetail = JobListItem & {
   /** Where the issued report has been sent. */
   deliveries?: Delivery[];
   call_log?: CallAttempt[];
+  reviewer_edits?: ReviewerEdit[];
+  can_accept_reviewer_edits?: boolean;
 } & Record<string, unknown>;
 
 export type Delivery = {
