@@ -32,7 +32,7 @@ export function ChecklistUploads({
   lockedReason = "",
 }: {
   jobId: string;
-  mode: "title" | "photos";
+  mode: "title" | "photos" | "coi";
   makani?: boolean;
   dewa?: boolean;
   canEdit: boolean;
@@ -41,7 +41,8 @@ export function ChecklistUploads({
   /** Why uploading is closed (job in review, issued, or another role's stage). */
   lockedReason?: string;
 }) {
-  const forTitle = mode === "title";
+  const forCoi = mode === "coi";
+  const forTitle = mode === "title" || forCoi;
   const { data: options } = useOptions();
   const docs = useMedia(jobId, "documents");
   const photos = useMedia(jobId, "photos");
@@ -55,7 +56,9 @@ export function ChecklistUploads({
   const [error, setError] = useState<string | null>(null);
 
   // The title document types (same keys as the Title Document dropdown).
-  const titleTypes = (options?.title_doc_type ?? []).map((o) => ({ value: `doc:${o.value}`, label: o.label }));
+  const titleTypes = forCoi
+    ? [{ value: "doc:coi_consent", label: "COI consent received (proof)" }]
+    : (options?.title_doc_type ?? []).map((o) => ({ value: `doc:${o.value}`, label: o.label }));
   const choices = forTitle
     ? titleTypes
     : [...(makani ? [{ value: MAKANI, label: "Makani photo" }] : []), ...(dewa ? [{ value: DEWA, label: "DEWA photo" }] : [])];
@@ -86,6 +89,7 @@ export function ChecklistUploads({
       if (makani && !taken(MAKANI, photoItems.some((p) => p.slot === "makani"))) return MAKANI;
       if (dewa && !taken(DEWA, photoItems.some((p) => p.slot === "dewa"))) return DEWA;
     }
+    if (forCoi) return "doc:coi_consent";
     return titleTypes.find((t) => t.value === "doc:title_deed")?.value ?? titleTypes[0]?.value ?? "doc:title_deed";
   }
 
@@ -128,9 +132,13 @@ export function ChecklistUploads({
       }
     >
       <div>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>{forTitle ? "Title document upload" : "Makani / DEWA photo upload"}</div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>
+          {forCoi ? "Consent received (proof)" : forTitle ? "Title document upload" : "Makani / DEWA photo upload"}
+        </div>
         <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-          {forTitle
+          {forCoi
+            ? "Required with a Yes: Setup can't finish until the client's consent is uploaded. It also shows on the Documents tab."
+            : forTitle
             ? "Add the title document (several files at once if needed) and pick its type. It also shows on the Documents tab."
             : "Add the photos (several at once) and say which number each shows. They also show on the Photos tab."}
         </div>
@@ -139,7 +147,7 @@ export function ChecklistUploads({
       {/* What is already in, and what is still needed. */}
       <div style={{ display: "grid", gap: 4, fontSize: 14 }}>
         {forTitle && (
-          <Need label="Title document" done={hasTitle} detail={uploaded.filter((g) => g.label !== "Makani photo" && g.label !== "DEWA photo").map((g) => `${g.label} (${g.items.length})`).join(", ")} />
+          <Need label={forCoi ? "Consent" : "Title document"} done={hasTitle} detail={uploaded.filter((g) => g.label !== "Makani photo" && g.label !== "DEWA photo").map((g) => `${g.label} (${g.items.length})`).join(", ")} />
         )}
         {!forTitle && makani && <Need label="Makani photo" done={photoItems.some((p) => p.slot === "makani")} />}
         {!forTitle && dewa && <Need label="DEWA photo" done={photoItems.some((p) => p.slot === "dewa")} />}

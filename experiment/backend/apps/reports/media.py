@@ -63,5 +63,10 @@ def resolve_media(context: dict) -> dict:
     resolved["photos"] = [{**p, "src": photo_src(p["key"])} for p in context.get("photos", [])]
     resolved["exec_photos"] = [{**p, "src": photo_src(p["key"])} for p in context.get("exec_photos", [])]
     resolved["documents"] = [document(d) for d in context.get("documents", [])]
+    prop = context.get("property") or {}
+    data = _read(prop["map"]) if prop.get("map") else None
+    resolved["property"] = {
+        **prop, "map_src": "data:image/jpeg;base64," + base64.b64encode(data).decode("ascii") if data else "",
+    }
     resolved["document_max_pages"] = DOCUMENT_MAX_PAGES
     return resolved

@@ -45,6 +45,8 @@ export type FieldDef = {
   dropdown?: boolean;
   /** Library fields: picking an entry adds its text instead of replacing it. */
   append?: boolean;
+  /** Multiselects: entries not in the list can be typed in. */
+  custom?: boolean;
   /** May be left out of the report (include-in-report step). */
   report_optional?: boolean;
   /** In the include-in-report step: always printed, worked out from other

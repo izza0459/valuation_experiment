@@ -24,6 +24,8 @@ def o(label, value=None, *aliases):
 
 PRESETS = {
     "purpose": [o("Mortgage Security"), o("Audit Purpose"), o("Internal Purpose")],
+    "parking": [o("Yes"), o("No"), o("Assumed")],
+    "coi_check": [o("Yes"), o("No")],
     "title_doc_type": [
         o("Title Deed"), o("Initial Contract of Sale"), o("Sales and Purchase Agreement (SPA)", "spa"),
         o("Usufruct Certificate"), o("Sale Certificate"), o("Site Plan"), o("Site Affection Plan"),
@@ -127,8 +129,9 @@ DISCLOSURE_4 = (
     "Client and that they have not previously valued the subject property.",
 )
 
-APARTMENTS = ["apartment", "duplex", "penthouse"]
-VILLAS = ["villa", "townhouse", "custom_villa"]
+# A duplex follows the villa flow (CRM feedback IN-06).
+APARTMENTS = ["apartment", "penthouse"]
+VILLAS = ["villa", "townhouse", "custom_villa", "duplex"]
 
 REINSTATEMENT_UNIT = (
     "The property comprises a single unit forming part of a larger structure, and a reinstatement cost "

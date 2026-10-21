@@ -187,9 +187,13 @@
   {% if text.sub_community %}<p class="prose">{{ text.sub_community }}</p>{% endif %}
   {% if text.location %}<p class="prose">{{ text.location }}</p>{% endif %}
   {% if not (text.sub_community or text.location) %}<p>—</p>{% endif %}
+  {% if property.map_src %}
+  <figure class="map"><img src="{{ property.map_src }}" alt="Location map"><figcaption>Location map · {{ property.coordinates }}</figcaption></figure>
+  {% else %}
   <div class="map-box">
     {% if property.coordinates %}Location map · {{ property.coordinates }}{% else %}Location map – coordinates not recorded{% endif %}
   </div>
+  {% endif %}
 
   <h3>Description</h3>
   {% if text.specification %}<p class="prose">{{ text.specification }}</p>{% else %}<p>—</p>{% endif %}

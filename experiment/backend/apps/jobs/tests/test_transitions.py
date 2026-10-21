@@ -59,12 +59,13 @@ def move(client, job, to, comments="", frm=None):
 def fill_everything(job):
     """Every required field, so the review gate has nothing to complain about."""
     job.date_of_instruction = datetime.date(2026, 8, 26)
+    job.coi_check = "no"
     job.save()
     job.property.applicant_name = "A. Applicant"
     job.property.save()
     for model, values in (
         (job.summary, {"interest_valued": "international_freehold", "property_category": "apartment",
-                       "bua_sqft": "519", "disclosure": "No conflicts."}),
+                       "bua_sqm": "48.22", "disclosure": "No conflicts."}),
         (job.inspection, {"inspection_date": datetime.date(2026, 8, 26), "inspection_type": "full"}),
         (job.location, {"property_status": "complete"}),
         (job.valuation, {"valuation_date": datetime.date(2026, 8, 26), "report_date": datetime.date(2026, 8, 28),
@@ -348,11 +349,12 @@ class TestStagesFollowTheTabs:
 
     def test_a_complete_setup_stage_moves_on_to_inspection(self, job, dan):
         job.date_of_instruction = datetime.date(2026, 8, 26)
+        job.coi_check = "no"
         job.save()
         # Setup is now just Instructions and Property Address (ops); the Check
         # List and Preliminary Check moved into the Inspection stage.
         summary = {"interest_valued": "international_freehold", "property_category": "apartment",
-                   "bua_sqft": "519", "disclosure": "No conflicts."}
+                   "bua_sqm": "48.22", "disclosure": "No conflicts."}
         assert self.patch(dan, job, "summary", summary) == S.SETUP
         assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.INSPECTION_SCHEDULED
         moves = list(JobTransition.objects.filter(job=job).order_by("id").values_list("to_status", flat=True))

@@ -15,7 +15,7 @@ of the job's tab data — deliberately simple; extend if a real rule engine
 is ever needed.
 """
 
-from .constants import PLOT_BEARING_CATEGORIES
+from .constants import PARKING_PRESENT, PLOT_BEARING_CATEGORIES
 
 FIELD_TYPES = {
     "text", "textarea", "number", "decimal", "boolean", "date", "datetime",
@@ -30,7 +30,7 @@ PLOT_BEARING = {"field": "summary.property_category", "op": "in", "value": list(
 
 def field(key, label, type, *, required=False, default=None, options_key=None,
           visible_if=None, calculated=False, help_text="", free_text=False, dropdown=False,
-          append=False):
+          append=False, custom=False):
     assert type in FIELD_TYPES, f"unknown field type {type!r} for {key}"
     return {
         "key": key,
@@ -49,6 +49,9 @@ def field(key, label, type, *, required=False, default=None, options_key=None,
         "dropdown": dropdown,
         # Library fields: picking an entry adds its text instead of replacing it.
         "append": append,
+        # Multiselects: anything not in the list can be typed in and is
+        # printed as typed (CRM feedback IN-04, VL-03).
+        "custom": custom,
     }
 
 
@@ -75,6 +78,12 @@ TABS = [
             field("date_of_instruction", "Date of Instruction", "date", required=True),
             field("contact_name", "Contact name", "text", help_text="Who to call for access."),
             field("contact_number", "Contact number", "text"),
+            # Conflict of interest (CRM feedback LG-01).
+            field("coi_suggestion", "COI suggestion", "text", calculated=True,
+                  help_text="From instructions in the last 12 months for this property or applicant."),
+            field("coi_check", "COI Check", "select", required=True, options_key="coi_check",
+                  help_text="Yes needs the client's consent (proof) uploaded before Setup can finish."),
+            field("coi_confirmed", "COI confirmed", "text", calculated=True),
         ],
     },
     {
@@ -151,11 +160,11 @@ TABS = [
             field("property_category", "Property Category", "select", required=True, options_key="property_category"),
             field("property_sub_type", "Sub-type", "text", visible_if=PLOT_BEARING,
                   help_text='e.g. "Corner", "Single row".'),
-            field("parking", "Parking", "boolean", default=False),
+            field("parking", "Parking", "select", options_key="parking"),
             field("no_of_parkings", "No. of Parkings", "number",
-                  visible_if={"field": "summary.parking", "op": "eq", "value": True}),
-            field("bua_sqft", "BUA (sqft)", "decimal", required=True),
-            field("bua_sqm", "BUA (sqm)", "decimal", calculated=True),
+                  visible_if={"field": "summary.parking", "op": "in", "value": list(PARKING_PRESENT)}),
+            field("bua_sqm", "BUA (sqm)", "decimal", required=True, help_text="Up to 2 decimals, e.g. 125.75."),
+            field("bua_sqft", "BUA (sqft)", "decimal", calculated=True),
             field("bua_source", "BUA Source", "select", options_key="area_source"),
             field("plot_area_sqft", "Plot Area (sqft)", "decimal", visible_if=PLOT_BEARING),
             field("plot_area_sqm", "Plot Area (sqm)", "decimal", calculated=True, visible_if=PLOT_BEARING),
@@ -194,9 +203,9 @@ TABS = [
             field("air_conditioning", "Air Conditioning", "multiselect", options_key="air_conditioning"),
             field("occupancy_title", "Occupancy Title (floor)", "select", options_key="occupancy_title"),
             field("accommodation_details", "Accommodation (ground floor / unit)", "multiselect",
-                  options_key="accommodation_room"),
+                  options_key="accommodation_room", custom=True),
             field("accommodation_first_floor", "Accommodation (first floor)", "multiselect",
-                  options_key="accommodation_room", visible_if=PLOT_BEARING),
+                  options_key="accommodation_room", visible_if=PLOT_BEARING, custom=True),
             field("occupancy", "Occupancy", "select", options_key="occupancy"),
             field("rent_if_any", "Rent if any (AED p.a.)", "decimal"),
             field("sale_price_if_any", "Sale Price if any (AED)", "decimal"),
@@ -230,7 +239,7 @@ TABS = [
                   help_text="45 years less the property's age at the valuation date."),
             field("sub_community", "Sub Community", "library", options_key="sub_community"),
             field("location", "Location", "library", options_key="location"),
-            field("amenities", "Amenities", "multiselect", options_key="amenities"),
+            field("amenities", "Amenities", "multiselect", options_key="amenities", custom=True),
             field("property_specification", "Property Specification", "library", options_key="property_specification"),
             field("property_condition", "Property Condition", "library", options_key="property_condition"),
         ],
@@ -260,7 +269,8 @@ TABS = [
             field("market_value", "Market Value (AED)", "decimal", required=True),
             field("market_value_rate_per_sqft", "Market Value rate (AED/sqft)", "decimal", calculated=True,
                   help_text="= Market Value ÷ BUA sqft"),
-            field("market_rent", "Market Rent (AED p.a.)", "decimal"),
+            field("market_rent", "Market Rent (AED p.a.)", "text",
+                  help_text="One figure (40,000) or a range (30,000-50,000)."),
             field("reinstatement_note", "Reinstatement cost", "library", options_key="reinstatement",
                   help_text="Section 4.5. Pick the wording for the property type and edit it. [●] is filled "
                             "from the Reinstatement Value. Left blank, the property type's wording is used."),

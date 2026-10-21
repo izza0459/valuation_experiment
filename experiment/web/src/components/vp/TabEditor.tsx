@@ -19,6 +19,7 @@ import { useTabAutosave, type SaveStatus } from "@/lib/useTabAutosave";
 import { ChecklistUploads } from "./ChecklistUploads";
 import { demoValuesForTab, uploadDemoFiles } from "./demoFill";
 import { FieldInput, formatComputed } from "./FieldInput";
+import { MapPreview } from "./MapPreview";
 import { MediaTab } from "./MediaTab";
 import { Banner, F } from "./ui";
 
@@ -44,9 +45,16 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
   const { data: options, isError: optionsFailed } = useOptions();
   const save = useTabAutosave(jobId, tab.key, state);
 
-  // Photos and documents have no form fields: they are files.
+  // Photos and documents have no form fields: they are files. Photos also
+  // shows the location map from the coordinates.
   if (tab.key === "photos" || tab.key === "documents") {
-    return <MediaTab jobId={jobId} kind={tab.key} />;
+    const address = (allValues.address ?? {}) as Record<string, unknown>;
+    return (
+      <>
+        {tab.key === "photos" && <MapPreview latitude={address.latitude} longitude={address.longitude} />}
+        <MediaTab jobId={jobId} kind={tab.key} />
+      </>
+    );
   }
 
   if (tab.fields.length === 0) {
@@ -197,6 +205,13 @@ export function TabEditor({ jobId, tab, state, allValues }: Props) {
             {field.key === "title_doc_type" && (
               <div style={{ gridColumn: "span 2", minWidth: 0 }}>
                 <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} inline
+                  lockedReason={state.read_only_reason} />
+              </div>
+            )}
+            {/* A conflict of interest needs the client's consent, uploaded here. */}
+            {field.key === "coi_check" && merged.coi_check === "yes" && (
+              <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+                <ChecklistUploads jobId={jobId} mode="coi" canEdit={!tabReadOnly} inline
                   lockedReason={state.read_only_reason} />
               </div>
             )}

@@ -20,6 +20,7 @@ the gates that need it (sending for review, issuing).
 
 from __future__ import annotations
 
+import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.contrib.auth import get_user_model
@@ -95,7 +96,11 @@ ASSIGNMENT_ROLES = {Role.ADMIN, Role.VALUER}
 # keeps; they are rounded to the column's precision (~0.1 m). Every other
 # figure (money, areas, elevation) is a whole number: decimals are rounded
 # half-up to the nearest unit, and thousands separators are accepted.
-ROUND_TO_COLUMN_PRECISION = {"latitude", "longitude"}
+# The document type of the consent a COI "Yes" needs (CRM feedback LG-01).
+COI_CONSENT_DOC = "coi_consent"
+COI_CONSENT_LABEL = "Consent received (proof)"
+
+ROUND_TO_COLUMN_PRECISION = {"latitude", "longitude", "bua_sqm"}
 
 # Decimals are non-negative unless listed here; bounded ones are checked
 # against their range. A negative market value would otherwise reach the
@@ -267,6 +272,8 @@ def _is_empty(value) -> bool:
 
 def visibility_context(job) -> dict:
     context = {tab["key"]: tab_values(job, tab["key"]) for tab in TABS if tab["fields"]}
+    # Uploads a form field depends on: a Yes on the COI check needs the consent.
+    context["uploads"] = {"coi_consent": job.documents.filter(doc_type=COI_CONSENT_DOC).exists()}
     bank = job.bank
     context["bank"] = {"name": job.organisation_name, "rules": (bank.rules if bank else None) or {}}
     return context
@@ -279,11 +286,19 @@ def tab_completion(tab_key: str, context: dict) -> dict:
     (plot area on an apartment) can't hold a tab below 100%."""
     values = context.get(tab_key, {})
     required = [
-        f for f in get_tab(tab_key)["fields"] if f["required"] and is_field_visible(f, context)
+        f["label"] for f in get_tab(tab_key)["fields"] if f["required"] and is_field_visible(f, context)
     ]
+    missing = [
+        f["label"] for f in get_tab(tab_key)["fields"]
+        if f["required"] and is_field_visible(f, context) and _is_empty(values.get(f["key"]))
+    ]
+    # A conflict of interest can't pass Setup without the client's consent.
+    if tab_key == "instructions" and values.get("coi_check") == "yes":
+        required.append(COI_CONSENT_LABEL)
+        if not context.get("uploads", {}).get("coi_consent"):
+            missing.append(COI_CONSENT_LABEL)
     if not required:
         return {"pct": 100, "missing": []}
-    missing = [f["label"] for f in required if _is_empty(values.get(f["key"]))]
     return {"pct": round((len(required) - len(missing)) / len(required) * 100), "missing": missing}
 
 
@@ -552,6 +567,11 @@ def _coerce_multiselect(raw, field, mf, current):
     if not isinstance(raw, list) or not all(isinstance(v, str) for v in raw):
         raise _Invalid("Must be a list of options.")
     value = list(dict.fromkeys(v.strip() for v in raw if v.strip()))
+    if field.get("custom"):
+        # Typed-in entries are kept as typed, beside the listed options.
+        if any(len(v) > 100 for v in value):
+            raise _Invalid("A custom entry can be at most 100 characters.")
+        return value
     allowed = _allowed_values(field, mf)
     if allowed is not None:
         stale = set(current or [])
@@ -594,9 +614,36 @@ def _coerce_library(raw, mf, multiline=True):
     return _coerce_text(raw, mf, multiline)
 
 
+AMOUNT = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
+AMOUNT_OR_RANGE = re.compile(rf"^({AMOUNT})(?:\s*[-\u2013]\s*({AMOUNT}))?$")
+# Text fields that hold an amount or a range of amounts.
+AMOUNT_RANGE_FIELDS = {"market_rent"}
+
+
+def _coerce_amount_or_range(raw) -> str:
+    """'40000' -> '40,000'; '30,000 - 50,000' -> '30,000–50,000'. Digits,
+    thousands separators and one hyphen only (CRM feedback VL-05)."""
+    if raw is None or raw == "":
+        return ""
+    if isinstance(raw, bool) or not isinstance(raw, str | int):
+        raise _Invalid("Must be a figure or a range.")
+    match = AMOUNT_OR_RANGE.match(str(raw).strip())
+    if not match:
+        raise _Invalid("Enter a figure (40,000) or a range (30,000-50,000): digits, commas and one hyphen.")
+    low = int(match.group(1).replace(",", ""))
+    if match.group(2) is None:
+        return f"{low:,}"
+    high = int(match.group(2).replace(",", ""))
+    if high <= low:
+        raise _Invalid("The second figure of a range must be the higher one.")
+    return f"{low:,}–{high:,}"
+
+
 def coerce(field: dict, mf, raw, current):
     """One submitted value -> the Python value to store, or raises _Invalid."""
     kind = field["type"]
+    if field["key"] in AMOUNT_RANGE_FIELDS:
+        return _coerce_amount_or_range(raw)
     try:
         if kind == "text":
             return _coerce_text(raw, mf, multiline=False)
@@ -765,6 +812,7 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
                 current=job_tab_state(job)[tab_key],
             )
 
+        job.tracker_coi_check = job.coi_check  # before this save changes it
         targets, cleaned = _validated(job, tab_key, values)
         old_bank_id = job.bank_id
 
@@ -772,6 +820,12 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
         for target, mf, value in cleaned.values():
             setattr(targets[target], mf.attname, value)
             touched.add(target)
+        if "coi_check" in cleaned and cleaned["coi_check"][2] != (job.tracker_coi_check or ""):
+            # Who confirmed the COI result, and when (CRM feedback LG-01).
+            job.coi_confirmed_by, job.coi_confirmed_at = user, timezone.now()
+            touched.add("job")
+        if "bua_sqm" in cleaned and cleaned["bua_sqm"][2] is None:
+            targets["tab"].bua_sqft = None  # sqft follows sqm, cleared too
 
         if "bank" in cleaned:
             _follow_bank_billing_address(job, old_bank_id, cleaned)

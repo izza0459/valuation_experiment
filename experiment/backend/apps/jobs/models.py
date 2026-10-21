@@ -200,6 +200,14 @@ class Job(SoftDeleteModel):
     contact_name = models.CharField(max_length=255, blank=True)
     contact_number = models.CharField(max_length=50, blank=True)
 
+    # Conflict of interest (CRM feedback LG-01): "yes" / "no", confirmed by
+    # someone on Setup. Yes needs the consent (proof) uploaded as a document.
+    coi_check = models.CharField(max_length=5, blank=True, default="")
+    coi_confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    coi_confirmed_at = models.DateTimeField(null=True, blank=True)
+
     # Fields ("tab.field") the valuer left out of the report in the
     # include-in-report step after the Inspection stage.
     report_exclusions = models.JSONField(default=list, blank=True)
@@ -375,6 +383,65 @@ class Job(SoftDeleteModel):
         self.issue_error = ""
         self.save()
         return self
+
+    def coi_matches(self) -> list[tuple["Job", str]]:
+        """Instructions in the last 12 months for the same property or
+        applicant (CRM feedback LG-01), with what matched. This job's own
+        versions don't count."""
+        from datetime import timedelta
+
+        from django.db.models import Q
+        from django.utils import timezone
+
+        prop = self.property
+        rules = []
+        unit, building = (prop.unit_number or "").strip(), (prop.building_name or "").strip()
+        if unit and building:
+            rules.append(("same unit and building",
+                          Q(property__unit_number__iexact=unit, property__building_name__iexact=building)))
+        plot, number = (prop.title_doc_plot_no or "").strip(), (prop.title_doc_property_no or "").strip()
+        if plot and number:
+            rules.append(("same plot and property number",
+                          Q(property__title_doc_plot_no__iexact=plot, property__title_doc_property_no__iexact=number)))
+        for name in prop.applicant_names:
+            if len(name.strip()) >= 3:
+                rules.append((f"same applicant ({name.strip()})", Q(property__applicant_name__icontains=name.strip())))
+        if not rules:
+            return []
+        root = self.reference_root
+        recent = (
+            Job.objects.filter(created_at__gte=timezone.now() - timedelta(days=365))
+            .exclude(pk=self.pk)
+            .exclude(bayut_internal_reference_no__startswith=root)
+            .exclude(property_id=self.property_id)
+            .select_related("property")
+            .order_by("-created_at")
+        )
+        found: dict[int, tuple[Job, str]] = {}
+        for why, rule in rules:
+            for job in recent.filter(rule)[:5]:
+                found.setdefault(job.pk, (job, why))
+        return list(found.values())[:5]
+
+    @builtins.property
+    def coi_suggestion(self) -> str:
+        """What the COI check should probably say, for the person confirming it."""
+        matches = self.coi_matches()
+        if not matches:
+            return "Suggested: No. No instruction for this property or applicant in the last 12 months."
+        listed = "; ".join(
+            f"{job.bayut_internal_reference_no} ({why}, {job.created_at:%d %b %Y})" for job, why in matches
+        )
+        return f"Suggested: Yes. Possible conflict: {listed}."
+
+    @builtins.property
+    def coi_confirmed(self) -> str:
+        if not self.coi_confirmed_at:
+            return ""
+        from django.utils import timezone
+
+        who = str(self.coi_confirmed_by) if self.coi_confirmed_by else "someone"
+        return f"By {who}, {timezone.localtime(self.coi_confirmed_at):%d %b %Y %H:%M}"
 
     @builtins.property
     def reference_root(self) -> str:
@@ -575,10 +642,13 @@ class SummaryData(JobTabData):
     type_of_property = models.CharField(max_length=100, blank=True)
     # Villas and townhouses: "Corner", "Single row" (CRM feedback IN-03).
     property_sub_type = models.CharField(max_length=100, blank=True)
-    parking = models.BooleanField(default=False)
+    # yes / no / assumed (CRM feedback IN-02).
+    parking = models.CharField(max_length=10, blank=True, default="")
     no_of_parkings = models.PositiveSmallIntegerField(null=True, blank=True)
 
-    # Entered in sqft, as the valuers work (field dictionary); sqm is derived.
+    # Entered in sqm to 2 decimals (CRM feedback IN-01); sqft follows it and
+    # is what the comparables, the AVM and the rate per sqft work in.
+    bua_sqm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     bua_sqft = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     BUA_SOURCE_CHOICES = [
         ("title_deed", "Title Deed"),
@@ -603,9 +673,10 @@ class SummaryData(JobTabData):
     special_assumptions = models.JSONField(default=list, blank=True, help_text="[{title, body}]")
     other_matters = models.JSONField(default=list, blank=True, help_text="[{title, body}]")
 
-    @property
-    def bua_sqm(self):
-        return calculations.sqft_to_sqm(self.bua_sqft)
+    def save(self, *args, **kwargs):
+        if self.bua_sqm is not None:
+            self.bua_sqft = calculations.sqm_to_sqft_exact(self.bua_sqm)
+        super().save(*args, **kwargs)
 
     @property
     def plot_area_sqm(self):
@@ -774,7 +845,8 @@ class ValuationData(JobTabData):
     market_value = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     # The report states one annual figure; the low/high range is no longer
     # entered but kept for jobs that have it.
-    market_rent = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # One figure ("40,000") or a range ("30,000–50,000"), AED p.a. (CRM feedback VL-05).
+    market_rent = models.CharField(max_length=40, blank=True, default="")
     market_rent_low = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     market_rent_high = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     forced_sale_discount_pct = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)

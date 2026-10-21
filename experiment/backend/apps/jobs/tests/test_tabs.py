@@ -156,23 +156,24 @@ class TestPatch:
         assert (job.summary.makani_number, job.summary.dewa_number) == ("123", "456")
 
     def test_returns_server_computed_values(self, job, dan):
-        res = patch(client_for(dan), job, "summary", {"bua_sqft": "519"}).json()
-        assert res["computed"]["summary"]["bua_sqm"] == "48"  # whole numbers only
-        assert res["values"]["bua_sqft"] == "519.00"
+        res = patch(client_for(dan), job, "summary", {"bua_sqm": "48.22"}).json()
+        # BUA is entered in sqm to 2 decimals; sqft follows (CRM feedback IN-01).
+        assert res["values"]["bua_sqm"] == "48.22"
+        assert res["computed"]["summary"]["bua_sqft"] == "519.04"
 
     def test_a_change_on_one_tab_updates_computed_values_on_another(self, job, dan):
         """Rate/sqft is on Valuation but depends on the BUA from Summary."""
         client = client_for(dan)
         patch(client, job, "valuation", {"market_value": "725000"})
-        res = patch(client, job, "summary", {"bua_sqft": "519"}).json()
+        res = patch(client, job, "summary", {"bua_sqm": "48.22"}).json()
         valuation = res["computed"]["valuation"]
-        assert valuation["market_value_rate_per_sqft"] == "1397"  # 725,000 / 519 sqft, rounded
+        assert valuation["market_value_rate_per_sqft"] == "1397"  # 725,000 / 519.04 sqft, rounded
         assert valuation["market_value_in_words"] == "Seven Hundred and Twenty-Five Thousand UAE Dirhams"
 
     def test_completion_is_returned_for_every_tab(self, job, dan):
-        res = patch(client_for(dan), job, "summary", {"bua_sqft": "519"}).json()
+        res = patch(client_for(dan), job, "summary", {"bua_sqm": "48.22"}).json()
         assert set(res["completion"]) == {t["key"] for t in TABS}
-        assert "BUA (sqft)" not in res["completion"]["summary"]["missing"]
+        assert "BUA (sqm)" not in res["completion"]["summary"]["missing"]
 
     def test_bad_requests(self, job, dan):
         client = client_for(dan)
@@ -191,15 +192,15 @@ class TestValidation:
         return res.json()["errors"]
 
     def test_unknown_and_calculated_fields_are_refused(self, job, dan):
-        errors = self.errors(client_for(dan), job, "summary", {"nope": 1, "bua_sqm": "10"})
+        errors = self.errors(client_for(dan), job, "summary", {"nope": 1, "bua_sqft": "10"})
         assert errors["nope"] == "Unknown field."
-        assert "Calculated" in errors["bua_sqm"]
+        assert "Calculated" in errors["bua_sqft"]
 
     def test_a_field_from_another_tab_is_refused(self, job, dan):
         assert "Unknown" in self.errors(client_for(dan), job, "summary", {"market_value": "1"})["market_value"]
 
     def test_nothing_is_written_if_any_field_is_invalid(self, job, dan):
-        res = patch(client_for(dan), job, "summary", {"makani_number": "999", "bua_sqft": "abc"})
+        res = patch(client_for(dan), job, "summary", {"makani_number": "999", "bua_sqm": "abc"})
         assert res.status_code == 400
         job.refresh_from_db()
         assert job.summary.makani_number == ""
@@ -213,10 +214,10 @@ class TestValidation:
     def test_figures_are_rounded_to_whole_numbers_and_take_commas(self, job, dan):
         """Field dictionary round 2: no decimals anywhere; numbers are typed
         with thousands separators."""
-        res = patch(client_for(dan), job, "valuation", {"market_value": "1,250,000.50", "market_rent": "84,999.4"})
+        res = patch(client_for(dan), job, "valuation", {"market_value": "1,250,000.50", "market_rent": "84999"})
         assert res.status_code == 200, res.json()
         job.refresh_from_db()
-        assert (job.valuation.market_value, job.valuation.market_rent) == (1250001, 84999)
+        assert (job.valuation.market_value, job.valuation.market_rent) == (1250001, "84,999")
 
     def test_whole_number_fields_take_commas_too(self, job, dan):
         res = patch(client_for(dan), job, "summary", {"no_of_bedrooms": "3", "total_floors": "1,0"})
@@ -242,7 +243,7 @@ class TestValidation:
 
     def test_wrong_types(self, job, dan):
         errors = self.errors(client_for(dan), job, "summary", {
-            "parking": "yes", "no_of_bedrooms": "two", "lease_expiry": "31/12/2030",
+            "parking": 5, "no_of_bedrooms": "two", "lease_expiry": "31/12/2030",
             "information_provided": "Title Deed", "makani_number": 5,
         })
         assert set(errors) == {"parking", "no_of_bedrooms", "lease_expiry", "information_provided", "makani_number"}
@@ -382,7 +383,7 @@ class TestFirstEditWins:
 
     def test_a_rejected_save_does_not_consume_a_version(self, job, dan):
         client = client_for(dan)
-        patch(client, job, "summary", {"bua_sqft": "abc"})
+        patch(client, job, "summary", {"bua_sqm": "abc"})
         assert patch(client, job, "summary", {"makani_number": "1"}, base_version=0).status_code == 200
 
 
@@ -560,7 +561,7 @@ class TestEndpoints:
         assert set(data["tabs"]) == {t["key"] for t in TABS}
         assert data["tabs"]["summary"]["version"] == 1
         assert data["tabs"]["summary"]["values"]["makani_number"] == "1"
-        assert "bua_sqm" in data["tabs"]["summary"]["computed"]
+        assert "bua_sqft" in data["tabs"]["summary"]["computed"]
 
     def test_get_one_tab(self, job, dan):
         res = client_for(dan).get(f"/api/jobs/{job.pk}/tabs/inspection/")

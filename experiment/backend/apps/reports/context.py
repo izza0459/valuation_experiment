@@ -21,12 +21,14 @@ from django.db import models
 from django.utils import timezone
 
 from apps.jobs import calculations
-from apps.jobs.constants import FIGURE_BLANK, PLOT_BEARING_CATEGORIES, TENANTED_OCCUPANCIES
+from apps.jobs.constants import FIGURE_BLANK, PARKING_PRESENT, PLOT_BEARING_CATEGORIES, TENANTED_OCCUPANCIES
 from apps.jobs.field_config import TABS, get_tab, where
 from apps.jobs.tabs import tab_completion, visibility_context
 from apps.media_files.checks import exec_summary_photos, media_blockers
 from apps.presets.dictionary import REINSTATEMENT_UNIT, REINSTATEMENT_VILLA
 from apps.presets.models import PresetOption
+
+from .maps import location_map_key
 
 NOT_APPLICABLE = "Not Applicable"
 EMPTY = "—"
@@ -68,6 +70,15 @@ def fmt_number(value, suffix="") -> str:
     return f"{text}{suffix}"
 
 
+def fmt_rent(value) -> str:
+    """A figure or a range as entered ('30,000–50,000'), with separators
+    added to a bare figure ('60000' -> '60,000')."""
+    text = str(value or "").strip()
+    if text.replace(",", "").isdigit():
+        return f"{int(text.replace(',', '')):,}"
+    return text.replace("\u2013", " \u2013 ")
+
+
 def _dec(value):
     return None if value in (None, "") else Decimal(str(value))
 
@@ -91,7 +102,11 @@ class Labels:
         field = next(f for f in get_tab(tab_key)["fields"] if f["key"] == field_key)
         if field["free_text"]:
             return str(value)
-        return self._by_key.get((field["options_key"], value)) or humanise(str(value))
+        label = self._by_key.get((field["options_key"], value))
+        if label:
+            return label
+        # A custom entry typed in (rooms, amenities) prints as typed.
+        return str(value) if field.get("custom") else humanise(str(value))
 
     def many(self, tab_key: str, field_key: str, values) -> list[str]:
         return [self(tab_key, field_key, v) for v in (values or []) if v]
@@ -269,6 +284,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     coordinates = ""
     if prop.latitude is not None and prop.longitude is not None:
         coordinates = f"Latitude {prop.latitude}, Longitude {prop.longitude}"
+    # A map with a pin, from the coordinates (CRM feedback RP-01).
+    location_map = location_map_key(job, prop.latitude, prop.longitude) if coordinates else ""
 
     interest = labels("summary", "interest_valued", summary.interest_valued)
     category = labels("summary", "property_category", summary.property_category)
@@ -323,11 +340,24 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         # the inspection has actually been recorded.
         upgrades = "No"
 
-    bua_text = calculations.format_area(summary.bua_sqft) if summary.bua_sqft is not None else ""
+    bua_text = (
+        calculations.format_bua(summary.bua_sqm, summary.bua_sqft)
+        if summary.bua_sqm is not None or summary.bua_sqft is not None else ""
+    )
+    # Exclusions saved before BUA was entered in sqm name the sqft field.
+    bua_key = "summary.bua_sqft" if "summary.bua_sqft" in excluded else "summary.bua_sqm"
     plot_text = (
         calculations.format_area(summary.plot_area_sqft)
         if plot_bearing and summary.plot_area_sqft is not None else ""
     )
+
+    # Yes / Assumed, with the number of spaces when known (CRM feedback IN-02).
+    parking_text = ""
+    if summary.parking in PARKING_PRESENT:
+        n = summary.no_of_parkings
+        parking_text = f"Parking for {n} car{'s' if n != 1 else ''}" if n else "Parking"
+        if summary.parking == "assumed":
+            parking_text += " (assumed)"
 
     # One row per floor: the ground floor (or the unit, named by its floor),
     # then a villa's or townhouse's first floor.
@@ -340,9 +370,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
          "rooms": labels.many("inspection", "accommodation_first_floor", inspection.accommodation_first_floor)}
         if plot_bearing and inspection.accommodation_first_floor
         and "inspection.accommodation_first_floor" not in excluded else None,
-        {"floor": "Designated parking spaces",
-         "rooms": [f"Parking for {summary.no_of_parkings} car{'s' if summary.no_of_parkings != 1 else ''}"]}
-        if summary.parking and summary.no_of_parkings and "summary.parking" not in excluded else None,
+        {"floor": "Designated parking spaces", "rooms": [parking_text]}
+        if parking_text and "summary.parking" not in excluded else None,
     )
     approaches = labels.many("valuation", "valuation_approaches", valuation.valuation_approaches)
     approach = ", ".join(approaches) or valuation.valuation_approach
@@ -359,7 +388,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         row("GPS coordinates", coordinates, "address.latitude"),
         _row("Address (as per title document)", prop.address_as_per_document),
         _row("Address (as inspected)", address_inspected),
-        row("Built-up area", bua_text, "summary.bua_sqft"),
+        row("Built-up area", bua_text, bua_key),
         row("Plot area", (plot_text or EMPTY) if plot_bearing else NOT_APPLICABLE, "summary.plot_area_sqft"),
         row("Floor", summary.property_floor_no, "summary.property_floor_no"),
         row("Total no. of floors", f"G + {summary.total_floors} Floors" if summary.total_floors else "",
@@ -399,7 +428,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         _row("Market Value in words", calculations.amount_in_words(market_value) if market_value else ""),
         _row("Market Value rate", f"{fmt_aed(valuation.market_value_rate_per_sqft)} / sqft"
              if valuation.market_value_rate_per_sqft else ""),
-        row("Market Rent", f"{fmt_aed(valuation.market_rent)} per annum" if valuation.market_rent else "",
+        row("Market Rent", f"AED {fmt_rent(valuation.market_rent)} per annum" if valuation.market_rent else "",
             "valuation.market_rent", always=False),
         row("Capacity of valuer", labels("summary", "capacity_of_valuer", summary.capacity_of_valuer),
             "summary.capacity_of_valuer"),
@@ -407,7 +436,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     )
 
     areas = _rows(
-        row("Built-up area", bua_text, "summary.bua_sqft"),
+        row("Built-up area", bua_text, bua_key),
         row("Plot area", plot_text or EMPTY, "summary.plot_area_sqft") if plot_bearing else None,
     )
 
@@ -465,6 +494,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             "applicants": applicants,
             "owners": keep("address.ownership_name", owners) or "",
             "coordinates": keep("address.latitude", coordinates) or "",
+            "map": keep("address.latitude", location_map) or "",
             "category": category,
         },
         "dates": {

@@ -248,6 +248,9 @@ REPORT_FIRM_ADDRESS = env(
 
 # Generated PDFs. Local disk in development; production swaps in S3 (UAE
 # region) through STORAGES without touching the report code.
+# The report's location map, from OpenStreetMap tiles (apps.reports.maps).
+LOCATION_MAPS = env.bool("LOCATION_MAPS", default=True)
+
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 # Hosting whose disk is wiped on restart (Render's free plan): keep a copy of

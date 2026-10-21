@@ -18,6 +18,21 @@ def sqm_to_sqft(sqm) -> Decimal:
     )
 
 
+def sqm_to_sqft_exact(sqm) -> Decimal | None:
+    """To the cent, for storing beside an area entered in sqm."""
+    if sqm in (None, ""):
+        return None
+    return (Decimal(sqm) * Decimal(str(settings.SQFT_PER_SQM))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def format_bua(sqm, sqft) -> str:
+    """`125.75 sqm (1,354 sqft)` when entered in sqm; older jobs in sqft."""
+    if sqm in (None, ""):
+        return format_area(sqft)
+    sqm = Decimal(sqm)
+    return f"{sqm:,.2f} sqm ({sqm_to_sqft(sqm):,.0f} sqft)"
+
+
 def sqft_to_sqm(sqft) -> Decimal:
     if sqft in (None, ""):
         return None

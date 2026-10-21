@@ -28,7 +28,7 @@ type Props = {
 };
 
 /** Coordinates keep their decimals; every other figure is a whole number. */
-const KEEPS_DECIMALS = new Set(["latitude", "longitude"]);
+const KEEPS_DECIMALS = new Set(["latitude", "longitude", "bua_sqm"]);
 /** Years read as "2015", never "2,015". */
 const NO_SEPARATORS = new Set(["built_about"]);
 
@@ -148,6 +148,9 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
 
     case "multiselect": {
       const selected = Array.isArray(value) ? (value as string[]) : [];
+      const listed = new Set(options.map((o) => String(o.value)));
+      // Entries typed in (Custom), shown as chips beside the list.
+      const custom = field.custom ? selected.filter((v) => !listed.has(v)) : [];
       return (
         <div className="row wrap" style={{ gap: 6 }}>
           {options.length === 0 && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>No options set up yet.</span>}
@@ -165,6 +168,12 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
               </Chip>
             );
           })}
+          {custom.map((v) => (
+            <Chip key={`custom-${v}`} on onClick={() => onChange(selected.filter((s) => s !== v))}>
+              {v} ✕
+            </Chip>
+          ))}
+          {field.custom && <CustomEntry onAdd={(text) => !selected.includes(text) && onChange([...selected, text])} />}
         </div>
       );
     }
@@ -184,6 +193,47 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
     default:
       return <ReadOnlyValue field={field} value={value} choices={choices} />;
   }
+}
+
+/** "Custom": type something the list doesn't have; it prints as typed. */
+function CustomEntry({ onAdd }: { onAdd: (text: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const add = () => {
+    const t = text.trim();
+    if (t) onAdd(t.slice(0, 100));
+    setText("");
+    setOpen(false);
+  };
+  if (!open) {
+    return (
+      <Chip on={false} onClick={() => setOpen(true)}>
+        + Custom
+      </Chip>
+    );
+  }
+  return (
+    <span className="row" style={{ gap: 6, flex: "1 1 220px", minWidth: 0 }}>
+      <Input
+        autoFocus
+        value={text}
+        placeholder="Type it in"
+        maxLength={100}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+          }
+          if (e.key === "Escape") setOpen(false);
+        }}
+        style={{ height: 36 }}
+      />
+      <Button size="sm" onClick={add}>
+        Add
+      </Button>
+    </span>
+  );
 }
 
 /** Figures are typed with or without thousands separators and shown with
@@ -430,7 +480,7 @@ function displayValue(field: FieldDef, value: unknown, choices: Option[]): strin
     case "datetime":
       return formatDateTime(value as string);
     case "decimal":
-      if (field.key === "latitude" || field.key === "longitude") return str(value);
+      if (KEEPS_DECIMALS.has(field.key)) return str(value);
       return /\(AED/.test(field.label) ? `AED ${formatWhole(value)}` : formatWhole(value);
     case "number":
       return NO_SEPARATORS.has(field.key) ? str(value) : formatWhole(value);
