@@ -106,6 +106,9 @@ class JobViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(bank_id=bank)
         if valuer := params.get("valuer"):
             queryset = queryset.filter(Q(valuer_id=valuer) | Q(registered_valuer_id=valuer))
+        # The dashboard's stage and section cards filter the list to their jobs.
+        if ids := params.get("ids"):
+            queryset = queryset.filter(pk__in=[int(i) for i in ids.split(",") if i.strip().isdigit()])
         if property_type := params.get("type"):
             queryset = queryset.filter(summary__property_category=property_type)
         if search := params.get("q"):

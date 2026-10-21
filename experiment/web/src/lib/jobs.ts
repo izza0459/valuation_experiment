@@ -144,6 +144,8 @@ export type JobFilters = {
   valuer?: string;
   type?: string;
   q?: string;
+  /** Comma-separated job ids: the dashboard's stage or section card. */
+  ids?: string;
 };
 
 function toQueryString(filters: JobFilters): string {

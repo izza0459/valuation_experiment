@@ -85,3 +85,14 @@ class TestSections:
         job = new_job(bank, status=S.SETUP)
         sections = funnel(boss, stage="setup").json()["sections"]
         assert sum(s["count"] for s in sections) == 1 and sections[0]["jobs"][0]["id"] == job.pk
+
+
+class TestFiltering:
+    def test_every_section_of_a_stage_gets_a_card(self, bank, boss):
+        labels = [s["label"] for s in funnel(boss, stage="inspection").json()["sections"]]
+        assert labels == ["Check List", "Preliminary Check", "Inspection", "Photos", "Ready for the next stage"]
+
+    def test_the_jobs_list_filters_to_a_cards_jobs(self, bank, boss):
+        a, b = new_job(bank), new_job(bank)
+        listed = client_for(boss).get("/api/jobs/", {"ids": f"{a.pk}"}).json()["results"]
+        assert [j["id"] for j in listed] == [a.pk] and b.pk

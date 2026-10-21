@@ -299,6 +299,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* A pipeline stage's sections: as many cards as fit, at least 150px each. */
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
 /* Peer reviewer changes waiting for the valuer (jobs list). */
 .changes-badge {
   display: inline-block;

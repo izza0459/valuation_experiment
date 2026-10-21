@@ -12,7 +12,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Avatar, Button, Icon, Input, Select, Table, Tabs } from "@/design-system";
 import { PageHead, Shell, StatusChip } from "@/components/vp/ui";
-import { PipelineFunnel } from "@/components/vp/PipelineFunnel";
+import { PipelineFunnel, type CardFilter } from "@/components/vp/PipelineFunnel";
 import { formatDateTime } from "@/components/vp/format";
 import { useMe } from "@/lib/auth";
 import { JOB_STATUS_LABELS, useJobKpis, useJobs, type JobFilters, type JobListItem } from "@/lib/jobs";
@@ -26,7 +26,11 @@ const VIEWS = [
 
 export default function JobsPage() {
   const [filters, setFilters] = useState<JobFilters>({ view: "all" });
-  const { data: page, isLoading, isError, error } = useJobs(filters);
+  // A pipeline card the admin clicked: the table shows that card's jobs.
+  const [card, setCard] = useState<CardFilter>(null);
+  const { data: page, isLoading, isError, error } = useJobs(
+    card ? { ...filters, view: "all", ids: card.ids.length ? card.ids.join(",") : "0" } : filters,
+  );
   const { data: kpis } = useJobKpis();
   const { data: me } = useMe();
   const canCreate = me?.authenticated ? Boolean(me.user.can_create_jobs ?? me.user.is_admin) : false;
@@ -63,7 +67,20 @@ export default function JobsPage() {
       </div>
 
       {/* Admins: the pipeline by stage (CRM feedback DB-01..03). */}
-      {me?.authenticated && me.user.is_admin && <PipelineFunnel />}
+      {me?.authenticated && me.user.is_admin && <PipelineFunnel selected={card} onFilter={setCard} />}
+
+      {card && (
+        <div className="row wrap" style={{ gap: 10, justifyContent: "space-between", padding: "10px 16px", marginBottom: 12,
+          borderRadius: 10, background: "var(--surface-accent)", fontSize: 14 }}>
+          <span>
+            Showing <b>{card.ids.length}</b> job{card.ids.length === 1 ? "" : "s"}: {card.label}
+          </span>
+          <button type="button" onClick={() => setCard(null)}
+            style={{ border: 0, background: "none", color: "var(--text-link)", cursor: "pointer", fontFamily: "inherit", fontSize: 14, padding: 0, minHeight: 0 }}>
+            Show all jobs
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0 }}>
         <Tabs

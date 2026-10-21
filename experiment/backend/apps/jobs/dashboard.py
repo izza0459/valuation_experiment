@@ -18,8 +18,9 @@ import datetime
 from django.db.models import Q
 from django.utils import timezone
 
+from .field_config import TABS
 from .models import Job, JobTransition, SchedulingData
-from .tabs import job_progress
+from .tabs import MEDIA_TABS, job_progress
 from .workflow import JobStatus
 
 STAGES = [
@@ -130,6 +131,11 @@ def sections(jobs, stage: str, begin, end) -> list[dict]:
             else:
                 add("Returned to valuer", job)
     elif stage in IN_STAGE:
+        # Every section of the stage gets a card, empty or not.
+        for tab in sorted(TABS, key=lambda t: t["order"]):
+            if tab["stage"] == stage and (tab["fields"] or tab["key"] in MEDIA_TABS):
+                groups[tab["label"]] = []
+        groups["Ready for the next stage"] = []
         for job in _entered(jobs, stage, begin, end):
             if job.status in IN_STAGE[stage]:
                 add(job_progress(job)["sub_status"], job)
