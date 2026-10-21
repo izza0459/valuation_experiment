@@ -655,19 +655,18 @@ class TestReportFields:
 
     def test_the_new_fields_save_and_come_back(self, job, dan):
         client = client_for(dan)
-        res = patch(client, job, "location", {"remaining_economic_life_years": 55})
+        res = patch(client, job, "location", {"developer": "Emaar"})
         assert res.status_code == 200
         assert patch(client, job, "summary", {"total_floors": 12}).status_code == 200
         assert patch(client, job, "instructions", {"contact_name": "R. Agent",
                                                    "contact_number": "+971 50 000 0000"}).status_code == 200
         job.refresh_from_db()
         assert (job.contact_name, job.contact_number) == ("R. Agent", "+971 50 000 0000")
-        assert job.location.remaining_economic_life_years == 55
+        assert job.location.developer == "Emaar"
         assert job.summary.total_floors == 12
 
     @pytest.mark.parametrize("tab,key,value", [
-        ("location", "remaining_economic_life_years", 500),
-        ("location", "remaining_economic_life_years", "lots"),
+        ("location", "built_about", "lots"),
         ("summary", "total_floors", 201),
         ("summary", "total_floors", -3),
     ])
@@ -696,14 +695,47 @@ class TestReportFields:
 
     def test_a_revision_carries_the_new_fields_forward(self, job, dan):
         client = client_for(dan)
-        patch(client, job, "location", {"remaining_economic_life_years": 40})
+        patch(client, job, "location", {"developer": "Nakheel"})
         patch(client, job, "summary", {"total_floors": 9})
         patch(client, job, "inspection", {"occupancy": "tenanted", "rent_if_any": "90000"})
         Job.objects.filter(pk=job.pk).update(is_locked=True, status=JobStatus.ISSUED)
         revision = Job.objects.get(pk=job.pk).create_revision(by=dan)
         assert revision.inspection.rent_if_any == 90000
-        assert revision.location.remaining_economic_life_years == 40
+        assert revision.location.developer == "Nakheel"
         assert revision.summary.total_floors == 9
+
+
+class TestCrmFeedbackSmallItems:
+    """CRM feedback, 21 Oct 2026: the small items."""
+
+    def test_remaining_economic_life_is_45_years_less_the_age(self, job, dan):
+        from datetime import date
+
+        client = client_for(dan)
+        patch(client, job, "valuation", {"valuation_date": "2026-10-21"})
+        res = patch(client, job, "location", {"built_date": "2015-03-01"}).json()
+        assert res["computed"]["location"]["remaining_economic_life"] == 45 - 11
+        job.location.built_date = None
+        job.location.built_about = None
+        assert job.location.remaining_economic_life is None
+        job.location.built_date = date(1950, 1, 1)
+        assert job.location.remaining_economic_life == 0  # never negative
+
+    def test_repairs_start_with_the_standard_wording(self, job):
+        from apps.jobs.constants import REPAIRS_DEFAULT
+
+        assert job.inspection.repairs == REPAIRS_DEFAULT
+
+    def test_sub_type_is_for_villas_and_townhouses(self, job, dan):
+        client = client_for(dan)
+        res = patch(client, job, "summary", {"property_category": "villa", "property_sub_type": "Corner"})
+        assert res.status_code == 200, res.json()
+        job.refresh_from_db()
+        assert job.summary.property_sub_type == "Corner"
+
+    def test_the_three_commentary_boxes_save(self, job, dan):
+        res = patch(client_for(dan), job, "valuation", {"commentary_offices": "Grade A stock is limited."})
+        assert res.status_code == 200
 
 
 class TestExactAge:

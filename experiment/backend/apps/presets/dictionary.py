@@ -100,7 +100,7 @@ PRESETS = {
         o("Maid's Room (en-suite)", "maids_room_en_suite"), o("Store"), o("Balcony"), o("Large Terrace"),
         o("Combined Living/Dining/Bedroom", "combined_livingdiningbedroom"), o("Family Area"),
         o("Entertainment Lounge"), o("Home Theater", "home_theatre"), o("SPA Area", "spa_area"), o("Gym"),
-        o("Roof Terrace"),
+        o("Roof Terrace"), o("Bathroom"), o("Laundry Room"), o("Maid's Room", "maids_room"),
     ],
     "occupancy": [
         o("Assumed Vacant"), o("Multi-Tenanted", "multi_tenanted"), o("Not Applicable"),
@@ -130,7 +130,38 @@ DISCLOSURE_4 = (
 APARTMENTS = ["apartment", "duplex", "penthouse"]
 VILLAS = ["villa", "townhouse", "custom_villa"]
 
-# category -> [(title, older titles, property categories it is offered for)]
+REINSTATEMENT_UNIT = (
+    "The property comprises a single unit forming part of a larger structure, and a reinstatement cost "
+    "assessment has therefore not been provided. We have assumed that the building is adequately insured on a "
+    "full reinstatement basis against fire and other usual perils. We recommend that the client confirm the "
+    "existence and adequacy of the building insurance cover with the owners’ association or building manager."
+)
+# [●] is filled from the Reinstatement Value (apps.reports.context).
+REINSTATEMENT_VILLA = (
+    "The reinstatement cost of the property for insurance purposes is estimated at AED [●]. This figure is "
+    "provided for guidance only, is not a valuation, and should not be relied upon as a substitute for a formal "
+    "insurance valuation. We recommend that the owner confirms that the property is insured for an amount not "
+    "less than this figure."
+)
+MATERIAL_UNCERTAINTY = (
+    "Our valuation is reported on the basis of material valuation uncertainty as set out in VPS 6 and VPGA 10 of "
+    "the RICS Valuation – Global Standards (effective 31 January 2025). This is due to recent regional "
+    "geopolitical developments, which have increased uncertainty in financial and real estate markets, affecting "
+    "investor sentiment, logistics, and wider economic conditions. In these circumstances, market conditions may "
+    "change more rapidly than usual, and historical market evidence may be less reliable as an indicator of "
+    "current value. Some sectors may continue to be supported by domestic demand, while those more dependent on "
+    "international investment, trade, or travel may be more sensitive to prevailing conditions. Broader "
+    "indicators, including commodity prices and capital market activity, may also remain volatile in the short "
+    "term. The inclusion of this statement does not mean that the valuation cannot be relied upon. It indicates "
+    "that, in the current environment, less certainty and a higher degree of caution should be attached to the "
+    "valuation than would normally be the case. The valuation reflects market circumstances and information "
+    "available as at the valuation date only, and we recommend that it is kept under regular review."
+)
+UNITS = [*APARTMENTS, "fitted_office", "shell_core_office", "fitted_retail", "shell_core_retail"]
+
+# category -> [(title, older titles, property categories it is offered for[, body])]
+# A body given here is the approved wording: it replaces a placeholder body,
+# never text an admin has since written.
 LIBRARY = {
     "specification": [
         ("Standard Property (Inspected)", [], []), ("Modified Property (Inspected)", [], []),
@@ -153,6 +184,13 @@ LIBRARY = {
         ("Shell and Core Office", [], ["shell_core_office"]), ("Shell and Core Retail", [], ["shell_core_retail"]),
         ("Fitted Office", [], ["fitted_office"]), ("Fitted Retail", [], ["fitted_retail"]),
         ("Fully Customised Property", [], []), ("Rare and Unique Property", [], []),
+    ],
+    "reinstatement": [
+        ("Apartment / Office / Retail", [], UNITS, REINSTATEMENT_UNIT),
+        ("Villa / Townhouse", [], VILLAS, REINSTATEMENT_VILLA),
+    ],
+    "special_note": [
+        ("Material valuation uncertainty (geopolitical)", [], [], MATERIAL_UNCERTAINTY),
     ],
 }
 
@@ -183,7 +221,7 @@ def sync(PresetOption, TextLibraryItem):
 
     for category, entries in LIBRARY.items():
         kept = set()
-        for order, (title, older, categories) in enumerate(entries):
+        for order, (title, older, categories, *body) in enumerate(entries):
             row = None
             for candidate in (title, *older):
                 row = TextLibraryItem.objects.filter(category=category, title__iexact=candidate).first()
@@ -191,6 +229,8 @@ def sync(PresetOption, TextLibraryItem):
                     break
             if row is None:
                 row = TextLibraryItem(category=category, body=f"{PLACEHOLDER}{title}.")
+            if body and (not row.body or row.body.startswith(PLACEHOLDER)):
+                row.body = body[0]
             row.title, row.order, row.active, row.property_categories = title, order, True, categories
             row.save()
             kept.add(row.pk)

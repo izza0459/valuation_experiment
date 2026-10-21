@@ -21,10 +21,11 @@ from django.db import models
 from django.utils import timezone
 
 from apps.jobs import calculations
-from apps.jobs.constants import PLOT_BEARING_CATEGORIES, TENANTED_OCCUPANCIES
+from apps.jobs.constants import FIGURE_BLANK, PLOT_BEARING_CATEGORIES, TENANTED_OCCUPANCIES
 from apps.jobs.field_config import TABS, get_tab, where
 from apps.jobs.tabs import tab_completion, visibility_context
 from apps.media_files.checks import exec_summary_photos, media_blockers
+from apps.presets.dictionary import REINSTATEMENT_UNIT, REINSTATEMENT_VILLA
 from apps.presets.models import PresetOption
 
 NOT_APPLICABLE = "Not Applicable"
@@ -287,6 +288,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
 
     beds = summary.no_of_bedrooms
     type_of_property = f"{beds} Bedroom {category.lower()}" if beds and category else category
+    if plot_bearing and summary.property_sub_type and type_of_property:
+        type_of_property = f"{type_of_property} ({summary.property_sub_type})"
 
     tenancy = ""
     if tenanted:
@@ -301,19 +304,14 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     elif inspection.occupancy == "owner_occupied":
         tenancy = "The subject property is owner occupied."
 
+    # The valuer's wording, else the property type's (CRM feedback VL-06);
+    # [●] takes the Reinstatement Value, and blocks issue while it has none.
     if valuation.reinstatement_note:
         reinstatement = valuation.reinstatement_note
-    elif plot_bearing:
-        reinstatement = (
-            f"The estimated reinstatement value for insurance purposes is {fmt_aed(valuation.reinstatement_value)}."
-            if valuation.reinstatement_value else ""
-        )
     else:
-        reinstatement = (
-            "The property forms part of a larger structure and it is therefore not possible to provide a "
-            "reinstatement cost estimate for the individual unit. We assume the building is fully insured "
-            "against fire and the usual perils."
-        )
+        reinstatement = REINSTATEMENT_VILLA if plot_bearing else REINSTATEMENT_UNIT
+    if FIGURE_BLANK in reinstatement and valuation.reinstatement_value:
+        reinstatement = reinstatement.replace(FIGURE_BLANK, fmt_number(valuation.reinstatement_value))
 
     upgrades = ""
     if "inspection.upgraded" in excluded:
@@ -380,8 +378,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         row("Year built", year_built, "location.built_about"),
         row("Age of the property", age, "location.built_about"),
         row("Remaining economic life",
-            f"Circa {fmt_number(location.remaining_economic_life_years, ' years')}"
-            if location.remaining_economic_life_years else "", "location.remaining_economic_life_years"),
+            f"Circa {fmt_number(location.remaining_economic_life, ' years')}"
+            if location.remaining_economic_life is not None else "", "location.built_about"),
         row("Utilities", inspection.utilities_summary, "inspection.electrical_services"),
         row("Upgrades / modifications", upgrades, "inspection.upgraded"),
         row("Occupancy", occupancy, "inspection.occupancy"),
@@ -500,6 +498,16 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             "other_matters": summary.other_matters or [],
             "market_commentary": keep("summary.market_commentary", summary.market_commentary) or "",
             "valuation_commentary": keep("valuation.valuation_commentary", valuation.valuation_commentary) or "",
+            # By property type (CRM feedback VL-04); empty boxes aren't printed.
+            "type_commentary": [
+                {"title": title, "body": body}
+                for title, body in (
+                    ("Villas / Townhouses", valuation.commentary_villas),
+                    ("Shell & Core / Fitted Offices", valuation.commentary_offices),
+                    ("Shell & Core / Fitted Retail", valuation.commentary_retail),
+                )
+                if (body or "").strip()
+            ],
             "sub_community": keep("location.sub_community", location.sub_community) or "",
             "location": keep("location.location", location.location) or "",
             "amenities": keep(
@@ -509,7 +517,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             "condition": keep("location.property_condition", location.property_condition) or "",
             "repairs": keep("inspection.repairs", inspection.repairs) or "",
         },
-        "reinstatement": keep("valuation.reinstatement_value", reinstatement) or "",
+        "reinstatement": "" if {"valuation.reinstatement_value", "valuation.reinstatement_note"} & excluded
+        else reinstatement,
         "tenancy": keep("inspection.occupancy", tenancy) or "",
         "tenanted": tenanted,
         "plot_bearing": plot_bearing,

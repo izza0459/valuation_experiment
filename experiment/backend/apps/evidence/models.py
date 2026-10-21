@@ -68,7 +68,12 @@ class Comparable(models.Model):
         ("csv", "CSV/Excel upload"),
     ]
     ENTRY_SOURCES = ["dld", "bayut", "property_finder", "property_monitor", "agent", "other"]
-    STATUS_CHOICES = [("sold", "Sold"), ("asking", "Asking")]
+    # Printed on the report's evidence table (CRM feedback VL-08).
+    STATUS_CHOICES = [
+        ("sold", "Sold"), ("sold_primary", "Sold – Primary"), ("under_offer", "Under Offer"),
+        ("mou_signed", "MOU Signed"), ("asking", "Asking"), ("asking_good_interest", "Asking – Good Interest"),
+        ("asking_no_interest", "Asking – No Interest"),
+    ]
 
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
     source_ref = models.CharField(max_length=255, blank=True, help_text="External id/url for traceability.")
@@ -83,7 +88,7 @@ class Comparable(models.Model):
     bua_sqft = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_aed = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     transaction_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="asking")
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="asking")
     raw_data = models.JSONField(default=dict, blank=True, help_text="Original payload from the source connector.")
     link = models.URLField(max_length=1000, blank=True, help_text="The listing or record this came from.")
     notes = models.TextField(blank=True)

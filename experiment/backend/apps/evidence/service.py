@@ -54,6 +54,7 @@ def describe(link: JobComparable) -> dict:
         "aed_per_sqft": str(rate.quantize(Decimal("0.01"))) if rate else None,
         "transaction_date": c.transaction_date,
         "status": c.status,
+        "status_label": c.get_status_display(),
         "notes": c.notes,
     }
 
@@ -81,6 +82,7 @@ def evidence_state(job) -> dict:
         "avm": describe_run(job.avm_runs.filter(job_version=job.version).first()),
         "sources": [{"value": v, "label": label} for v, label in Comparable.SOURCE_CHOICES
                     if v in Comparable.ENTRY_SOURCES],
+        "statuses": [{"value": v, "label": label} for v, label in Comparable.STATUS_CHOICES],
     }
 
 
@@ -127,8 +129,8 @@ def _clean_one(key, raw):
             raise ValueError("Choose where this comparable comes from.")
         return raw
     if key == "status":
-        if raw not in ("sold", "asking"):
-            raise ValueError("Sold or asking.")
+        if raw not in dict(Comparable.STATUS_CHOICES):
+            raise ValueError("Choose a status from the list.")
         return raw
     if key == "link":
         value = (raw or "").strip() if isinstance(raw, str) or raw is None else None

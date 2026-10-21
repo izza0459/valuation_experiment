@@ -229,6 +229,7 @@
   <h2>6. Valuation Methodology</h2>
   <p>The market approach, comparable method, has been used: the property is valued by reference to prices achieved for, or asked for, similar properties, adjusted for the differences between them and the subject.</p>
   {% if text.valuation_commentary %}<h3>Valuation commentary</h3><p class="prose">{{ text.valuation_commentary }}</p>{% endif %}
+  {% for c in text.type_commentary or [] %}<h3>{{ c.title }}</h3><p class="prose">{{ c.body }}</p>{% endfor %}
 
   <h3>Comparable evidence</h3>
   {% if comparables %}

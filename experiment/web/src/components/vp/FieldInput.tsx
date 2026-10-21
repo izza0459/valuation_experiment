@@ -29,6 +29,8 @@ type Props = {
 
 /** Coordinates keep their decimals; every other figure is a whole number. */
 const KEEPS_DECIMALS = new Set(["latitude", "longitude"]);
+/** Years read as "2015", never "2,015". */
+const NO_SEPARATORS = new Set(["built_about"]);
 
 /** "1250000.00" -> "1,250,000". Text that isn't a number is shown as typed. */
 export function formatWhole(value: unknown): string {
@@ -73,7 +75,7 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
 
     case "number":
     case "decimal":
-      if (KEEPS_DECIMALS.has(field.key)) {
+      if (KEEPS_DECIMALS.has(field.key) || NO_SEPARATORS.has(field.key)) {
         return (
           <Input className="num" inputMode="decimal" value={str(value)} invalid={invalid}
             onChange={(e) => onChange(e.target.value)} />
@@ -431,7 +433,7 @@ function displayValue(field: FieldDef, value: unknown, choices: Option[]): strin
       if (field.key === "latitude" || field.key === "longitude") return str(value);
       return /\(AED/.test(field.label) ? `AED ${formatWhole(value)}` : formatWhole(value);
     case "number":
-      return formatWhole(value);
+      return NO_SEPARATORS.has(field.key) ? str(value) : formatWhole(value);
     case "names":
       return Array.isArray(value) && value.length ? value.join(", ") : str(value) || "—";
     case "select":
@@ -459,5 +461,6 @@ export function formatComputed(key: string, value: unknown): string {
   if (key === "market_value_rate_per_sqft") return `AED ${formatWhole(value)} / sqft`;
   if (key === "forced_sale_value") return `AED ${formatWhole(value)}`;
   if (key === "report_date") return formatDate(value as string);
+  if (key === "remaining_economic_life") return `${str(value)} years`;
   return str(value);
 }

@@ -25,6 +25,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
 
+from apps.jobs.constants import FIGURE_BLANK
 from apps.jobs.models import Job, JobTransition
 from apps.jobs.workflow import IssueBlockedError, JobLockedError, JobStatus, validate_issue_preconditions
 from apps.media_files.checks import missing_files
@@ -68,6 +69,10 @@ def _blockers(job, html: str) -> list[str]:
             f"{len(gone)} photograph/document file(s) are missing from storage: {', '.join(gone[:3])}"
             + (" and others." if len(gone) > 3 else ".")
         )
+
+    # The reinstatement figure is never optional wording: it blocks even in a demo.
+    if FIGURE_BLANK in html:
+        blockers.append("The reinstatement cost still has [●]: enter the Reinstatement Value on the Valuation tab.")
 
     # The rendered text is the only reliable place to find placeholders: they
     # can come from the template, the text library, or be left in free text

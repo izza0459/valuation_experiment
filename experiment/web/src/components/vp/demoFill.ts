@@ -71,7 +71,6 @@ const BY_KEY: Record<string, unknown> = {
   built_about: "2019",
   built_date: "2019-03-31",
   developer: "Dubai World Trade Centre (DWTC)",
-  remaining_economic_life_years: "55",
   market_value: "4000000",
   market_rent: "240000",
   reinstatement_note: "Not applicable: the office forms part of a larger building.",

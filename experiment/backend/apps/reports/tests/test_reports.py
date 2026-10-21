@@ -499,6 +499,49 @@ class TestFieldDictionaryChanges:
         # Only the report leaves them out: the job keeps its values.
         assert fresh.valuation.material_valuation_uncertainty is True
 
+    def test_reinstatement_wording_follows_the_property_type(self, job):
+        from apps.presets.dictionary import REINSTATEMENT_UNIT
+
+        job.summary.property_category = "apartment"
+        job.summary.save()
+        assert build_context(Job.objects.get(pk=job.pk))["reinstatement"] == REINSTATEMENT_UNIT
+
+    def test_a_villas_reinstatement_figure_fills_the_blank(self, job):
+        job.summary.property_category = "villa"
+        job.summary.save()
+        job.valuation.reinstatement_note = ""
+        job.valuation.reinstatement_value = None
+        job.valuation.save()
+        assert "[●]" in build_context(Job.objects.get(pk=job.pk))["reinstatement"]
+        job.valuation.reinstatement_value = 2450000
+        job.valuation.save()
+        text = build_context(Job.objects.get(pk=job.pk))["reinstatement"]
+        assert "AED 2,450,000" in text and "[●]" not in text
+
+    def test_the_sub_type_follows_a_villas_type(self, job):
+        job.summary.property_category, job.summary.no_of_bedrooms = "villa", 4
+        job.summary.property_sub_type = "Corner"
+        job.summary.save()
+        assert rows(build_context(Job.objects.get(pk=job.pk)), "property_details")["Type of property"] == (
+            "4 Bedroom villa (Corner)")
+
+    def test_only_filled_commentary_boxes_are_printed(self, job):
+        job.valuation.commentary_offices = "Grade A stock is limited."
+        job.valuation.commentary_villas = "  "
+        job.valuation.save()
+        assert build_context(Job.objects.get(pk=job.pk))["text"]["type_commentary"] == [
+            {"title": "Shell & Core / Fitted Offices", "body": "Grade A stock is limited."}]
+
+    def test_remaining_economic_life_is_printed_from_the_age(self, job):
+        from datetime import date
+
+        job.location.built_date, job.location.built_about = date(2015, 3, 1), 2015
+        job.location.save()
+        job.valuation.valuation_date = date(2026, 10, 21)
+        job.valuation.save()
+        details = rows(build_context(Job.objects.get(pk=job.pk)), "property_details")
+        assert details["Remaining economic life"] == "Circa 34 years"
+
     def test_what_a_bank_report_must_carry_cannot_be_left_out(self, job):
         from apps.jobs.field_config import REPORT_OPTIONAL
         assert "market_value" not in REPORT_OPTIONAL["valuation"]

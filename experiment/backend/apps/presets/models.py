@@ -48,6 +48,8 @@ class TextLibraryCategory(models.TextChoices):
     COMMENTARY = "commentary", "Market/Valuation Commentary (old)"
     MARKET_COMMENTARY = "market_commentary", "Market Commentary"
     VALUATION_COMMENTARY = "valuation_commentary", "Valuation Commentary"
+    REINSTATEMENT = "reinstatement", "Reinstatement Cost"
+    SPECIAL_NOTE = "special_note", "Special Note"
 
 
 class TextLibraryItem(models.Model):

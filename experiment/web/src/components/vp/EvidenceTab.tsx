@@ -33,7 +33,9 @@ type Comparable = {
   price_aed: string | null;
   aed_per_sqft: string | null;
   transaction_date: string | null;
-  status: "sold" | "asking";
+  /** sold, sold_primary, under_offer, mou_signed, asking, asking_good_interest, asking_no_interest */
+  status: string;
+  status_label?: string;
   notes: string;
 };
 
@@ -60,7 +62,15 @@ type AvmRun = {
   };
 };
 
-type EvidenceState = { comparables: Comparable[]; avm: AvmRun | null; sources: { value: string; label: string }[] };
+type Choice = { value: string; label: string };
+type EvidenceState = { comparables: Comparable[]; avm: AvmRun | null; sources: Choice[]; statuses?: Choice[] };
+
+/** Until the API sends its list (an older server): the two original statuses. */
+const STATUSES: Choice[] = [
+  { value: "sold", label: "Sold" },
+  { value: "asking", label: "Asking" },
+];
+const statusLabel = (c: Comparable) => c.status_label ?? (c.status === "sold" ? "Sold" : "Asking");
 
 const BLANK = {
   source: "",
@@ -200,6 +210,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
             key={prefill ? "prefilled" : "blank"}
             jobId={jobId}
             sources={data.sources}
+            statuses={data.statuses ?? STATUSES}
             initial={prefill?.values}
             found={prefill?.found}
             onDone={() => {
@@ -258,7 +269,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.aed_per_sqft)}</td>
                       <td style={{ padding: 8 }}>
                         <div style={{ whiteSpace: "nowrap" }}>
-                          {c.status === "sold" ? "Sold" : "Asking"}
+                          {statusLabel(c)}
                           {c.transaction_date ? ` · ${formatDate(c.transaction_date)}` : ""}
                         </div>
                         <Source c={c} />
@@ -354,7 +365,7 @@ function CompCard({
           AED {num(c.price_aed)} · {num(c.bua_sqft)} sqft · <b>{num(c.aed_per_sqft)}</b>/sqft
         </div>
         <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          {c.status === "sold" ? "Sold" : "Asking"}
+          {statusLabel(c)}
           {c.transaction_date ? ` ${formatDate(c.transaction_date)}` : ""} · <Source c={c} />
         </div>
       </div>
@@ -434,13 +445,15 @@ function PasteListing({
 function AddForm({
   jobId,
   sources,
+  statuses,
   initial,
   found,
   onDone,
   onCancel,
 }: {
   jobId: string;
-  sources: { value: string; label: string }[];
+  sources: Choice[];
+  statuses: Choice[];
   initial?: Record<string, string>;
   found?: string[];
   onDone: () => void;
@@ -513,8 +526,8 @@ function AddForm({
         )}
         {field(
           "status",
-          "Sold or asking",
-          <Select value={form.status} onChange={set("status")} options={[{ value: "sold", label: "Sold" }, { value: "asking", label: "Asking" }]} />,
+          "Status",
+          <Select value={form.status} onChange={set("status")} options={statuses} />,
         )}
         {field("transaction_date", "Date", <Input type="date" value={form.transaction_date} onChange={set("transaction_date")} />)}
         {field("notes", "Notes", <Textarea rows={2} value={form.notes} onChange={set("notes")} placeholder="Agent feedback, condition, anything that affects the value" />, 3)}

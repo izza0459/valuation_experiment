@@ -31,6 +31,8 @@ LIBRARY_CATEGORIES = {
     "valuation_commentary": "valuation_commentary",
     "property_specification": "specification",
     "property_condition": "condition",
+    "reinstatement": "reinstatement",
+    "special_note": "special_note",
 }
 
 

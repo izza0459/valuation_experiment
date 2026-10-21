@@ -14,7 +14,7 @@ from apps.common.models import (
 )
 
 from . import calculations
-from .constants import PLOT_BEARING_CATEGORIES
+from .constants import ECONOMIC_LIFE_YEARS, PLOT_BEARING_CATEGORIES, REPAIRS_DEFAULT
 from .workflow import (
     IssueBlockedError,
     JobLockedError,
@@ -573,6 +573,8 @@ class SummaryData(JobTabData):
     no_of_bedrooms = models.PositiveSmallIntegerField(null=True, blank=True)
     property_category = models.CharField(max_length=40, blank=True)
     type_of_property = models.CharField(max_length=100, blank=True)
+    # Villas and townhouses: "Corner", "Single row" (CRM feedback IN-03).
+    property_sub_type = models.CharField(max_length=100, blank=True)
     parking = models.BooleanField(default=False)
     no_of_parkings = models.PositiveSmallIntegerField(null=True, blank=True)
 
@@ -667,7 +669,7 @@ class InspectionData(JobTabData):
     rear_views = models.CharField(max_length=255, blank=True)
     upgraded = models.BooleanField(default=False)
     upgrade_comment = models.TextField(blank=True)
-    repairs = models.TextField(blank=True)
+    repairs = models.TextField(blank=True, default=REPAIRS_DEFAULT)
 
     @property
     def views_summary(self):
@@ -698,6 +700,8 @@ class LocationData(JobTabData):
         max_digits=6, decimal_places=2, null=True, blank=True,
         help_text="Linear distance from the nearest coastline.",
     )
+    # Typed in before it was calculated (see `remaining_economic_life`); kept
+    # for the record, no longer entered or printed.
     remaining_economic_life_years = models.PositiveSmallIntegerField(
         null=True, blank=True, validators=[MaxValueValidator(200)],
         help_text="Estimated remaining economic life of the building.",
@@ -728,6 +732,15 @@ class LocationData(JobTabData):
             return calculations.exact_age(self.built_date, as_of=self._age_as_of())
         return calculations.age_from_year(self.built_about, as_of=self._age_as_of())
 
+    @property
+    def remaining_economic_life(self):
+        """45 years less the age at the valuation date, in whole years (CRM
+        feedback VL-02); none until the built date or year is entered."""
+        age = self.age_years
+        if age is None:
+            return None
+        return max(ECONOMIC_LIFE_YEARS - int(age), 0)
+
     def __str__(self):
         return f"LocationData<{self.job}>"
 
@@ -753,6 +766,11 @@ class ValuationData(JobTabData):
     # The approaches used (presets `valuation_approach`); replaces the text above.
     valuation_approaches = models.JSONField(default=default_valuation_approaches, blank=True)
     valuation_commentary = models.TextField(blank=True)
+    # Extra commentary by property type (CRM feedback VL-04); empty ones
+    # aren't printed.
+    commentary_villas = models.TextField(blank=True)
+    commentary_offices = models.TextField(blank=True)
+    commentary_retail = models.TextField(blank=True)
     market_value = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     # The report states one annual figure; the low/high range is no longer
     # entered but kept for jobs that have it.
