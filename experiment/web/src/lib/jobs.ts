@@ -157,9 +157,8 @@ function toQueryString(filters: JobFilters): string {
   return qs ? `?${qs}` : "";
 }
 
-export function useJobs(filters: JobFilters = {}, { enabled = true }: { enabled?: boolean } = {}) {
+export function useJobs(filters: JobFilters = {}) {
   return useQuery({
-    enabled,
     queryKey: ["jobs", filters],
     queryFn: () => apiFetch<Paginated<JobListItem>>(`/api/jobs/${toQueryString(filters)}`),
   });
