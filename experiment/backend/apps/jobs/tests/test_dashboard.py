@@ -90,7 +90,7 @@ class TestSections:
 class TestFiltering:
     def test_every_section_of_a_stage_gets_a_card(self, bank, boss):
         labels = [s["label"] for s in funnel(boss, stage="inspection").json()["sections"]]
-        assert labels == ["Check List", "Preliminary Check", "Inspection", "Photos", "Ready for the next stage"]
+        assert labels == ["Check List", "Preliminary Check", "Inspection", "Photos"]
 
     def test_the_jobs_list_filters_to_a_cards_jobs(self, bank, boss):
         a, b = new_job(bank), new_job(bank)

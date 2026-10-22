@@ -124,7 +124,16 @@ DECIMAL_RANGES = {
     "longitude": (Decimal(-180), Decimal(180)),
     "completion_pct": (Decimal(0), Decimal(100)),
     "forced_sale_discount_pct": (Decimal(0), Decimal(100)),
+    # Plausible ranges, so a slip of the keyboard isn't saved (QA #8).
+    "ground_elevation": (Decimal(-50), Decimal(500)),
+    "bua_sqm": (Decimal("1"), Decimal(100_000)),
+    "plot_area_sqft": (Decimal("1"), Decimal(10_000_000)),
 }
+NUMBER_RANGES = {
+    "no_of_bedrooms": (0, 20),
+    "no_of_parkings": (0, 20),
+}
+EARLIEST_BUILT_YEAR = 1900
 
 
 # --- errors -----------------------------------------------------------------
@@ -425,7 +434,7 @@ def job_progress(job) -> dict:
             if done["pct"] < 100:
                 sub = tab["label"]
                 break
-        sub = sub or "Ready for the next stage"
+        # A stage with nothing left shows no sub-status (QA: no "Ready for the next stage").
     elif job.status == "peer_review":
         sub = "Awaiting peer review"
     elif job.status == "approved_signed":
@@ -482,6 +491,10 @@ def _coerce_number(raw, mf):
         value = int(number.quantize(Decimal(1), rounding=ROUND_HALF_UP))
     except (TypeError, ValueError, InvalidOperation) as exc:
         raise _Invalid("Must be a whole number.") from exc
+    if mf.name in NUMBER_RANGES:
+        low, high = NUMBER_RANGES[mf.name]
+        if not low <= value <= high:
+            raise _Invalid(f"Must be between {low} and {high}.")
     mf.run_validators(value)
     return value
 
@@ -807,9 +820,43 @@ def _validated(job, tab_key, data):
             cleaned[key] = (target, mf, coerce(field, mf, raw, current))
         except _Invalid as exc:
             errors[key] = str(exc)
+    if tab_key == "location" and not errors:
+        _check_built(job, targets["tab"], data, cleaned, errors)
     if errors:
         raise ValidationFailed(errors)
     return targets, cleaned
+
+
+def _check_built(job, location, data, cleaned, errors) -> None:
+    """Built year and built date agree and are believable (QA #6, #8): the
+    year is 1900 to this year (a property under construction may give a
+    year up to ten ahead); a built date sets the year; a date can't be in the
+    future or after the valuation date."""
+    value = lambda key: cleaned[key][2] if key in cleaned else getattr(location, key)  # noqa: E731
+    status = value("property_status")
+    building = status == "under_construction"
+    today = timezone.localdate()
+    built_date = value("built_date")
+
+    if "built_date" in cleaned and built_date is not None:
+        valuation = getattr(job, "valuation", None)
+        valued = getattr(valuation, "valuation_date", None)
+        if built_date > today and not building:
+            errors["built_date"] = "Can't be in the future for a completed property."
+        elif valued and built_date > valued:
+            errors["built_date"] = f"Can't be after the valuation date ({valued:%d %b %Y})."
+        elif "built_about" not in data:
+            # The built year follows the date, so the two never disagree.
+            _, year_field = resolve_storage("location", "built_about")
+            cleaned["built_about"] = ("tab", year_field, built_date.year)
+
+    if "built_about" in data:
+        year = value("built_about")
+        latest = today.year + (10 if building else 0)
+        if year is not None and not EARLIEST_BUILT_YEAR <= year <= latest:
+            errors["built_about"] = f"Enter a year from {EARLIEST_BUILT_YEAR} to {latest}."
+        elif year is not None and built_date is not None and year != built_date.year:
+            errors["built_about"] = f"Doesn't match the built date ({built_date:%d %b %Y}); change or clear the date."
 
 
 def _follow_bank_billing_address(job, old_bank_id, supplied):

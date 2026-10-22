@@ -76,10 +76,16 @@ class PresetOptionViewSet(viewsets.ModelViewSet):
 class TextLibraryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = TextLibraryItem
-        fields = ["id", "category", "title", "body", "order", "active"]
+        fields = ["id", "category", "title", "body", "order", "active", "property_categories"]
 
     def validate_title(self, value):
         return value.strip()
+
+    def validate_property_categories(self, value):
+        """Property types the entry is offered for; empty means all of them."""
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise serializers.ValidationError("Must be a list of property types.")
+        return value
 
 
 class TextLibraryItemViewSet(viewsets.ModelViewSet):

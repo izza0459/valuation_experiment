@@ -10,12 +10,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Avatar, Button, Icon, Input, Select, Table, Tabs } from "@/design-system";
+import { Avatar, Button, Icon, Input, Table, Tabs } from "@/design-system";
 import { PageHead, Shell, StatusChip } from "@/components/vp/ui";
 import { PipelineFunnel, type CardFilter } from "@/components/vp/PipelineFunnel";
 import { formatDateTime } from "@/components/vp/format";
 import { useMe } from "@/lib/auth";
-import { JOB_STATUS_LABELS, useJobKpis, useJobs, type JobFilters, type JobListItem } from "@/lib/jobs";
+import { useJobKpis, useJobs, type JobFilters, type JobKpis, type JobListItem } from "@/lib/jobs";
 
 const VIEWS = [
   { key: "all", label: "All" },
@@ -31,17 +31,20 @@ export default function JobsPage() {
   const { data: page, isLoading, isError, error } = useJobs(
     card ? { ...filters, view: "all", ids: card.ids.length ? card.ids.join(",") : "0" } : filters,
   );
+  // The true total, whatever the table is filtered to (QA: counts must be accurate).
+  const { data: everything } = useJobs({ view: "all" });
   const { data: kpis } = useJobKpis();
   const { data: me } = useMe();
   const canCreate = me?.authenticated ? Boolean(me.user.can_create_jobs ?? me.user.is_admin) : false;
 
   const rows = page?.results ?? [];
   const set = (patch: Partial<JobFilters>) => setFilters((f) => ({ ...f, ...patch }));
-  const hasFilters = Boolean(filters.status || filters.q);
+  // Stage is filtered from the Pipeline; the table keeps the search box only.
+  const hasFilters = Boolean(filters.q);
 
   return (
     <Shell>
-      <PageHead title="Jobs" sub={page ? `${page.count} total` : undefined}>
+      <PageHead title="Jobs" sub={everything ? `${everything.count} total` : undefined}>
         {/* Ops (and admins) take instructions in; for everyone else the button isn't offered. */}
         {canCreate && (
           <Link href="/jobs/new" className="fab-link">
@@ -53,38 +56,14 @@ export default function JobsPage() {
         )}
       </PageHead>
 
-      <div className="kpis" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14, marginBottom: 16 }}>
-        <Kpi label="Jobs in progress" short="In progress" value={kpis?.in_progress} />
-        <Kpi label="Awaiting peer review" short="In review" value={kpis?.awaiting_peer_review} />
-        <Kpi label="Issued this week" short="Issued (7d)" value={kpis?.issued_this_week} />
-        <Kpi
-          label="Avg turnaround"
-          short="Turnaround"
-          value={kpis?.avg_turnaround_hours ?? undefined}
-          suffix=" hrs"
-          sub={kpis && kpis.avg_turnaround_hours === null ? "No issued jobs yet" : undefined}
-        />
-      </div>
+      <KpiLine kpis={kpis} />
 
       {/* Admins: the pipeline by stage (CRM feedback DB-01..03). */}
       {me?.authenticated && me.user.is_admin && <PipelineFunnel selected={card} onFilter={setCard} />}
 
-      {card && (
-        <div className="row wrap" style={{ gap: 10, justifyContent: "space-between", padding: "10px 16px", marginBottom: 12,
-          borderRadius: 10, background: "var(--surface-accent)", fontSize: 14 }}>
-          <span>
-            Showing <b>{card.ids.length}</b> job{card.ids.length === 1 ? "" : "s"}: {card.label}
-          </span>
-          <button type="button" onClick={() => setCard(null)}
-            style={{ border: 0, background: "none", color: "var(--text-link)", cursor: "pointer", fontFamily: "inherit", fontSize: 14, padding: 0, minHeight: 0 }}>
-            Show all jobs
-          </button>
-        </div>
-      )}
-
       <div className="card" style={{ padding: 0 }}>
         <Tabs
-          items={VIEWS.map((v) => (v.key === "all" ? { label: v.label, count: page?.count } : v.label))}
+          items={VIEWS.map((v) => (v.key === "all" ? { label: v.label, count: everything?.count } : v.label))}
           active={VIEWS.find((v) => v.key === filters.view)?.label ?? "All"}
           onChange={(label: string) => set({ view: VIEWS.find((v) => v.label === label)?.key ?? "all" })}
           size="sm"
@@ -100,14 +79,15 @@ export default function JobsPage() {
               style={{ paddingLeft: 38, height: 42 }}
             />
           </div>
-          <Select
-            value={filters.status ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set({ status: e.target.value })}
-            placeholder="Status"
-            options={Object.entries(JOB_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-            style={{ width: 200 }}
-            aria-label="Status"
-          />
+          {/* The Pipeline stage or section the table is showing. */}
+          {card && (
+            <span className="filter-chip">
+              {card.label}: <b>{card.ids.length}</b>
+              <button type="button" aria-label="Show all jobs" onClick={() => setCard(null)}>
+                <Icon name="x" size={14} />
+              </button>
+            </span>
+          )}
           {hasFilters && (
             <button
               onClick={() => setFilters({ view: filters.view })}
@@ -255,17 +235,23 @@ export default function JobsPage() {
   );
 }
 
-function Kpi({ label, short, value, suffix = "", sub }: { label: string; short?: string; value?: number; suffix?: string; sub?: string }) {
+/** The four summary figures on one slim line (QA: fewer cards and rows). */
+function KpiLine({ kpis }: { kpis?: JobKpis }) {
+  const items: [string, string, string][] = [
+    ["in progress", "In progress", kpis ? String(kpis.in_progress) : "…"],
+    ["awaiting peer review", "In review", kpis ? String(kpis.awaiting_peer_review) : "…"],
+    ["issued in the last 7 days", "Issued (7d)", kpis ? String(kpis.issued_this_week) : "…"],
+    ["avg turnaround", "Turnaround",
+      kpis ? (kpis.avg_turnaround_hours === null ? "—" : `${Math.round(kpis.avg_turnaround_hours)} h`) : "…"],
+  ];
   return (
-    <div className="card kpi" style={{ padding: "16px 18px" }}>
-      <div className="kpi-label" style={{ fontSize: 14, color: "var(--text-muted)" }}>
-        <span className="hide-app">{label}</span>
-        <span className="show-app">{short ?? label}</span>
-      </div>
-      <div className="num kpi-value" style={{ fontSize: 30, fontWeight: 500, margin: "4px 0 2px" }}>
-        {value === undefined ? <span className="skel" style={{ display: "inline-block", width: 48, height: 30 }} /> : value + suffix}
-      </div>
-      <div className="hide-app" style={{ fontSize: 13, color: "var(--text-muted)" }}>{sub ??" "}</div>
+    <div className="kpi-line">
+      {items.map(([label, short, value]) => (
+        <span key={label}>
+          <b className="num">{value}</b> <span className="hide-app">{label}</span>
+          <span className="show-app">{short}</span>
+        </span>
+      ))}
     </div>
   );
 }

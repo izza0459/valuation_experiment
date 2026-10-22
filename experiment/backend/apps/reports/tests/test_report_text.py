@@ -115,3 +115,21 @@ class TestTicked:
         job = Job.objects.get(pk=job.pk)
         assert job.summary.has_special_assumptions
         assert [e["title"] for e in job.summary.special_assumptions] == ["Granted"]
+
+
+class TestOfferedFor:
+    def test_options_are_offered_for_their_property_types(self):
+        def offered(category, title):
+            return TextLibraryItem.objects.get(category=category, title=title, active=True).property_categories
+
+        assert offered("specification", "Shell and Core Office") == ["shell_core_office", "shell_core_retail"]
+        assert offered("special_assumption", "Hotel Apartment") == ["apartment", "penthouse"]
+        assert "villa" in offered("specification", "Custom Built Property")
+        assert offered("assumption", "Desktop Valuation") == []  # every property type
+
+    def test_a_desktop_office_gets_the_office_specification(self, job, dan):
+        job.summary.property_category = "fitted_office"
+        job.summary.save()
+        patch(client_for(dan), job, "inspection", {"inspection_type": "desktop"})
+        spec = Job.objects.get(pk=job.pk).location.property_specification
+        assert spec == library_body("specification", "Desktop Fitted Office/Retail")

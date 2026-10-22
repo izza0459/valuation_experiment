@@ -135,9 +135,9 @@ def sections(jobs, stage: str, begin, end) -> list[dict]:
         for tab in sorted(TABS, key=lambda t: t["order"]):
             if tab["stage"] == stage and (tab["fields"] or tab["key"] in MEDIA_TABS):
                 groups[tab["label"]] = []
-        groups["Ready for the next stage"] = []
         for job in _entered(jobs, stage, begin, end):
-            if job.status in IN_STAGE[stage]:
-                add(job_progress(job)["sub_status"], job)
+            # A job with every section done waits on the stage change; it isn't on a section.
+            if job.status in IN_STAGE[stage] and (section := job_progress(job)["sub_status"]):
+                add(section, job)
     return [{"label": label, "count": len(group), "jobs": [_describe(j) for j in group]}
             for label, group in groups.items()]

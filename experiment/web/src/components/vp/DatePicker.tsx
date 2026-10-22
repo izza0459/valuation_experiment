@@ -24,6 +24,37 @@ function parse(value: string): { date: string; time: string } {
   return { date, time: time.slice(0, 5) };
 }
 
+/** A date typed in: 07/10/2015, 7/10/2015, 2015-10-07, 7 Oct 2015 or
+ * 7 October 2015 (day first, as in the UAE). "YYYY-MM-DD", or null. */
+export function parseTyped(text: string): string | null {
+  const t = text.trim();
+  let y: number, m: number, d: number;
+  let match = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) {
+    [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  } else if ((match = t.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/))) {
+    [d, m, y] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  } else if ((match = t.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/))) {
+    const idx = MONTHS.findIndex((name) => name.toLowerCase().startsWith(match![2].toLowerCase().slice(0, 3)));
+    if (idx < 0) return null;
+    [d, m, y] = [Number(match[1]), idx + 1, Number(match[3])];
+  } else {
+    return null;
+  }
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+  return iso(y, m - 1, d);
+}
+
+/** Years offered in the header: 1950 to five years ahead (and the one in view). */
+function yearsAround(viewYear: number): number[] {
+  const last = new Date().getFullYear() + 5;
+  const first = Math.min(1950, viewYear);
+  const years: number[] = [];
+  for (let y = Math.max(last, viewYear); y >= first; y--) years.push(y);
+  return years;
+}
+
 function label(value: string, withTime: boolean): string {
   const { date, time } = parse(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "";
@@ -53,6 +84,8 @@ export function DatePicker({
   const [time, setTime] = useState(initial.time || "09:00");
   const start = initial.date ? new Date(`${initial.date}T00:00`) : today;
   const [view, setView] = useState({ y: start.getFullYear(), m: start.getMonth() });
+  const [typed, setTyped] = useState("");
+  const [typedBad, setTypedBad] = useState(false);
 
   function show() {
     const p = parse(value);
@@ -60,7 +93,23 @@ export function DatePicker({
     setPicked(p.date);
     setTime(p.time || "09:00");
     setView({ y: s.getFullYear(), m: s.getMonth() });
+    setTyped("");
+    setTypedBad(false);
     setOpen(true);
+  }
+
+  /** Jump the calendar to a picked day (typed, or Today). */
+  function pick(day: string) {
+    const [y, m] = day.split("-").map(Number);
+    setPicked(day);
+    setView({ y, m: m - 1 });
+  }
+
+  function applyTyped() {
+    if (!typed.trim()) return;
+    const day = parseTyped(typed);
+    setTypedBad(!day);
+    if (day) pick(day);
   }
 
   useEffect(() => {
@@ -146,11 +195,44 @@ export function DatePicker({
             padding: 12,
           }}
         >
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          {/* Type it, or pick the month and year straight from the lists. */}
+          <input
+            className="cal-typed"
+            value={typed}
+            placeholder="Type a date, e.g. 07/10/2015"
+            aria-label="Type a date"
+            onChange={(e) => {
+              setTyped(e.target.value);
+              setTypedBad(false);
+            }}
+            onBlur={applyTyped}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyTyped();
+              }
+            }}
+            style={{ borderColor: typedBad ? "var(--text-error)" : undefined }}
+          />
+          {typedBad && <div style={{ fontSize: 12, color: "var(--text-error)", margin: "-4px 0 6px" }}>Not a date: try 07/10/2015.</div>}
+          <div className="row" style={{ justifyContent: "space-between", gap: 4, marginBottom: 8 }}>
             <button type="button" aria-label="Previous month" onClick={() => move(-1)} style={navBtn}>
               <Icon name="chevron-left" size={16} />
             </button>
-            <b style={{ fontSize: 14 }}>{MONTHS[view.m]} {view.y}</b>
+            <span className="row" style={{ gap: 4 }}>
+              <select className="cal-select" aria-label="Month" value={view.m}
+                onChange={(e) => setView((v) => ({ ...v, m: Number(e.target.value) }))}>
+                {MONTHS.map((name, i) => (
+                  <option key={name} value={i}>{name}</option>
+                ))}
+              </select>
+              <select className="cal-select" aria-label="Year" value={view.y}
+                onChange={(e) => setView((v) => ({ ...v, y: Number(e.target.value) }))}>
+                {yearsAround(view.y).map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </span>
             <button type="button" aria-label="Next month" onClick={() => move(1)} style={navBtn}>
               <Icon name="chevron-right" size={16} />
             </button>
@@ -198,9 +280,14 @@ export function DatePicker({
             </div>
           )}
           <div className="row" style={{ justifyContent: "space-between", marginTop: 12, gap: 8 }}>
-            <button type="button" onClick={() => setPicked("")} style={{ ...navBtn, width: "auto", padding: "0 8px", fontSize: 13, color: "var(--text-muted)" }}>
-              Clear
-            </button>
+            <span className="row" style={{ gap: 2 }}>
+              <button type="button" onClick={() => setPicked("")} style={{ ...navBtn, width: "auto", padding: "0 8px", fontSize: 13, color: "var(--text-muted)" }}>
+                Clear
+              </button>
+              <button type="button" onClick={() => pick(todayIso)} style={{ ...navBtn, width: "auto", padding: "0 8px", fontSize: 13, color: "var(--text-accent)" }}>
+                Today
+              </button>
+            </span>
             <div className="row" style={{ gap: 8 }}>
               <Button size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button size="sm" onClick={ok}>OK</Button>

@@ -167,16 +167,43 @@ MATERIAL_UNCERTAINTY = (
     "available as at the valuation date only, and we recommend that it is kept under regular review."
 )
 UNITS = [*APARTMENTS, "fitted_office", "shell_core_office", "fitted_retail", "shell_core_retail"]
+SHELL_AND_CORE = ["shell_core_office", "shell_core_retail"]
+FITTED = ["fitted_office", "fitted_retail"]
+COMMERCIAL = [*FITTED, *SHELL_AND_CORE]
+HOMES = [*APARTMENTS, *VILLAS]
+
+# Which property types each report-text option is offered for; anything not
+# listed is offered for all of them (the valuer can still search for it).
+OFFERED_FOR = {
+    ("assumption", "Multiple Properties on Single Plot"): VILLAS,
+    ("assumption", "Combined Units with Separate Title Deeds"): COMMERCIAL,
+    ("assumption", "Under Construction Phase - Granted Area/Housing Program"): VILLAS,
+    ("special_assumption", "Hotel Apartment"): APARTMENTS,
+    ("special_assumption", "Land Value"): VILLAS,
+    ("specification", "Standard Property"): HOMES,
+    ("specification", "Desktop Standard Property"): HOMES,
+    ("specification", "Modified Property"): HOMES,
+    ("specification", "Custom Built Property"): VILLAS,
+    ("specification", "Shell and Core Office"): SHELL_AND_CORE,
+    ("specification", "Desktop Shell and Core Office"): SHELL_AND_CORE,
+    ("specification", "Fitted Office/Retail"): FITTED,
+    ("specification", "Desktop Fitted Office/Retail"): FITTED,
+}
 
 # category -> [(title, older titles, property categories it is offered for[, body])]
 # A body given here is the approved wording: it replaces a placeholder body,
 # never text an admin has since written.
 LIBRARY = {
-    # "Valuation Report Text Inputs" (Oct 2026): the approved wording, and Custom.
-    "assumption": [(t, [], [], b) for t, b in [*report_text.ASSUMPTIONS, report_text.CUSTOM]],
-    "special_assumption": [(t, [], [], b) for t, b in [*report_text.SPECIAL_ASSUMPTIONS, report_text.CUSTOM]],
-    "specification": [(t, [], [], b) for t, b in [*report_text.SPECIFICATIONS, report_text.CUSTOM]],
-    "condition": [(t, [], [], b) for t, b in [*report_text.CONDITIONS, report_text.CUSTOM]],
+    # "Valuation Report Text Inputs" (Oct 2026): the approved wording, and
+    # Custom, each offered for the property types it applies to.
+    "assumption": [(t, [], OFFERED_FOR.get(("assumption", t), []), b)
+                   for t, b in [*report_text.ASSUMPTIONS, report_text.CUSTOM]],
+    "special_assumption": [(t, [], OFFERED_FOR.get(("special_assumption", t), []), b)
+                           for t, b in [*report_text.SPECIAL_ASSUMPTIONS, report_text.CUSTOM]],
+    "specification": [(t, [], OFFERED_FOR.get(("specification", t), []), b)
+                      for t, b in [*report_text.SPECIFICATIONS, report_text.CUSTOM]],
+    "condition": [(t, [], OFFERED_FOR.get(("condition", t), []), b)
+                  for t, b in [*report_text.CONDITIONS, report_text.CUSTOM]],
     "market_commentary": [
         ("Apartment", [], APARTMENTS), ("Villa", [], VILLAS),
         ("Office", [], ["fitted_office", "shell_core_office"]),

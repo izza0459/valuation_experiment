@@ -141,6 +141,19 @@ def _rows(*rows):
     return [r for r in rows if r is not None]
 
 
+def library_text(category: str, property_category: str) -> str:
+    """The active library entry of `category` offered for this property type
+    (or, failing that, one offered for every type)."""
+    from apps.presets.models import TextLibraryItem
+
+    items = list(TextLibraryItem.objects.filter(category=category, active=True).exclude(title="Custom")
+                 .exclude(body=""))
+    for item in items:
+        if property_category and property_category in (item.property_categories or []):
+            return item.body
+    return next((i.body for i in items if not i.property_categories), "")
+
+
 def _entries(value) -> list[dict]:
     """Library entries [{title, body}]; text saved before assumptions became a
     list reads as one untitled entry."""
@@ -376,7 +389,9 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     if valuation.reinstatement_note:
         reinstatement = valuation.reinstatement_note
     else:
-        reinstatement = REINSTATEMENT_VILLA if plot_bearing else REINSTATEMENT_UNIT
+        # The library's wording for this property type, as an admin last edited it.
+        reinstatement = library_text("reinstatement", summary.property_category) or (
+            REINSTATEMENT_VILLA if plot_bearing else REINSTATEMENT_UNIT)
     if FIGURE_BLANK in reinstatement and valuation.reinstatement_value:
         reinstatement = reinstatement.replace(FIGURE_BLANK, fmt_number(valuation.reinstatement_value))
 

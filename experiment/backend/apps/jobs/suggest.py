@@ -4,7 +4,8 @@ ticked twice, and a condition or specification already chosen is left alone.
 
   Inspection Type Desktop  -> Assumption "Desktop Valuation", Condition
                               "Desktop Standard Property - Good Condition",
-                              Specification "Desktop Standard Property"
+                              Specification "Desktop Standard Property" (or
+                              the desktop shell & core / fitted office one)
   Inspection Type Drive-By -> Assumption "Drive By/External Inspection"
   Inspection Type Previous -> Condition and Specification "Previous Inspection"
   Interest Valued Granted  -> Special Assumption "Granted"
@@ -16,11 +17,18 @@ from apps.presets.models import TextLibraryItem
 
 from .models import JobTabVersion
 
+# The desktop specification follows the property type.
+DESKTOP_SPEC = "desktop specification"
+DESKTOP_SPECS = {
+    "shell_core_office": "Desktop Shell and Core Office", "shell_core_retail": "Desktop Shell and Core Office",
+    "fitted_office": "Desktop Fitted Office/Retail", "fitted_retail": "Desktop Fitted Office/Retail",
+}
+
 RULES = {
     ("inspection_type", "desktop"): [
         ("assumption", "Desktop Valuation"),
         ("condition", "Desktop Standard Property - Good Condition"),
-        ("specification", "Desktop Standard Property"),
+        ("specification", DESKTOP_SPEC),
     ],
     ("inspection_type", "drive_by"): [("assumption", "Drive By/External Inspection")],
     ("inspection_type", "previous_inspection"): [
@@ -55,6 +63,8 @@ def apply(job, saved_tab: str, cleaned: dict) -> None:
             continue
         summary, location = job.summary, job.location
         for category, title in ticks:
+            if title == DESKTOP_SPEC:
+                title = DESKTOP_SPECS.get(summary.property_category, "Desktop Standard Property")
             body = _text(category, title)
             if body is None:
                 continue
@@ -74,5 +84,14 @@ def apply(job, saved_tab: str, cleaned: dict) -> None:
                 setattr(location, field, body)
                 location.save()
                 changed.add("location")
+    if "property_category" in cleaned and cleaned["property_category"][2]:
+        valuation = job.valuation
+        if not (valuation.reinstatement_note or "").strip():
+            from apps.reports.context import library_text
+
+            if text := library_text("reinstatement", cleaned["property_category"][2]):
+                valuation.reinstatement_note = text
+                valuation.save()
+                changed.add("valuation")
     for tab_key in changed:
         _bump(job, tab_key, saved_tab)

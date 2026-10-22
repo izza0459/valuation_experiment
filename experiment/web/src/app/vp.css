@@ -260,6 +260,29 @@
 .cal button {
   min-height: 0 !important;
 }
+.cal-typed {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px !important;
+  min-height: 0 !important;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px !important;
+}
+.cal-select {
+  height: 32px !important;
+  min-height: 0 !important;
+  padding: 0 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-card);
+  font-family: inherit;
+  font-size: 14px !important;
+  font-weight: 700;
+}
 .cal-day {
   height: 34px;
   padding: 0;
@@ -282,6 +305,134 @@
   .kpis .kpi-value {
     font-size: 24px !important;
   }
+}
+/* Jobs page: the summary figures on one slim line. */
+.kpi-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: -6px 0 14px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.kpi-line b {
+  font-size: 16px;
+  color: var(--text-primary);
+}
+.kpi-line > span:not(:last-child)::after {
+  content: "·";
+  margin-left: 22px;
+  color: var(--gray-400);
+}
+/* Pipeline: one row of stages, one row of section pills. */
+.pipe-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pipe-step {
+  flex: 1 1 0;
+  min-width: 92px;
+  display: grid;
+  gap: 1px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 0 !important;
+}
+.pipe-step:hover {
+  background: var(--surface-subtle);
+}
+.pipe-step.on {
+  border-color: var(--action-primary);
+  background: var(--surface-accent);
+}
+.pipe-label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.pipe-count {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.pipe-drop {
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.pipe-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 0 !important;
+}
+.pipe-pill.on {
+  border-color: var(--action-primary);
+  background: var(--surface-accent);
+  color: var(--text-accent);
+}
+/* A stage's sections: a card each with its count, share of the stage and a bar. */
+.section-card {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 0 !important;
+}
+.section-card.on {
+  border-color: var(--action-primary);
+  background: var(--surface-accent);
+}
+.section-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--gray-150);
+  overflow: hidden;
+}
+.section-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--action-primary);
+}
+/* The Pipeline filter the jobs table is showing, beside the search box. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-accent);
+  color: var(--text-accent);
+  font-size: 14px;
+}
+.filter-chip button {
+  display: flex;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  padding: 2px;
+  min-height: 0 !important;
 }
 /* Admin pipeline: six stage cards in a row, three on a tablet, two on a phone. */
 .funnel-grid {
