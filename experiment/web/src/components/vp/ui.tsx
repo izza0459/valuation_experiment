@@ -400,6 +400,7 @@ export const G = ({ cols = 2, children, gap = 18 }: { cols?: number; children: R
 // Pages that exist. "Valuation register" (S9) isn't built, so it isn't linked:
 // a nav item that leads to a 404 is worse than no item.
 const NAV: { key: string; label: string; icon: string; adminOnly?: boolean }[] = [
+  { key: "dashboard", label: "Dashboard", icon: "layout-dashboard", adminOnly: true },
   { key: "jobs", label: "Jobs", icon: "briefcase" },
   { key: "admin", label: "Admin", icon: "settings", adminOnly: true },
 ];
