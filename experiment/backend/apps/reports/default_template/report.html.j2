@@ -1,10 +1,7 @@
 {#- Standard valuation report, structure per CLAUDE.md §5.
-    Wording is our own. Text that is legal in nature is marked PLACEHOLDER
-    until approved wording exists (CLAUDE.md §11); a report must not be
-    issued while any remains. -#}
-{% macro placeholder(what) -%}
-<p class="placeholder">[PLACEHOLDER – replace with approved wording: {{ what }}]</p>
-{%- endmacro %}
+    Wording is our own. The one PLACEHOLDER left is the firm's legal name,
+    shown only until REPORT_FIRM_LEGAL_NAME is set; a report must not be
+    issued while it remains. -#}
 
 {#- Commercial and legal terms quoted in the wording below, from the firm's
     Word template (Valuation_Report_Template.docx), where they were shown in

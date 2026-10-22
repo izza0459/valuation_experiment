@@ -398,6 +398,7 @@ function LibraryField({
   const asList = Array.isArray(value);
   const entries = asList ? (value as LibraryEntry[]) : [];
   const picked = new Set(entries.map((e) => e.title));
+  const onlyCustom = !asList && options.length > 0 && options.every((o) => o.label === "Custom" && !o.report_text);
 
   const matches = options.filter(
     (o) =>
@@ -450,18 +451,21 @@ function LibraryField({
         </>
       )}
 
-      <div>
-        <Button
-          size="sm"
-          variant="soft"
-          icon={<Icon name={open ? "chevron-up" : "book-open"} size={16} />}
-          onClick={() => setOpen(!open)}
-        >
-          {asList || append ? "Add from library" : str(value) ? "Replace from library" : "Choose from library"}
-        </Button>
-      </div>
+      {/* Nothing in the library but Custom (commentary): the box above is it. */}
+      {!onlyCustom && (
+        <div>
+          <Button
+            size="sm"
+            variant="soft"
+            icon={<Icon name={open ? "chevron-up" : "book-open"} size={16} />}
+            onClick={() => setOpen(!open)}
+          >
+            {asList || append ? "Add from library" : str(value) ? "Replace from library" : "Choose from library"}
+          </Button>
+        </div>
+      )}
 
-      {open && (
+      {open && !onlyCustom && (
         <div style={{ display: "grid", gap: 10 }}>
           <Input placeholder="Search text library" value={query} onChange={(e) => setQuery(e.target.value)} />
           {matches.length === 0 && (

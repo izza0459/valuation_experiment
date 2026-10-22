@@ -204,17 +204,9 @@ LIBRARY = {
                       for t, b in [*report_text.SPECIFICATIONS, report_text.CUSTOM]],
     "condition": [(t, [], OFFERED_FOR.get(("condition", t), []), b)
                   for t, b in [*report_text.CONDITIONS, report_text.CUSTOM]],
-    "market_commentary": [
-        ("Apartment", [], APARTMENTS), ("Villa", [], VILLAS),
-        ("Office", [], ["fitted_office", "shell_core_office"]),
-        ("Retail", [], ["fitted_retail", "shell_core_retail"]),
-    ],
-    "valuation_commentary": [
-        ("Apartment", [], APARTMENTS), ("Villa/Townhouse", [], VILLAS),
-        ("Shell and Core Office", [], ["shell_core_office"]), ("Shell and Core Retail", [], ["shell_core_retail"]),
-        ("Fitted Office", [], ["fitted_office"]), ("Fitted Retail", [], ["fitted_retail"]),
-        ("Fully Customised Property", [], []), ("Rare and Unique Property", [], []),
-    ],
+    # No approved commentary wording yet: the valuer writes it per job.
+    "market_commentary": [(*report_text.CUSTOM[:1], [], [], report_text.CUSTOM[1])],
+    "valuation_commentary": [(*report_text.CUSTOM[:1], [], [], report_text.CUSTOM[1])],
     "reinstatement": [
         ("Apartment / Office / Retail", [], UNITS, REINSTATEMENT_UNIT),
         ("Villa / Townhouse", [], VILLAS, REINSTATEMENT_VILLA),
@@ -258,7 +250,7 @@ def sync(PresetOption, TextLibraryItem):
                 if row:
                     break
             if row is None:
-                row = TextLibraryItem(category=category, body=f"{PLACEHOLDER}{title}.")
+                row = TextLibraryItem(category=category, body="")
             if body and (not row.body or row.body.startswith(PLACEHOLDER) or not body[0]):
                 row.body = body[0]
             row.title, row.order, row.active, row.property_categories = title, order, True, categories

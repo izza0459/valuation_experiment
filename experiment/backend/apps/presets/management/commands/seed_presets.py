@@ -3,17 +3,13 @@
 Idempotent and non-destructive: rows are created only if missing, so an
 admin's edits and deactivations survive a re-run.
 
-The text-library bodies are PLACEHOLDERS. CLAUDE.md §11: our own
-assumptions/T&C/disclaimer wording isn't available yet, and the report must
-never carry another firm's text. Each body starts with a marker so a
-placeholder can't be mistaken for approved wording on a signed report.
+The text library is not seeded here: its approved wording ("Valuation Report
+Text Inputs") comes from the presets migrations (apps.presets.dictionary).
 """
 
 from django.core.management.base import BaseCommand
 
-from apps.presets.models import PresetOption, TextLibraryItem
-
-PLACEHOLDER = "[PLACEHOLDER – replace with approved wording] "
+from apps.presets.models import PresetOption
 
 # Lists the field dictionary doesn't cover. The ones it does cover are
 # created by migration presets.0004 (apps.presets.dictionary).
@@ -55,27 +51,11 @@ PRESET_TEXT = {
 
 # category -> titles (CLAUDE.md §4). Bodies are placeholders; see module docstring.
 # Specification, condition and commentary come from the field dictionary.
-LIBRARY = {
-    "special_assumption": [
-        "Granted title converted to freehold", "Hotel apartment rental-pool restriction", "Assumed UAE Freehold",
-        "Compound limited access", "Extension/modification permission assumed", "No NOC / assumed NOC",
-        "Satellite imagery",
-    ],
-    # The former "Other Matters" library, now offered under Assumptions.
-    "assumption": [
-        "Title deed size error", "Wrong plot size", "Wrong floor plans", "Structural damage", "Sharjah properties",
-        "Sample unit inspection", "Road noise", "Payment plan", "Phone mast", "Restricted freehold",
-        "Drive-by/desktop assumed good condition", "Exaggerated BUA", "Illegal modifications",
-        "Under-construction phase notes", "Vacant & furnished",
-    ],
-}
-
-
 class Command(BaseCommand):
-    help = "Seed dropdown presets and placeholder text-library entries (idempotent)."
+    help = "Seed dropdown presets and (idempotent)."
 
     def handle(self, *args, **options):
-        made_presets = made_items = 0
+        made_presets = 0
         for field_key, labels in PRESETS.items():
             for order, entry in enumerate(labels):
                 label, value = (entry, _slug(entry)) if isinstance(entry, str) else entry
@@ -93,16 +73,8 @@ class Command(BaseCommand):
                     defaults={"label": label, "order": order, "report_text": text},
                 )
                 made_presets += created
-        for category, titles in LIBRARY.items():
-            for order, title in enumerate(titles):
-                _, created = TextLibraryItem.objects.get_or_create(
-                    category=category,
-                    title=title,
-                    defaults={"body": f"{PLACEHOLDER}{title}.", "order": order},
-                )
-                made_items += created
         self.stdout.write(
-            self.style.SUCCESS(f"Created {made_presets} presets and {made_items} text-library items.")
+            self.style.SUCCESS(f"Created {made_presets} presets.")
         )
 
 
