@@ -56,9 +56,10 @@ class TestAccess:
     def test_an_admin_can_read(self, client, endpoint):
         assert client.get(f"/api/admin/{endpoint}/").status_code == 200
 
-    @pytest.mark.parametrize("endpoint", ["users", "banks", "presets", "library"])
+    @pytest.mark.parametrize("endpoint", ["users", "banks", "presets"])
     def test_nothing_can_be_deleted(self, client, endpoint):
-        """Everything is referenced by jobs, reports or the audit trail."""
+        """Referenced by jobs, reports or the audit trail. (Library entries
+        can be: jobs keep their own copy of the text.)"""
         assert client.delete(f"/api/admin/{endpoint}/1/").status_code in (404, 405)
 
 
@@ -291,6 +292,22 @@ class TestLibrary:
                     format="json")
         options = as_user(make_user("val")).get("/api/options/").json()["assumption"]
         assert any(o["label"] == "Vacant" and o["report_text"] == "Assumed vacant." for o in options)
+
+    def test_a_deleted_entry_is_gone_from_the_library_and_the_form(self, client):
+        from apps.presets.dictionary import sync
+
+        item = TextLibraryItem.objects.filter(category="assumption", active=True).exclude(title="Custom").first()
+        assert client.delete(f"/api/admin/library/{item.pk}/").status_code == 204
+        item.refresh_from_db()
+        assert item.deleted and not item.active  # kept as a row: soft delete
+        assert all(i["id"] != item.pk for i in client.get("/api/admin/library/?category=assumption").json())
+        options = as_user(make_user("val")).get("/api/options/").json()["assumption"]
+        assert all(o["label"] != item.title for o in options)
+        # A later dictionary sync doesn't bring it back.
+        sync(PresetOption, TextLibraryItem)
+        item.refresh_from_db()
+        assert item.deleted and not item.active
+        assert TextLibraryItem.objects.filter(category="assumption", title=item.title).count() == 1
 
 
 class TestTemplates:

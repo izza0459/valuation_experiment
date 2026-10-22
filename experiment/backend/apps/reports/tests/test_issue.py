@@ -106,15 +106,20 @@ class TestPlaceholders:
 # --- what blocks issuing -----------------------------------------------------------------------
 
 
+def leave_a_placeholder(job):
+    """A placeholder left in an authored template (the shipped one has none)."""
+    ReportTemplate.objects.filter(version="t1").update(
+        html="<p>[PLACEHOLDER – replace with approved wording: the lease terms]</p>")
+
+
 class TestBlockers:
     def test_a_ready_job_has_none(self, approved):
         assert issue_blockers(approved) == []
 
-    def test_the_shipped_template_blocks_until_the_legal_name_is_set(self, approved, settings):
+    def test_the_shipped_template_has_no_placeholders_without_a_legal_name(self, approved, settings):
         ReportTemplate.objects.update(active=False)  # nothing authored: the shipped default applies
         settings.REPORT_FIRM_LEGAL_NAME = ""
-        blockers = issue_blockers(Job.objects.get(pk=approved.pk))
-        assert any("placeholder" in b and "legal name" in b for b in blockers)
+        assert not any("placeholder" in b for b in issue_blockers(Job.objects.get(pk=approved.pk)))
 
     def test_the_shipped_template_is_issuable_once_the_legal_name_is_set(self, approved, settings):
         ReportTemplate.objects.update(active=False)
@@ -209,8 +214,7 @@ class TestIssuing:
         assert not approved.is_locked and not ReportVersion.objects.exists()
 
     def test_the_admin_is_offered_issue_and_sees_what_blocks_it(self, approved, boss, settings):
-        settings.REPORT_FIRM_LEGAL_NAME = ""  # the shipped template then has a placeholder
-        ReportTemplate.objects.update(active=False)
+        leave_a_placeholder(approved)
         client = APIClient()
         client.force_authenticate(boss)
         actions = client.get(f"/api/jobs/{approved.pk}/").json()["available_actions"]
@@ -384,8 +388,7 @@ class TestSignOff:
 
 class TestDemoMode:
     def test_licences_and_placeholder_wording_dont_block_in_a_demo(self, approved, settings):
-        settings.REPORT_FIRM_LEGAL_NAME = ""  # leaves a placeholder in the shipped template
-        ReportTemplate.objects.update(active=False)
+        leave_a_placeholder(approved)
         ValuerProfile.objects.update(rera_licence_expiry=datetime.date(2020, 1, 1))
         job = Job.objects.get(pk=approved.pk)  # sees the template change
         blockers = issue_blockers(job)

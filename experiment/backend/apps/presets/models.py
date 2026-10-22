@@ -65,6 +65,9 @@ class TextLibraryItem(models.Model):
     property_categories = models.JSONField(default=list, blank=True)
     order = models.PositiveIntegerField(default=0)
     active = models.BooleanField(default=True)
+    # Deleted by an admin: hidden everywhere, and the dictionary sync never
+    # brings it back. Kept as a row (soft delete, CLAUDE.md §7).
+    deleted = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["category", "order", "title"]

@@ -248,9 +248,11 @@ class TestRendering:
         ):
             assert words in html
 
-    def test_an_unset_legal_name_is_visibly_a_placeholder(self, job, settings):
+    def test_an_unset_legal_name_falls_back_to_the_firm_name(self, job, settings):
         settings.REPORT_FIRM_LEGAL_NAME = ""
-        assert "[PLACEHOLDER – replace with approved wording: the firm’s registered legal name]" in self.html(job)
+        settings.REPORT_FIRM_NAME = "Bayut Prime"
+        html = self.html(job)
+        assert "authorised by Bayut Prime" in html and "[PLACEHOLDER" not in html
 
     def test_a_set_legal_name_leaves_no_placeholders(self, job, settings):
         settings.REPORT_FIRM_LEGAL_NAME = "Example Valuations LLC"

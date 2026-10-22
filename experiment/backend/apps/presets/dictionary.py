@@ -249,6 +249,8 @@ def sync(PresetOption, TextLibraryItem):
                 row = TextLibraryItem.objects.filter(category=category, title__iexact=candidate).first()
                 if row:
                     break
+            if row is not None and getattr(row, "deleted", False):
+                continue  # an admin deleted it: it stays deleted
             if row is None:
                 row = TextLibraryItem(category=category, body="")
             if body and (not row.body or row.body.startswith(PLACEHOLDER) or not body[0]):

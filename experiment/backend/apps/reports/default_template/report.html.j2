@@ -1,7 +1,6 @@
 {#- Standard valuation report, structure per CLAUDE.md §5.
-    Wording is our own. The one PLACEHOLDER left is the firm's legal name,
-    shown only until REPORT_FIRM_LEGAL_NAME is set; a report must not be
-    issued while it remains. -#}
+    Wording is our own; it carries no placeholders. The firm's legal name
+    (REPORT_FIRM_LEGAL_NAME) falls back to its trading name. -#}
 
 {#- Commercial and legal terms quoted in the wording below, from the firm's
     Word template (Valuation_Report_Template.docx), where they were shown in
@@ -23,7 +22,7 @@
 {#- The firm's registered legal name (REPORT_FIRM_LEGAL_NAME). Until it is
     set, the report says so and cannot be issued. -#}
 {% macro legal_name() -%}
-{% if firm.legal_name %}{{ firm.legal_name }}{% else %}<span class="placeholder">[PLACEHOLDER – replace with approved wording: the firm’s registered legal name]</span>{% endif %}
+{{ firm.legal_name or firm.name }}
 {%- endmacro %}
 
 {% macro table(rows, cls="kv") -%}

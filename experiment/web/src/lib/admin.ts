@@ -29,6 +29,21 @@ export function useAdminSave(resource: string) {
   });
 }
 
+/** Delete one record (the server keeps it as a soft delete), then refresh
+ * the same lists as a save. */
+export function useAdminDelete(resource: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/api/admin/${resource}/${id}/`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin"] }),
+        qc.invalidateQueries({ queryKey: ["options"] }),
+      ]);
+    },
+  });
+}
+
 /**
  * DRF validation errors come back as `{field: ["message"]}`, nested for
  * sub-objects (`{valuer_profile: {rera_registration_no: [...]}}`). Flatten to

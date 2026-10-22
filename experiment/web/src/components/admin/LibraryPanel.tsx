@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button, Icon, Input, Select, Table, Tag, Textarea } from "@/design-system";
 import { Chip, F, Toggle } from "@/components/vp/ui";
 import { useOptions } from "@/lib/options";
-import { flattenErrors, useAdminList, useAdminSave } from "@/lib/admin";
+import { flattenErrors, useAdminDelete, useAdminList, useAdminSave } from "@/lib/admin";
 import { Empty, FormDialog, Grid, muted } from "./parts";
 
 type Item = {
@@ -37,7 +37,10 @@ export function LibraryPanel() {
   const [category, setCategory] = useState(CATEGORIES[0].value);
   const { data: items, isLoading } = useAdminList<Item>(`library/?category=${category}`);
   const save = useAdminSave("library");
+  const remove = useAdminDelete("library");
   const [editing, setEditing] = useState<Item | "new" | null>(null);
+  // Deleting asks once more in the same spot before it goes.
+  const [confirming, setConfirming] = useState(false);
   const [form, setForm] = useState({ category, title: "", body: "", order: "0", active: true, property_categories: [] as string[] });
   const { data: options } = useOptions();
   const types = (options?.property_category ?? []).map((o) => ({ value: String(o.value), label: o.label }));
@@ -47,6 +50,7 @@ export function LibraryPanel() {
   function open(item: Item | "new") {
     setEditing(item);
     setErrors({});
+    setConfirming(false);
     setForm(item === "new"
       ? { category, title: "", body: "", order: String((items?.length ?? 0) + 1), active: true, property_categories: [] }
       : { category: item.category, title: item.title, body: item.body, order: String(item.order), active: item.active,
@@ -56,6 +60,16 @@ export function LibraryPanel() {
   async function submit() {
     try {
       await save.mutateAsync({ id: editing === "new" ? undefined : (editing as Item).id, body: { ...form, order: Number(form.order) || 0 } });
+      setEditing(null);
+    } catch (err) {
+      setErrors(flattenErrors(err));
+    }
+  }
+
+  async function destroy() {
+    if (editing === null || editing === "new") return;
+    try {
+      await remove.mutateAsync(editing.id);
       setEditing(null);
     } catch (err) {
       setErrors(flattenErrors(err));
@@ -105,7 +119,7 @@ export function LibraryPanel() {
       <FormDialog
         open={editing !== null}
         title={editing === "new" ? "Add entry" : "Edit entry"}
-        subtitle="Entries marked Placeholder must be replaced with approved wording before a report can be issued."
+        subtitle="Jobs keep their own copy of the text: editing or deleting an entry doesn't change them."
         busy={save.isPending}
         error={errors._form}
         onClose={() => setEditing(null)}
@@ -140,6 +154,24 @@ export function LibraryPanel() {
           <F label="Status" span={2}>
             <Toggle on={form.active} onChange={(v) => setForm({ ...form, active: v })} label={form.active ? "Active" : "Inactive: hidden from the picker"} />
           </F>
+          {editing !== null && editing !== "new" && (
+            <F label="Delete" span={2} helper="Removes the entry from the library for good. Jobs that used it keep their text.">
+              <div className="row wrap" style={{ gap: 8 }}>
+                {confirming ? (
+                  <>
+                    <Button size="sm" variant="danger" disabled={remove.isPending} onClick={() => void destroy()}>
+                      {remove.isPending ? "Deleting…" : `Yes, delete “${editing.title}”`}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setConfirming(false)}>Keep it</Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="danger" icon={<Icon name="trash-2" size={16} />} onClick={() => setConfirming(true)}>
+                    Delete entry
+                  </Button>
+                )}
+              </div>
+            </F>
+          )}
         </Grid>
       </FormDialog>
     </div>

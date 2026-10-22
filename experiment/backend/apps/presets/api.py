@@ -92,10 +92,15 @@ class TextLibraryItemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsPlatformAdmin]
     serializer_class = TextLibraryItemSerializer
     pagination_class = None
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    # Jobs keep their own copy of the text, so an entry can be deleted.
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
-        queryset = TextLibraryItem.objects.all()
+        queryset = TextLibraryItem.objects.filter(deleted=False)
         if category := self.request.query_params.get("category"):
             queryset = queryset.filter(category=category)
         return queryset
+
+    def perform_destroy(self, instance):
+        instance.deleted, instance.active = True, False
+        instance.save(update_fields=["deleted", "active"])
