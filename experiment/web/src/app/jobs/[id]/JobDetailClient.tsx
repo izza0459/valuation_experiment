@@ -447,7 +447,7 @@ export function JobDetailClient({ id }: { id: string }) {
         </div>
       )}
 
-      {/* The peer reviewer's wording changes, for the valuer to accept (PR-01). */}
+      {/* Changes a peer reviewer made before reviewers became read-only, for the valuer to accept (PR-01). */}
       <ReviewerChanges
         jobId={id}
         edits={job.reviewer_edits ?? []}

@@ -39,7 +39,8 @@ export function ReviewerChanges({
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const pending = edits.filter((e) => !e.accepted_at);
-  if (!reviewing && pending.length === 0) return null;
+  // Reviewers no longer edit: this only shows changes recorded before that.
+  if (pending.length === 0) return null;
 
   async function accept() {
     setBusy(true);
@@ -68,9 +69,7 @@ export function ReviewerChanges({
           </div>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
             {reviewing
-              ? pending.length
-                ? "The valuer accepts these before you can sign off."
-                : "You can change anything the report prints, figures included, on any section. Every change is shown to the valuer, who accepts it before sign-off."
+              ? "The valuer accepts these before you can sign off."
               : "Sign-off waits until you accept them. Each shows the text before and after."}
           </div>
         </div>

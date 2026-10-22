@@ -46,13 +46,12 @@ from .models import (
     JobTabVersion,
     LocationData,
     Property,
-    ReviewerEdit,
     SchedulingData,
     SummaryData,
     ValuationData,
     split_names,
 )
-from .workflow import FROZEN_STATUSES, JobLockedError, JobStatus
+from .workflow import FROZEN_STATUSES, JobLockedError
 
 TAB_MODELS = {
     "scheduling": SchedulingData,
@@ -388,14 +387,10 @@ def job_tab_state(job, user=None) -> dict:
             # "locked" / "frozen": nobody can edit it now.
             tab_state["read_only_code"] = denial.code if denial else ""
             # Fields on an otherwise editable tab that this user may not change.
-            if reviewing(user, job):
-                wording = reviewer_fields(key)
-                tab_state["read_only_fields"] = [f["key"] for f in get_tab(key)["fields"] if f["key"] not in wording]
-            else:
-                tab_state["read_only_fields"] = (
-                    [] if may_assign(user, job)
-                    else [f["key"] for f in get_tab(key)["fields"] if f["key"] in ASSIGNMENT_FIELDS]
-                )
+            tab_state["read_only_fields"] = (
+                [] if may_assign(user, job)
+                else [f["key"] for f in get_tab(key)["fields"] if f["key"] in ASSIGNMENT_FIELDS]
+            )
     return state
 
 
@@ -748,26 +743,9 @@ def coerce(field: dict, mf, raw, current):
 # --- writing ------------------------------------------------------------------
 
 
-# What the peer reviewer may change during review (CRM feedback PR-01):
-# everything the report prints above the Appendix, figures included. Not the
-# team on the job (who works on it isn't report content), nor the Scheduling
-# stage (not in the report). Every change is kept and the valuer accepts them
-# before sign-off.
-REVIEWER_TABS = ("instructions", "address", "checklist", "summary", "inspection", "location", "valuation")
-
-
-def reviewer_fields(tab_key) -> set[str]:
-    if tab_key not in REVIEWER_TABS:
-        return set()
-    return {
-        f["key"] for f in get_tab(tab_key)["fields"]
-        if not f["calculated"] and f["key"] not in ASSIGNMENT_FIELDS
-    }
-
-
-def reviewing(user, job) -> bool:
-    """The assigned peer reviewer, while the job is with them."""
-    return job.status == JobStatus.PEER_REVIEW and Role.PEER_REVIEWER in roles_on_job(user, job)
+# The peer reviewer reads, then returns the job to the valuer with comments
+# or signs it off; they don't edit it. (Changes recorded while reviewers could
+# edit, CRM feedback PR-01, are still there for the valuer to accept.)
 
 
 def edit_denial(user, job, tab_key) -> TabError | None:
@@ -775,8 +753,6 @@ def edit_denial(user, job, tab_key) -> TabError | None:
 
     The one place this is decided: the PATCH endpoint enforces it and the job
     detail reports it, so the UI never offers an edit the server will refuse."""
-    if not job.is_locked and reviewing(user, job) and reviewer_fields(tab_key):
-        return None  # the wording only; patch_tab refuses anything else
     if is_platform_admin(user):
         role_ok = True
     else:
@@ -872,22 +848,6 @@ def _follow_bank_billing_address(job, old_bank_id, supplied):
     job.billing_address = bank.billing_address if bank and bank.sla_signed else ""
 
 
-def _record_reviewer_edits(job, tab_key, user, before, cleaned) -> None:
-    """Field, old and new value, who and when (CRM feedback PR-01)."""
-    import json
-
-    from django.core.serializers.json import DjangoJSONEncoder
-
-    def plain(value):  # figures and dates as text, so they can be kept as JSON
-        return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
-
-    labels = {f["key"]: f["label"] for f in get_tab(tab_key)["fields"]}
-    for key, (_, _, value) in cleaned.items():
-        if before[key] != value:
-            ReviewerEdit.objects.create(job=job, tab_key=tab_key, field_key=key, label=labels.get(key, key),
-                                        old_value=plain(before[key]), new_value=plain(value), by=user)
-
-
 def accept_reviewer_edits(job_id: int, user) -> int:
     """The valuer (or an admin) accepts the reviewer's changes; returns how many."""
     with acting_as(user), transaction.atomic():
@@ -975,14 +935,7 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
         else:
             if denial := edit_denial(user, job, tab_key):
                 raise denial
-            if reviewing(user, job):
-                if beyond := sorted(set(values) - reviewer_fields(tab_key)):
-                    raise NotPermitted(
-                        "During review the peer reviewer can change the report's content, not who works on "
-                        f"the job: {', '.join(beyond)}."
-                    )
-            else:
-                _check_may_assign(user, job, values.keys())
+            _check_may_assign(user, job, values.keys())
 
         version, _ = JobTabVersion.objects.get_or_create(job=job, tab_key=tab_key)
         if version.version != base_version:
@@ -996,12 +949,9 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
         old_bank_id = job.bank_id
 
         touched = set()
-        before = {key: getattr(targets[t], mf.attname) for key, (t, mf, _) in cleaned.items()}
         for target, mf, value in cleaned.values():
             setattr(targets[target], mf.attname, value)
             touched.add(target)
-        if not intake and reviewing(user, job):
-            _record_reviewer_edits(job, tab_key, user, before, cleaned)
         if "coi_check" in cleaned and cleaned["coi_check"][2] != (job.tracker_coi_check or ""):
             # Who confirmed the COI result, and when (CRM feedback LG-01).
             job.coi_confirmed_by, job.coi_confirmed_at = user, timezone.now()
