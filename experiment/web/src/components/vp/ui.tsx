@@ -218,28 +218,27 @@ export function Ring({ pct, size = 22, warn }: { pct: number; size?: number; war
   );
 }
 
-type Tone = NonNullable<React.ComponentProps<typeof Tag>["tone"]>;
-
-/** Job status → Tag tone. Keys are the API's status labels. */
-const STATUS_TONES: Record<string, Tone> = {
-  "Instruction Received": "neutral",
-  Setup: "neutral",
-  "Inspection Scheduled": "blue",
-  Inspected: "blue",
-  "Valuation In Progress": "purple",
-  "Peer Review": "amber",
-  "Approved & Signed": "blue",
-  Issued: "green",
-  Returned: "red",
-  // Dashboard stages
-  Inspection: "blue",
-  Valuation: "purple",
-  Review: "amber",
+/** The stage a status or stage label belongs to, for its colour. */
+const STAGE_OF: Record<string, string> = {
+  "Instruction Received": "setup", Setup: "setup",
+  Scheduling: "scheduling",
+  "Inspection Scheduled": "inspection", Inspected: "inspection", Inspection: "inspection",
+  "Valuation In Progress": "valuation", Valuation: "valuation",
+  "Peer Review": "review", "Approved & Signed": "review", Review: "review",
+  Issued: "send", "Send to bank": "send", "Sent to Bank": "send",
+  Lost: "lost", Returned: "lost",
 };
 
-export const StatusChip = ({ s }: { s: string }) => (
-  <Tag tone={STATUS_TONES[s] ?? "neutral"}>{s}</Tag>
-);
+/** A status as a small uppercase pill in its stage's colour (theme.css
+ * --stage-*). The colour says where the lead is, the same on every screen. */
+export const StatusChip = ({ s }: { s: string }) => {
+  const stage = STAGE_OF[s] ?? "setup";
+  return (
+    <span className="stage-pill" style={{ color: `var(--stage-${stage})`, background: `var(--stage-${stage}-bg)` }}>
+      {s}
+    </span>
+  );
+};
 
 const SOURCE_COLOURS: Record<string, [string, string]> = {
   DLD: ["#e8f0fe", "#3b6fd8"],
@@ -454,7 +453,8 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
         <div className="row topbar-main" style={{ gap: 28, flex: 1, minWidth: 0 }}>
           <Link href="/jobs" className="row" style={{ gap: 12, textDecoration: "none" }}>
             {/* eslint-disable-next-line @next/next/no-img-element -- small static logo */}
-            <img src="/bayut-logo.jpg" alt="bayut" className="brand-logo" />
+            <img src="/bayut-icon.svg" alt="" className="brand-logo" />
+            <span className="brand-word">bayut</span>
             <span className="brand-name">Valuations</span>
           </Link>
           <nav className="row" style={{ gap: 4 }}>

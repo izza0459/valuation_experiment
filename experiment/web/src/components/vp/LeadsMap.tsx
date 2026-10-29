@@ -8,12 +8,13 @@ import "leaflet/dist/leaflet.css";
 
 export type Pin = { id: number; ref: string; property: string; lat: number; lng: number; stage: string; community: string };
 
+/** The stage colours of theme.css (--stage-*), for the map's own drawing. */
 export const STAGE_COLOURS: Record<string, string> = {
-  Setup: "#64748b",
-  Scheduling: "#7c3aed",
-  Inspection: "#d97706",
-  Valuation: "#2563eb",
-  Review: "#0d9488",
+  Setup: "#4b5563",
+  Scheduling: "#2563a8",
+  Inspection: "#b07400",
+  Valuation: "#006169",
+  Review: "#6d4fc4",
 };
 
 const DUBAI: [number, number] = [25.13, 55.2];

@@ -136,7 +136,7 @@ function Overview({ jobId }: { jobId: string }) {
       </div>
 
       <div>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>PEOPLE</div>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>People</div>
         <div style={{ display: "grid", gap: 8 }}>
           {people.length === 0 && <span style={{ fontSize: 14, color: "var(--text-muted)" }}>Nobody assigned yet</span>}
           {people.map((p) => (

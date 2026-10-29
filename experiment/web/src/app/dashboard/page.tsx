@@ -103,9 +103,9 @@ export default function DashboardPage() {
       ) : (
         <div style={{ display: "grid", gap: 16 }}>
           <div className="dash-tiles">
-            <Tile label="Active leads" value={data.tiles.active} tip="Leads not yet issued or lost, whatever the dates." />
-            <Tile label="New" value={data.tiles.new} tip="Leads created in the period." />
-            <Tile label="Issued" value={data.tiles.issued} tip="Reports issued in the period." />
+            <Tile label="Active leads" value={data.tiles.active} tip="Leads not yet issued or lost, whatever the dates." tone="teal" />
+            <Tile label="New" value={data.tiles.new} tip="Leads created in the period." tone="blue" />
+            <Tile label="Issued" value={data.tiles.issued} tip="Reports issued in the period." tone="green" />
             <Tile label="Lost" value={data.tiles.lost} tip="Leads marked lost in the period." tone="red" />
             <Tile label="Win rate" value={data.tiles.win_rate === null ? "—" : `${data.tiles.win_rate}%`}
               tip="Of the leads closed in the period, the share issued rather than lost." />
@@ -118,7 +118,7 @@ export default function DashboardPage() {
               <Funnel stages={data.funnel} />
             </Card>
             <Card title="Active leads by stage" tip="Where today's open leads are.">
-              <Bars items={data.by_stage} colour={(c) => STAGE_COLOURS[c.label]} />
+              <Bars items={data.by_stage} colour={(c) => `var(--stage-${c.key})`} />
             </Card>
           </div>
 
@@ -159,14 +159,17 @@ export default function DashboardPage() {
   );
 }
 
-function Tile({ label, value, tip, tone }: { label: string; value: number | string; tip: string; tone?: "red" }) {
+const TONES = { teal: "var(--stage-valuation)", blue: "var(--stage-scheduling)", green: "var(--stage-send)", red: "var(--red-600)" };
+
+function Tile({ label, value, tip, tone }: { label: string; value: number | string; tip: string; tone?: keyof typeof TONES }) {
+  const colour = tone ? TONES[tone] : undefined;
   return (
-    <div className="card dash-tile">
-      <div className="row" style={{ gap: 6, fontSize: 13, color: "var(--text-muted)" }}>
+    <div className="card dash-tile" style={{ borderTop: `3px solid ${colour ?? "var(--border-default)"}` }}>
+      <div className="row eyebrow" style={{ gap: 6 }}>
         {label}
         <Tip text={tip} size={13} />
       </div>
-      <div className="num" style={{ fontSize: 28, marginTop: 4, color: tone === "red" ? "var(--red-600)" : undefined }}>{value}</div>
+      <div className="num" style={{ fontSize: 28, fontWeight: 900, marginTop: 4, color: colour }}>{value}</div>
     </div>
   );
 }

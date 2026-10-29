@@ -391,7 +391,7 @@ export function JobDetailClient({ id }: { id: string }) {
                   gap: 10,
                   padding: "14px 10px 12px",
                   border: 0,
-                  borderBottom: `2px solid ${selected ? "var(--action-primary)" : "transparent"}`,
+                  borderBottom: `3px solid ${selected ? `var(--stage-${stage.key})` : "transparent"}`,
                   background: "none",
                   textAlign: "left",
                   fontFamily: "inherit",
@@ -406,8 +406,8 @@ export function JobDetailClient({ id }: { id: string }) {
                     display: "grid",
                     placeItems: "center",
                     fontSize: 13,
-                    background: done ? "var(--green-600)" : now ? "var(--action-primary)" : "var(--gray-150)",
-                    color: done || now ? "#fff" : "var(--text-secondary)",
+                    background: done ? "var(--green-600)" : now || selected ? `var(--stage-${stage.key})` : "var(--gray-150)",
+                    color: done || now || selected ? "#fff" : "var(--text-secondary)",
                   }}
                 >
                   {done ? <Icon name="check" size={14} color="#fff" /> : i + 1}
@@ -417,8 +417,8 @@ export function JobDetailClient({ id }: { id: string }) {
                     style={{
                       display: "block",
                       fontSize: 14,
-                      fontWeight: selected ? 500 : 400,
-                      color: selected ? "var(--text-accent)" : "var(--text-primary)",
+                      fontWeight: selected ? 700 : 400,
+                      color: selected ? `var(--stage-${stage.key})` : "var(--text-primary)",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",

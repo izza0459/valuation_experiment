@@ -105,3 +105,102 @@ a:hover {
 .tip-body {
   background: #363636;
 }
+
+/* --- Stage colours: one hue per stage, used wherever a lead's stage shows
+   (status pills, the stage stepper, dashboard bars, map pins). Colour is
+   reserved for meaning: teal = act here, stage hue = where a lead is,
+   red = needs attention, green = done. */
+:root {
+  --stage-setup: #4b5563;
+  --stage-setup-bg: #eef0f2;
+  --stage-scheduling: #2563a8;
+  --stage-scheduling-bg: #e6f0fa;
+  --stage-inspection: #9a6100;
+  --stage-inspection-bg: #faf0db;
+  --stage-valuation: #006169;
+  --stage-valuation-bg: #e1f2f0;
+  --stage-review: #6d4fc4;
+  --stage-review-bg: #efebfb;
+  --stage-send: #1f8a4f;
+  --stage-send-bg: #e6f5ec;
+  --stage-issued: #1f8a4f;
+  --stage-issued-bg: #e6f5ec;
+  --stage-peer_review: #6d4fc4;
+  --stage-peer_review-bg: #efebfb;
+  --stage-lost: #c32b2a;
+  --stage-lost-bg: #fdeeee;
+
+  /* Type scale (Lato): body 14, labels 13, meta 12 */
+  --font-size-md: 14px;
+  --text-label: 13px;
+  --text-value-size: 14px;
+  --text-meta: 12px;
+}
+
+.stage-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Group labels: LEAD JOURNEY, PEOPLE, figure names. */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* --- Top bar: solid teal, white type ------------------------------- */
+.topbar {
+  background: var(--accent);
+  border-bottom: 0;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+.brand-logo {
+  height: 26px;
+  margin: 0;
+  mix-blend-mode: normal;
+  filter: brightness(0) invert(1);
+}
+.brand-word {
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin-left: -4px;
+}
+.brand-name {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 15px;
+  border-left-color: rgba(255, 255, 255, 0.3);
+}
+.topbar .nav {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13.5px;
+}
+.topbar .nav:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.topbar .nav.on {
+  background: #fff;
+  color: var(--accent);
+}
+.topbar .signout {
+  color: #fff;
+}
+.topbar-who div {
+  color: #fff !important;
+}
+.topbar-who div + div {
+  color: rgba(255, 255, 255, 0.75) !important;
+}

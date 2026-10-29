@@ -7,8 +7,8 @@
  * component paths, so a future move to a published package is one edit.
  */
 
-export { Avatar } from "./components/core/Avatar.jsx";
-export { Button } from "./components/core/Button.jsx";
+// Button and Avatar in the valuations look (themed.tsx wraps the originals).
+export { Avatar, Button, avatarColour } from "./themed";
 export { Icon } from "./components/core/Icon.jsx";
 export { IconButton } from "./components/core/IconButton.jsx";
 export { Tag } from "./components/core/Tag.jsx";
