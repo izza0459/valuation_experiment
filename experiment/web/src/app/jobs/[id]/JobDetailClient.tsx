@@ -10,7 +10,8 @@
  *     → Review (peer reviewer) → Send to bank (ops)
  *
  * A stage's sections (the data-entry tabs from the field config) sit under
- * it. Completing a stage's sections moves the job on by itself (server:
+ * it as an accordion: each shows its progress, and opens to its form; the
+ * first unfinished one starts open. Completing a stage's sections moves the job on by itself (server:
  * transitions.sync_stage). Moving forward into a later stage needs every
  * earlier stage complete: Next (or a later stage's tab) says what is missing
  * instead. Leaving a completed Valuation stage asks what goes in the report.
@@ -25,7 +26,7 @@ import { useEffect, useState } from "react";
 import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
 import { Avatar, Button, Icon } from "@/design-system";
-import { Banner, Ring, Shell, StatusChip } from "@/components/vp/ui";
+import { Banner, Shell, StatusChip } from "@/components/vp/ui";
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
@@ -99,15 +100,9 @@ export function JobDetailClient({ id }: { id: string }) {
   // The include-in-report step, and where to go once it is saved.
   const [reportStep, setReportStep] = useState<string | null>(null);
   const [losing, setLosing] = useState(false);
-  // Phones: the section pills scroll sideways; keep the open one in view.
-  useEffect(() => {
-    const pill = document.querySelector<HTMLElement>(".stickybar [data-on='1']");
-    const row = pill?.parentElement;
-    if (pill && row && row.scrollWidth > row.clientWidth) {
-      const offset = pill.getBoundingClientRect().left - row.getBoundingClientRect().left;
-      row.scrollLeft += offset - (row.clientWidth - pill.offsetWidth) / 2;
-    }
-  });
+  // The stage's open sections; null until the user opens or closes one, when
+  // the section the stage opened on is the open one.
+  const [expanded, setExpanded] = useState<string[] | null>(null);
 
   if (jobLoading || tabsLoading) {
     return (
@@ -172,9 +167,11 @@ export function JobDetailClient({ id }: { id: string }) {
     navPages.find((p) => p.stage === statusStage) ??
     navPages[0];
   const current = navPages.find((p) => p.key === active && (!opsView || OPS_STAGES.includes(p.stage))) ?? defaultPage;
-  const index = navPages.findIndex((p) => p.key === current.key);
-  const prev = index > 0 ? navPages[index - 1] : null;
-  const nextPage = index < navPages.length - 1 ? navPages[index + 1] : null;
+  // Previous / Next move between stages; a stage's sections are all on its page.
+  const stageIndex = NAV.findIndex((s) => s.key === current.stage);
+  const firstOf = (stage?: NavStage) => (stage ? navPages.find((p) => p.stage === stage) ?? null : null);
+  const prev = firstOf(NAV[stageIndex - 1]?.key);
+  const nextPage = firstOf(NAV[stageIndex + 1]?.key);
   // For ops the walk ends with Setup: the next stage is the valuer's.
   const next = opsView && nextPage && !OPS_STAGES.includes(nextPage.stage) ? null : nextPage;
   const setupDone = (pages.filter((p) => p.stage === "setup" && p.tab)).every((p) => (job.tabs[p.key]?.completion.pct ?? 0) === 100);
@@ -232,6 +229,13 @@ export function JobDetailClient({ id }: { id: string }) {
       setNotice({ tone: "green", title: `On to ${stageLabel(target.stage)}` });
     }
     setActive(key);
+    if (target && target.stage === current.stage) {
+      // Same stage: open that section and bring it into view.
+      setExpanded((open) => [...new Set([...(open ?? [current.key]), key])]);
+      window.setTimeout(() => document.getElementById(`section-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      return;
+    }
+    setExpanded(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const goStage = (stage: NavStage) => {
@@ -245,12 +249,59 @@ export function JobDetailClient({ id }: { id: string }) {
   const ownerOf = (role: string) => assignees.find((a) => a.roles.includes(role))?.name;
   const isLocked = job.is_locked;
 
-  const nextLabel = (p: Page) =>
-    p.stage === current.stage ? `Next: ${p.label}` : `Next: ${stageLabel(p.stage)}${p.label !== stageLabel(p.stage) && stagePagesCount(p.stage) > 1 ? ` · ${p.label}` : ""}`;
-  const prevLabel = (p: Page) => (p.stage === current.stage ? p.label : `${stageLabel(p.stage)}${stagePagesCount(p.stage) > 1 ? ` · ${p.label}` : ""}`);
-  function stagePagesCount(stage: NavStage) {
-    return navPages.filter((p) => p.stage === stage).length;
-  }
+  const nextLabel = (p: Page) => `Next: ${stageLabel(p.stage)}`;
+  const prevLabel = (p: Page) => stageLabel(p.stage);
+  // Review and Send to bank are one page each; the data-entry stages list
+  // their sections as an accordion.
+  const asAccordion = current.stage !== "review" && current.stage !== "send";
+  const openKeys = expanded ?? [current.key];
+  const toggle = (key: string) =>
+    setExpanded(openKeys.includes(key) ? openKeys.filter((k) => k !== key) : [...openKeys, key]);
+  const allOpen = stagePages.every((p) => openKeys.includes(p.key));
+  const showPanel = asAccordion;
+
+  /** One section's form (or Evidence's table), as it was shown on its own. */
+  const sectionBody = (page: Page) => {
+    if (page.key === "evidence") {
+      return (
+        <EvidenceTab
+          jobId={id}
+          canEdit={Boolean(job.tabs.evidence?.can_edit)}
+          readOnlyReason={job.tabs.evidence?.read_only_reason ?? ""}
+        />
+      );
+    }
+    if (!page.tab || !job.tabs[page.key]) return null;
+    return (
+      <>
+        {/* Tabs shown inside this section (the Check List at the top of Inspection). */}
+        {pages
+          .filter((p) => p.within === page.key && p.tab && job.tabs[p.key])
+          .map((p) => (
+            <div key={p.key} style={{ marginBottom: 24, paddingBottom: 8, borderBottom: "1px solid var(--border-divider)" }}>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
+              <TabEditor key={p.key} jobId={id} tab={p.tab!} state={job.tabs[p.key]} allValues={allValues} />
+            </div>
+          ))}
+        {pages.some((p) => p.within === page.key) && (
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{page.label}</div>
+        )}
+        {/* Keyed so each section keeps its own autosave state. */}
+        <TabEditor key={page.key} jobId={id} tab={page.tab} state={job.tabs[page.key]} allValues={allValues}
+          omit={page.key === "scheduling" ? CALL_FIELDS : undefined} />
+        {page.key === "scheduling" && (
+          <>
+            <CallForm
+              jobId={id}
+              canEdit={Boolean(job.tabs.scheduling?.can_edit)}
+              current={String(job.tabs.scheduling?.values.call_status ?? "")}
+            />
+            <CallLog calls={job.call_log ?? []} />
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
     <Shell>
@@ -288,7 +339,7 @@ export function JobDetailClient({ id }: { id: string }) {
           <div className="row jobmeta" style={{ gap: 12, flexShrink: 0 }}>
             {!isLocked && current.stage !== "review" && current.stage !== "send" && <ReportActions jobId={id} />}
             <StatusChip s={job.status_label as string} />
-            {job.can_mark_lost && (
+            {job.can_mark_lost && !showPanel && (
               <Button size="sm" variant="outline" icon={<Icon name="circle-x" size={16} />} onClick={() => setLosing(true)}>
                 <span className="hide-app">Mark as lost</span>
               </Button>
@@ -393,41 +444,6 @@ export function JobDetailClient({ id }: { id: string }) {
             );
           })}
         </nav>
-        {/* The stage's sections, when it has more than one. */}
-        {stagePages.length > 1 && (
-          <div className="row wrap" style={{ gap: 6, padding: "10px 0 12px", borderTop: "1px solid var(--border-divider)" }}>
-            {stagePages.map((p) => {
-                  const { pct, missing } = completionOf(p.key);
-                  const on = p.key === current.key;
-                  return (
-                    <button
-                      key={p.key}
-                      type="button"
-                      data-on={on ? "1" : undefined}
-                      onClick={() => go(p.key)}
-                      title={missing.length ? `Missing: ${missing.join(", ")}` : undefined}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        padding: "7px 12px",
-                        borderRadius: 999,
-                        border: `1px solid ${on ? "var(--action-primary)" : "var(--border-subtle)"}`,
-                        background: on ? "var(--surface-subtle)" : "var(--surface-card)",
-                        color: on ? "var(--text-accent)" : "var(--text-secondary)",
-                        fontFamily: "inherit",
-                        fontSize: 14,
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <Ring pct={pct} size={18} warn={missing.length > 0} />
-                      {p.label}
-                    </button>
-                  );
-                })}
-          </div>
-        )}
       </div>
 
       {notice && (
@@ -492,44 +508,55 @@ export function JobDetailClient({ id }: { id: string }) {
               <ReviewPanel job={job} jobId={id} onSend={() => go("send")} />
             ) : current.key === "send" ? (
               <SendPanel job={job} jobId={id} />
-            ) : current.key === "evidence" ? (
-              <EvidenceTab
-                jobId={id}
-                canEdit={Boolean(job.tabs.evidence?.can_edit)}
-                readOnlyReason={job.tabs.evidence?.read_only_reason ?? ""}
-              />
             ) : (
-              current.tab &&
-              job.tabs[current.key] && (
-                <>
-                  {/* Tabs shown inside this section (the Check List at the top of Inspection). */}
-                  {pages
-                    .filter((p) => p.within === current.key && p.tab && job.tabs[p.key])
-                    .map((p) => (
-                      <div key={p.key} style={{ marginBottom: 28, paddingBottom: 8, borderBottom: "1px solid var(--border-divider)" }}>
-                        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
-                        <TabEditor key={p.key} jobId={id} tab={p.tab!} state={job.tabs[p.key]} allValues={allValues} />
-                      </div>
-                    ))}
-                  {pages.some((p) => p.within === current.key) && (
-                    <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{current.label}</div>
+              <>
+                <div className="row" style={{ justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+                  <div style={{ fontSize: 15 }}>
+                    <b style={{ fontWeight: 700 }}>{stageLabel(current.stage)}</b>
+                    <span style={{ color: "var(--text-muted)" }}>
+                      {" "}· {stagePages.length} section{stagePages.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {stagePages.length > 1 && (
+                    <button type="button" className="linkbtn"
+                      onClick={() => setExpanded(allOpen ? [] : stagePages.map((p) => p.key))}>
+                      {allOpen ? "Collapse all" : "Expand all"}
+                    </button>
                   )}
-                  {/* Keyed so each section gets its own autosave state, and
-                      leaving one flushes whatever was typed last. */}
-                  <TabEditor key={current.key} jobId={id} tab={current.tab} state={job.tabs[current.key]} allValues={allValues}
-                    omit={current.key === "scheduling" ? CALL_FIELDS : undefined} />
-                  {current.key === "scheduling" && (
-                    <>
-                      <CallForm
-                        jobId={id}
-                        canEdit={Boolean(job.tabs.scheduling?.can_edit)}
-                        current={String(job.tabs.scheduling?.values.call_status ?? "")}
-                      />
-                      <CallLog calls={job.call_log ?? []} />
-                    </>
-                  )}
-                </>
-              )
+                </div>
+                <div className="acc">
+                  {stagePages.map((page, i) => {
+                    const { pct, missing } = completionOf(page.key);
+                    const open = openKeys.includes(page.key);
+                    const done = page.tab ? pct === 100 : false;
+                    return (
+                      <section key={page.key} id={`section-${page.key}`} className={"acc-item" + (open ? " open" : "")}>
+                        <button type="button" className="acc-head" aria-expanded={open} onClick={() => toggle(page.key)}>
+                          <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />
+                          <span className={"acc-num" + (done ? " done" : "")}>
+                            {done ? <Icon name="check" size={13} color="#fff" /> : i + 1}
+                          </span>
+                          <span className="acc-title">{page.label}</span>
+                          <span className="acc-meta">
+                            {missing.length > 0 && (
+                              <span className="acc-req" title={`Missing: ${missing.join(", ")}`}>
+                                {missing.length} required
+                              </span>
+                            )}
+                            {page.tab && (
+                              <>
+                                <span className="acc-bar"><span style={{ width: `${pct}%` }} className={done ? "done" : ""} /></span>
+                                <span className="acc-pct num">{pct}%</span>
+                              </>
+                            )}
+                          </span>
+                        </button>
+                        {open && <div className="acc-body">{sectionBody(page)}</div>}
+                      </section>
+                    );
+                  })}
+                </div>
+              </>
             )}
 
             {/* --- previous / next, across stages (fixed above the tab bar on phones) --- */}
@@ -568,9 +595,19 @@ export function JobDetailClient({ id }: { id: string }) {
             </div>
           </div>
         </div>
-        {/* The lead card, beside every section but the wide ones (Evidence's
-            table, the report on Review, sending). */}
-        {current.key !== "evidence" && current.key !== "review" && current.key !== "send" && <RightPanel jobId={id} />}
+        {/* The lead card beside the data-entry stages, with Mark as lost under
+            it (Review and Send to bank need the full width). */}
+        {showPanel && (
+          <div className="sidecol">
+            <RightPanel jobId={id} />
+            {job.can_mark_lost && (
+              <button type="button" className="lost-link" onClick={() => setLosing(true)}>
+                <Icon name="circle-x" size={16} />
+                Mark lead as lost
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {reportStep !== null && (

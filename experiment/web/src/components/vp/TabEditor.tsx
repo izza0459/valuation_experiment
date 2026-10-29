@@ -173,18 +173,18 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
         </Banner>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "18px 24px" }}>
+      <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "14px 20px" }}>
         {visible.map((field) => {
           const readOnly = tabReadOnly || field.calculated || state.read_only_fields.includes(field.key);
           const isMissing = missing.includes(field);
           return (
             <Fragment key={field.key}>
             {field.key === "coi_check" && (
-              <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+              <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
                 <CoiCard jobId={jobId} />
               </div>
             )}
-            <div id={`field-${tab.key}-${field.key}`} style={{ gridColumn: WIDE.has(field.type) ? "span 2" : undefined, minWidth: 0 }}>
+            <div id={`field-${tab.key}-${field.key}`} style={{ gridColumn: WIDE.has(field.type) ? "1 / -1" : undefined, minWidth: 0 }}>
             <F
               label={
                 <>
@@ -217,14 +217,14 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
             {/* The title document is uploaded right where its type is chosen,
                 above the details read from it. */}
             {field.key === "title_doc_type" && (
-              <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+              <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
                 <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} inline
                   lockedReason={state.read_only_reason} />
               </div>
             )}
             {/* A conflict of interest needs the client's consent, uploaded here. */}
             {field.key === "coi_check" && merged.coi_check === "yes" && (
-              <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+              <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
                 <ChecklistUploads jobId={jobId} mode="coi" canEdit={!tabReadOnly} inline
                   lockedReason={state.read_only_reason} />
               </div>

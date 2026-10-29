@@ -1,76 +1,89 @@
 /*
- * Bayut valuations theme (Valuation Platform Design System Rebuild).
+ * Bayut valuations theme: the Bayut KSA design system (tokens/colors.css,
+ * spacing.css of "Bayut KSA Design System").
  *
  * The vendored dubizzle design system stays byte-identical; this file
- * re-points its tokens at the rebuild's palette, so every DS component and
- * screen picks it up without changes:
- *   - brand / primary actions: Bayut green (was dubizzle red)
- *   - the --red-* scale now means "negative" (errors, missing, low confidence)
- *   - flat cards with a hairline border, Lato type
+ * re-points its tokens at the KSA palette, so every DS component and screen
+ * picks it up without changes:
+ *   - brand / primary actions: KSA teal #006169; success: KSA green #28b16d
+ *   - the --red-* scale means "negative" (errors, missing, low confidence)
+ *   - KSA neutrals, borders, radii and card shadow; Lato type
  * Imported after the DS tokens in globals.css so these values win.
  */
 :root {
-  /* Negative scale (errors, missing items) */
-  --red-50: #fdecea;
-  --red-100: #fdecea;
-  --red-150: #fdecea;
-  --red-200: #f3b4ae;
-  --red-300: #e5776f;
-  --red-500: #d93025;
-  --red-600: #d93025;
-  --red-700: #a52019;
-  --red-800: #8a1a14;
-  --error-500: #d93025;
+  /* Negative scale (errors, missing items): KSA error / red */
+  --red-50: #fdeeee;
+  --red-100: #fdeeee;
+  --red-150: #fbe1e1;
+  --red-200: #f3b3b3;
+  --red-300: #ec7f7f;
+  --red-500: #e83a3a;
+  --red-600: #c32b2a;
+  --red-700: #a32322;
+  --red-800: #861c1b;
+  --error-500: #e83a3a;
 
-  /* Neutrals */
-  --gray-50: #f7f7f7;
-  --gray-100: #f4f5f6;
-  --gray-150: #f3f3f3;
-  --gray-200: #e3e3e3;
-  --gray-300: #e3e3e3;
-  --gray-400: #d6d6d6;
+  /* Neutrals (KSA) */
+  --gray-50: #fafafa;
+  --gray-100: #f5f5f5;
+  --gray-150: #f2f2f2;
+  --gray-200: #e6e6e6;
+  --gray-300: #dedede;
+  --gray-400: #c1bfbf;
   --gray-500: #a3a3a3;
-  --gray-600: #6e6e6e;
-  --gray-700: #424242;
-  --gray-900: #262626;
+  --gray-600: #707070;
+  --gray-700: #4f4f4f;
+  --gray-900: #222222;
 
-  /* Status */
-  --green-50: #e7f6ee;
-  --green-100: #cdebd9;
-  --green-600: #1f8a4c;
-  --amber-50: #fdf3dc;
-  --amber-600: #a8700f;
-  --blue-50: #e6f1fa;
-  --blue-600: #1a6fb5;
+  /* Status (KSA semantic colours) */
+  --green-50: #ecf5f2;
+  --green-100: #b8e9d0;
+  --green-600: #28b16d;
+  --amber-50: #faf0db;
+  --amber-600: #9a6100;
+  --blue-50: #e4f3fc;
+  --blue-600: #0793ea;
 
-  /* Brand */
-  --accent: #30b066;
-  --accent-dark: #1f8a4c;
-  --accent-soft: #e7f6ee;
+  /* Brand: KSA teal */
+  --accent: #006169;
+  --accent-dark: #004146;
+  --accent-soft: #e1f2f0;
 
   /* Semantic */
-  --surface-page: #f4f5f6;
+  --surface-page: #f5f5f5;
   --surface-card: #ffffff;
-  --surface-subtle: #f3f3f3;
+  --surface-subtle: #fafafa;
   --surface-accent: var(--accent-soft);
-  --surface-accent-strong: #d4efe0;
-  --text-primary: #262626;
-  --text-secondary: #424242;
-  --text-muted: #6e6e6e;
-  --text-placeholder: #a3a3a3;
-  --text-value: var(--accent-dark);
-  --text-link: var(--accent-dark);
-  --text-accent: var(--accent-dark);
-  --text-error: #d93025;
-  --border-default: #e3e3e3;
-  --border-subtle: #e3e3e3;
-  --border-divider: #ececec;
-  --border-active: #a9dfc0;
+  --surface-accent-strong: #e1eded;
+  --text-primary: #222222;
+  --text-secondary: #4f4f4f;
+  --text-muted: #707070;
+  --text-placeholder: #9d9d9d;
+  --text-value: var(--accent);
+  --text-link: var(--accent);
+  --text-accent: var(--accent);
+  --text-error: #c32b2a;
+  --border-default: #e6e6e6;
+  --border-subtle: #e6e6e6;
+  --border-divider: #ededed;
+  --border-active: #a6c8ca;
   --border-focus: var(--accent);
   --action-primary: var(--accent);
   --action-primary-hover: var(--accent-dark);
-  --action-primary-pressed: #18703d;
+  --action-primary-pressed: #00353a;
   --brand-red: var(--accent); /* DS name kept; it is the brand colour */
+
+  /* KSA radii and elevation */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --shadow-card: 0 4px 16px -2px hsl(0 0% 0% / 8%);
+  --shadow-card-hover: 0 0 0 1px hsl(169 100% 20% / 100%);
+  --shadow-pop: 0 2px 8px -4px hsl(0 0% 0% / 40%);
+
+  /* Slimmer inputs: more of a form fits on screen */
+  --control-height-input: 42px;
 }
 
 h1,
@@ -83,8 +96,12 @@ h1 {
   font-weight: 900;
 }
 a:hover {
-  color: var(--accent);
+  color: var(--accent-dark);
 }
 ::selection {
   background: var(--surface-accent-strong);
+}
+/* KSA tooltip colour. */
+.tip-body {
+  background: #363636;
 }
