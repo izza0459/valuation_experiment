@@ -144,9 +144,6 @@ export function ReportFieldsDialog({
             </div>
           );
         })}
-        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          Photos and documents are picked on their own tabs (&quot;Include in report&quot;); comparables on Evidence.
-        </div>
         {error && <div style={{ fontSize: 13, color: "var(--text-error)" }}>{error}</div>}
       </div>
     </Dialog>

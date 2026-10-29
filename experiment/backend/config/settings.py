@@ -237,6 +237,12 @@ REPORT_FIRM_NAME = env("REPORT_FIRM_NAME", default="Bayut Prime")
 # approved wording in place of placeholder text. Missing required fields still
 # block. Set DEMO_MODE=false before any report goes to a bank.
 DEMO_MODE = env.bool("DEMO_MODE", default=True)
+
+# Google Workspace sign-in (CLAUDE.md §8). The OAuth web client ID from Google
+# Cloud, and the email domains allowed to sign in (comma-separated). Blank
+# client ID: the Google button isn't offered.
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_ALLOWED_DOMAINS = [d.strip().lower() for d in env.list("GOOGLE_ALLOWED_DOMAINS", default=[]) if d.strip()]
 # The registered legal name the signatory confirms the report is authorised
 # by. Left empty, the report shows a placeholder and cannot be issued.
 # TODO: the firm name stands in until the registered legal name is confirmed

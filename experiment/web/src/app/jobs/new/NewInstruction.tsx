@@ -168,7 +168,7 @@ export function NewInstruction() {
 
   return (
     <Shell>
-      <PageHead title="New valuation instruction" sub="Open a job from a bank's or client's request.">
+      <PageHead title="New valuation instruction" tip="Open a job from a bank's or client's request.">
         {DEMO_FILL && (
           <Button variant="outline" onClick={fillDemo}>
             Fill demo data

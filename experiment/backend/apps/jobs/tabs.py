@@ -51,7 +51,7 @@ from .models import (
     ValuationData,
     split_names,
 )
-from .workflow import FROZEN_STATUSES, JobLockedError
+from .workflow import FROZEN_STATUSES, JobLockedError, JobStatus
 
 TAB_MODELS = {
     "scheduling": SchedulingData,
@@ -405,9 +405,10 @@ STAGE_FOR_STATUS = {
     "peer_review": "review",
     "approved_signed": "review",
     "issued": "issued",
+    "lost": "lost",
 }
 STAGE_LABELS = {"setup": "Setup", "scheduling": "Scheduling", "inspection": "Inspection", "valuation": "Valuation",
-                "review": "Review", "issued": "Issued"}
+                "review": "Review", "issued": "Issued", "lost": "Lost"}
 
 
 def job_progress(job) -> dict:
@@ -434,6 +435,8 @@ def job_progress(job) -> dict:
         sub = "Awaiting peer review"
     elif job.status == "approved_signed":
         sub = "Approved & signed"
+    elif job.status == "lost":
+        sub = f"At {STAGE_LABELS[STAGE_FOR_STATUS.get(job.lost_from_status, 'setup')]}"
     else:
         sub = "Report issued"
     return {"stage": stage, "stage_label": STAGE_LABELS[stage], "sub_status": sub}
@@ -761,6 +764,8 @@ def edit_denial(user, job, tab_key) -> TabError | None:
         return NotPermitted(f"Your role on this job doesn't allow editing the {get_tab(tab_key)['label']} tab.")
     if job.is_locked:
         return JobIsLocked("This job has been issued and is locked. Create a revision to amend it.")
+    if job.status == JobStatus.LOST:
+        return JobIsFrozen("This lead was marked lost, so it can't be changed.")
     if job.status in FROZEN_STATUSES:
         return JobIsFrozen(
             "This job is in review or signed off, so its data is frozen. "

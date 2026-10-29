@@ -262,6 +262,16 @@ class Job(SoftDeleteModel):
     )
     issue_error = models.TextField(blank=True, help_text="Why the last issue attempt failed, if it did.")
 
+    # Lead lost (status "lost"): why, and the status it was lost from, which
+    # the dashboard's drop-off reads.
+    lost_reason = models.CharField(max_length=60, blank=True)
+    lost_note = models.TextField(blank=True)
+    lost_from_status = models.CharField(max_length=30, choices=JobStatus.CHOICES, blank=True)
+    lost_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    lost_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     inspection_scheduled_at = models.DateTimeField(null=True, blank=True)

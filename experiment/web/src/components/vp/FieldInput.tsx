@@ -7,7 +7,7 @@
  * keys ("mortgage_security") or record ids.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import type { FieldDef } from "@/lib/fieldConfig";
 import type { Option, UserOption } from "@/lib/options";
@@ -56,12 +56,6 @@ export function formatWhole(value: unknown): string {
 
 type LibraryEntry = { title: string; body: string };
 
-/** How many choices still read better as a segmented control than a menu,
- * and how much text they can hold between them before the row would run out
- * of its half-width column (then it becomes a dropdown). */
-const SEGMENT_MAX = 4;
-const SEGMENT_MAX_CHARS = 50;
-
 const str = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 const labelFor = (options: Option[], value: unknown) =>
   options.find((o) => String(o.value) === String(value))?.label ?? str(value);
@@ -102,13 +96,12 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
 
     case "boolean":
       return (
-        <div className="seg">
-          {([["Yes", true], ["No", false]] as const).map(([label, v]) => (
-            <button key={label} type="button" className={value === v ? "on" : ""} onClick={() => onChange(v)}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <Dropdown
+          value={value === true ? "yes" : value === false ? "no" : ""}
+          choices={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] as Option[]}
+          invalid={invalid}
+          onChange={(v) => onChange(v === "yes" ? true : v === "no" ? false : null)}
+        />
       );
 
     case "date":
@@ -138,59 +131,21 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
           </>
         );
       }
-      const labelChars = options.reduce((n, o) => n + o.label.length, 0);
-      if (options.length > 0 && options.length <= SEGMENT_MAX && labelChars <= SEGMENT_MAX_CHARS) {
-        return (
-          <div className="seg">
-            {options.map((o) => (
-              <button
-                key={String(o.value)}
-                type="button"
-                className={String(o.value) === str(value) ? "on" : ""}
-                onClick={() => onChange(o.value)}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        );
-      }
       return <Dropdown value={value} choices={options} invalid={invalid} onChange={onChange} />;
 
     case "user":
       return <Dropdown value={value} choices={users} invalid={invalid} onChange={onChange} />;
 
-    case "multiselect": {
-      const selected = Array.isArray(value) ? (value as string[]) : [];
-      const listed = new Set(options.map((o) => String(o.value)));
-      // Entries typed in (Custom), shown as chips beside the list.
-      const custom = field.custom ? selected.filter((v) => !listed.has(v)) : [];
+    case "multiselect":
       return (
-        <div className="row wrap" style={{ gap: 6 }}>
-          {options.length === 0 && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>No options set up yet.</span>}
-          {options.map((o) => {
-            const on = selected.includes(String(o.value));
-            return (
-              <Chip
-                key={String(o.value)}
-                on={on}
-                onClick={() =>
-                  onChange(on ? selected.filter((v) => v !== String(o.value)) : [...selected, String(o.value)])
-                }
-              >
-                {o.label}
-              </Chip>
-            );
-          })}
-          {custom.map((v) => (
-            <Chip key={`custom-${v}`} on onClick={() => onChange(selected.filter((s) => s !== v))}>
-              {v} ✕
-            </Chip>
-          ))}
-          {field.custom && <CustomEntry onAdd={(text) => !selected.includes(text) && onChange([...selected, text])} />}
-        </div>
+        <MultiDropdown
+          value={Array.isArray(value) ? (value as string[]) : []}
+          options={options}
+          custom={Boolean(field.custom)}
+          invalid={invalid}
+          onChange={onChange}
+        />
       );
-    }
 
     case "storeys": {
       // One block of rooms per storey, each with the full list and Custom.
@@ -340,6 +295,65 @@ function NamesInput({ value, invalid, onChange }: { value: unknown; invalid?: bo
           Add another
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Several choices from a list, as a dropdown: the selection reads in the
+ * box, ticked in the list it opens. Custom entries (typed in) are kept. */
+export function MultiDropdown({
+  value,
+  options,
+  custom,
+  invalid,
+  onChange,
+}: {
+  value: string[];
+  options: Option[];
+  custom: boolean;
+  invalid?: boolean;
+  onChange: (v: unknown) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  const listed = new Set(options.map((o) => String(o.value)));
+  const extra = value.filter((v) => !listed.has(v));
+  const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+  const summary = value.map((v) => labelFor(options, v)).join(", ");
+  return (
+    <div ref={ref} className="multi-dd">
+      <button type="button" className={"multi-dd-box" + (invalid ? " invalid" : "")} aria-expanded={open}
+        onClick={() => setOpen(!open)}>
+        <span className={summary ? "" : "placeholder"}>{summary || "Select…"}</span>
+        {value.length > 1 && <span className="multi-dd-count">{value.length}</span>}
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={16} />
+      </button>
+      {open && (
+        <div className="multi-dd-list" role="listbox" aria-multiselectable>
+          {options.length === 0 && !custom && <div className="multi-dd-empty">No options set up yet.</div>}
+          {[...options.map((o) => [String(o.value), o.label] as const), ...extra.map((v) => [v, v] as const)].map(
+            ([v, label]) => (
+              <label key={v} className="multi-dd-item">
+                <input type="checkbox" checked={value.includes(v)} onChange={() => toggle(v)} />
+                {label}
+              </label>
+            ),
+          )}
+          {custom && (
+            <div style={{ padding: "6px 8px" }}>
+              <CustomEntry onAdd={(text) => !value.includes(text) && onChange([...value, text])} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

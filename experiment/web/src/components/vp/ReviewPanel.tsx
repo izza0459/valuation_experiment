@@ -16,13 +16,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import { ApiError, apiFetch, apiUrl } from "@/lib/api";
 import type { JobDetail } from "@/lib/jobs";
 import { formatDateTime } from "./format";
 import { TransitionBar } from "./TransitionBar";
-import { Banner } from "./ui";
+import { Banner, Tip } from "./ui";
 
 type Person = { id: number; name: string; email?: string; roles: string[] };
 
@@ -34,9 +34,9 @@ const who = (p?: Person) => (p ? `${p.name}${p.email && p.email !== p.name ? ` (
 
 function Heading({ title, sub }: { title: string; sub?: React.ReactNode }) {
   return (
-    <div>
+    <div className="row" style={{ gap: 8 }}>
       <div style={{ fontSize: 18 }}>{title}</div>
-      {sub && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4 }}>{sub}</div>}
+      <Tip text={sub} />
     </div>
   );
 }
@@ -163,13 +163,29 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
   const contacts = job.bank_contacts ?? [];
   const [choice, setChoice] = useState(contacts[0]?.email ?? "other");
   const [other, setOther] = useState("");
-  const [message, setMessage] = useState("");
+  // What the sender changed; until then the template's text shows.
+  const [edited, setEdited] = useState<{ subject?: string; body?: string }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const email = choice === "other" ? other.trim() : choice;
+  const name = contacts.find((c) => c.email === choice)?.name ?? "";
+
+  // The bank's email template, written out for this job and recipient.
+  const { data: drafted } = useQuery({
+    queryKey: ["email-draft", jobId, name],
+    queryFn: () =>
+      apiFetch<{ template: string; subject: string; body: string }>(
+        `/api/jobs/${jobId}/report/send/draft/?name=${encodeURIComponent(name)}`,
+      ),
+    enabled: Boolean(job.can_send_report),
+  });
+  const subject = edited.subject ?? drafted?.subject ?? "";
+  const body = edited.body ?? drafted?.body ?? "";
+  const setSubject = (v: string) => setEdited((e) => ({ ...e, subject: v }));
+  const setBody = (v: string) => setEdited((e) => ({ ...e, body: v }));
 
   async function send() {
     setBusy(true);
@@ -178,7 +194,7 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
     try {
       const delivery = await apiFetch<{ status: string; error: string }>(`/api/jobs/${jobId}/report/send/`, {
         method: "POST",
-        body: JSON.stringify({ email, message }),
+        body: JSON.stringify({ email, subject, body }),
       });
       if (delivery.status === "failed") {
         setSentTo(null);
@@ -187,7 +203,6 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
         setSentTo(email);
         setFailure(null);
       }
-      setMessage("");
       setOther("");
       await qc.invalidateQueries({ queryKey: ["jobs", jobId] });
     } catch (err) {
@@ -200,18 +215,19 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
 
   return (
     <div className="card" style={{ padding: 18, display: "grid", gap: 14 }}>
-      <div>
-        <div style={{ fontSize: 16 }}>Send the report</div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-          {job.bank_name as string} · the issued PDF goes as an attachment
-        </div>
+      <div className="row" style={{ gap: 8 }}>
+        <div style={{ fontSize: 16 }}>Send the report to {job.bank_name as string}</div>
+        <Tip text="The issued PDF goes as an attachment, with the bank's email template below. Edit it here for this send only." />
       </div>
 
       {job.can_send_report ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
             <div>
-              <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 6 }}>Send to</div>
+              <div className="row" style={{ gap: 6, fontSize: 14, color: "var(--text-secondary)", marginBottom: 6 }}>
+                Send to
+                <Tip text={contacts.length === 0 ? "This bank has no contacts with an email yet. Add them under Admin → Banks to pick from a list." : undefined} />
+              </div>
               <Select
                 value={choice}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setChoice(e.target.value)}
@@ -233,14 +249,16 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
               </div>
             )}
           </div>
-          {contacts.length === 0 && (
-            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-              This bank has no contacts with an email yet. Add them under Admin › Banks to pick from a list.
-            </div>
-          )}
           <div>
-            <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 6 }}>Message (optional)</div>
-            <Textarea rows={3} value={message} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)} />
+            <div className="row" style={{ gap: 6, fontSize: 14, color: "var(--text-secondary)", marginBottom: 6 }}>
+              Subject
+              <Tip text={drafted?.template ? `From the "${drafted.template}" email template (Admin → Email templates).` : undefined} />
+            </div>
+            <Input value={subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSubject(e.target.value)} />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 6 }}>Email</div>
+            <Textarea rows={8} value={body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBody(e.target.value)} />
           </div>
           {error && <div style={{ fontSize: 13, color: "var(--text-error)" }}>{error}</div>}
           {failure && !error && <div style={{ fontSize: 13, color: "var(--text-error)" }}>Not sent: {failure}</div>}
@@ -250,7 +268,7 @@ function SendToBank({ job, jobId }: { job: JobDetail; jobId: string }) {
             </Banner>
           )}
           <div>
-            <Button disabled={busy || !email} icon={<Icon name="send" size={16} />} onClick={() => void send()}>
+            <Button disabled={busy || !email || !subject.trim() || !body.trim()} icon={<Icon name="send" size={16} />} onClick={() => void send()}>
               {busy ? "Sending…" : "Send report"}
             </Button>
           </div>

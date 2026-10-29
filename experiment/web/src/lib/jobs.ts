@@ -115,7 +115,19 @@ export type JobDetail = JobListItem & {
   call_log?: CallAttempt[];
   reviewer_edits?: ReviewerEdit[];
   can_accept_reviewer_edits?: boolean;
+  /** Why the lead was lost, once it is (final). */
+  lost?: { reason: string; note: string; stage: string; by: string; at: string } | null;
+  can_mark_lost?: boolean;
+  /** The conflict-of-interest check: earlier instructions that may conflict. */
+  coi?: CoiCheck;
 } & Record<string, unknown>;
+
+export type CoiCheck = {
+  matches: { id: number; ref: string; why: string; property: string; status: string; created_at: string }[];
+  result: string;
+  confirmed_by: string;
+  confirmed_at: string | null;
+};
 
 export type Delivery = {
   id: number;
@@ -138,7 +150,7 @@ export type Paginated<T> = {
 };
 
 export type JobFilters = {
-  view?: "all" | "mine" | "review";
+  view?: "all" | "mine" | "team" | "review" | "lost";
   status?: string;
   bank?: string;
   valuer?: string;

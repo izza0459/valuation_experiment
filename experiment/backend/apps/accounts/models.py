@@ -25,12 +25,33 @@ class User(AbstractUser):
         help_text="Default role set for this user (Role values). Actual "
         "per-job roles are assigned on the Job via explicit FKs.",
     )
+    # Reporting line: a manager's dashboard covers everyone below them.
+    manager = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="direct_reports"
+    )
+    # Someone not yet added who signed in with Google: an admin approves or
+    # declines them (they stay inactive until approved).
+    PENDING, DECLINED = "pending", "declined"
+    access_request = models.CharField(
+        max_length=10, blank=True, default="", choices=[(PENDING, "Waiting for access"), (DECLINED, "Declined")]
+    )
+    access_requested_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 
     def __str__(self):
         return self.get_full_name() or self.email
+
+    def team_ids(self) -> set[int]:
+        """This user and everyone reporting to them, at any depth."""
+        ids, frontier = {self.pk}, {self.pk}
+        while frontier:
+            frontier = set(
+                User.objects.filter(manager_id__in=frontier).exclude(pk__in=ids).values_list("pk", flat=True)
+            )
+            ids |= frontier
+        return ids
 
 
 class ValuerProfile(models.Model):

@@ -89,6 +89,17 @@ class ReportPdfView(_JobReportView):
         return response
 
 
+class EmailDraftView(_JobReportView):
+    """GET ?name=: the email the report would go with, from the bank's email
+    template, for the sender to check or edit before sending."""
+
+    def get(self, request, pk):
+        from .emails import draft
+
+        job = self._job(request, pk)
+        return Response(draft(job, (request.query_params.get("name") or "").strip(), request.user))
+
+
 class ReportDeliveryView(_JobReportView):
     """GET: who the issued report has been sent to. POST: send it to someone at
     the bank — `{"email": ..., "name": ..., "message": ...}`. Only the admin who
@@ -102,7 +113,8 @@ class ReportDeliveryView(_JobReportView):
         job = self._job(request, pk)
         body = request.data if isinstance(request.data, dict) else {}
         try:
-            delivery = request_delivery(job, request.user, body.get("email"), body.get("name"), body.get("message"))
+            delivery = request_delivery(job, request.user, body.get("email"), body.get("name"), body.get("message"),
+                                        body.get("subject"), body.get("body"))
         except TabError as exc:  # not allowed, not issued yet, or a bad address
             return Response(exc.payload(), status=exc.status)
         request_send(delivery.pk)

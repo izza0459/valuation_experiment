@@ -93,6 +93,8 @@ class JobListSerializer(serializers.ModelSerializer):
 
 class JobDetailSerializer(serializers.ModelSerializer):
     property = PropertySerializer(read_only=True)
+    property_label = serializers.CharField(source="property.__str__", read_only=True)
+    progress = serializers.SerializerMethodField()
     bank_name = serializers.CharField(source="organisation_name", read_only=True)
     bank_code = serializers.CharField(read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
@@ -134,6 +136,44 @@ class JobDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = "__all__"
+
+    lost = serializers.SerializerMethodField()
+    can_mark_lost = serializers.SerializerMethodField()
+    coi = serializers.SerializerMethodField()
+
+    def get_progress(self, job) -> dict:
+        from .tabs import job_progress
+
+        return job_progress(job)
+
+    def get_lost(self, job):
+        if job.status != "lost":
+            return None
+        from .lost import reason_label
+        from .tabs import STAGE_FOR_STATUS, STAGE_LABELS
+
+        return {"reason": reason_label(job.lost_reason), "note": job.lost_note,
+                "stage": STAGE_LABELS[STAGE_FOR_STATUS.get(job.lost_from_status, "setup")],
+                "by": str(job.lost_by) if job.lost_by_id else "", "at": job.lost_at}
+
+    def get_can_mark_lost(self, job) -> bool:
+        from .lost import may_mark_lost
+
+        return may_mark_lost(self.context["request"].user, job)
+
+    def get_coi(self, job) -> dict:
+        """The conflict-of-interest check (CRM feedback LG-01): earlier
+        instructions for this property or applicant, and who confirmed it."""
+        return {
+            "matches": [
+                {"id": m.pk, "ref": m.bayut_internal_reference_no, "why": why, "property": str(m.property),
+                 "status": m.get_status_display(), "created_at": m.created_at}
+                for m, why in job.coi_matches()
+            ],
+            "result": job.coi_check,
+            "confirmed_by": str(job.coi_confirmed_by) if job.coi_confirmed_by_id else "",
+            "confirmed_at": job.coi_confirmed_at,
+        }
 
     def get_reviewer_edits(self, job) -> list:
         return [

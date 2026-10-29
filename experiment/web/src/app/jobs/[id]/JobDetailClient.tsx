@@ -35,6 +35,7 @@ import { CallForm } from "@/components/vp/CallForm";
 /** Logged together with Save call (CallForm), not autosaved field by field. */
 const CALL_FIELDS = ["call_status", "call_remark", "inspection_booked_at"];
 import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
+import { LostDialog } from "@/components/vp/LostDialog";
 import { RightPanel } from "@/components/vp/RightPanel";
 import { TabEditor } from "@/components/vp/TabEditor";
 import { useFieldConfig, type TabDef } from "@/lib/fieldConfig";
@@ -97,6 +98,7 @@ export function JobDetailClient({ id }: { id: string }) {
   }, [notice]);
   // The include-in-report step, and where to go once it is saved.
   const [reportStep, setReportStep] = useState<string | null>(null);
+  const [losing, setLosing] = useState(false);
   // Phones: the section pills scroll sideways; keep the open one in view.
   useEffect(() => {
     const pill = document.querySelector<HTMLElement>(".stickybar [data-on='1']");
@@ -286,6 +288,11 @@ export function JobDetailClient({ id }: { id: string }) {
           <div className="row jobmeta" style={{ gap: 12, flexShrink: 0 }}>
             {!isLocked && current.stage !== "review" && current.stage !== "send" && <ReportActions jobId={id} />}
             <StatusChip s={job.status_label as string} />
+            {job.can_mark_lost && (
+              <Button size="sm" variant="outline" icon={<Icon name="circle-x" size={16} />} onClick={() => setLosing(true)}>
+                <span className="hide-app">Mark as lost</span>
+              </Button>
+            )}
             <div className="row" style={{ gap: 0 }}>
               {assignees.map((person, i) => (
                 <span
@@ -456,6 +463,14 @@ export function JobDetailClient({ id }: { id: string }) {
           ?.some((a) => a.id === me.user.id && a.roles.includes("peer_reviewer")))}
       />
 
+      {job.lost && (
+        <Banner tone="red" icon="circle-x">
+          <b style={{ fontWeight: 500 }}>Lost at {job.lost.stage}: {job.lost.reason}.</b>
+          {job.lost.note ? ` ${job.lost.note}` : ""}
+        </Banner>
+      )}
+      {losing && <LostDialog jobId={id} onClose={() => setLosing(false)} />}
+
       {job.issue_in_progress && (
         <Banner tone="blue" icon="loader">
           <b style={{ fontWeight: 500 }}>Producing the final report…</b> This page updates when it&apos;s done.
@@ -553,8 +568,9 @@ export function JobDetailClient({ id }: { id: string }) {
             </div>
           </div>
         </div>
-        {/* Evidence has the AVM in the page and needs the width for its table. */}
-        {current.stage === "valuation" && current.key !== "evidence" && <RightPanel jobId={id} />}
+        {/* The lead card, beside every section but the wide ones (Evidence's
+            table, the report on Review, sending). */}
+        {current.key !== "evidence" && current.key !== "review" && current.key !== "send" && <RightPanel jobId={id} />}
       </div>
 
       {reportStep !== null && (

@@ -28,6 +28,11 @@ PRESETS = {
     "purpose": [o("Mortgage Security"), o("Audit Purpose"), o("Internal Purpose")],
     "parking": [o("Yes"), o("No"), o("Assumed")],
     "coi_check": [o("Yes"), o("No")],
+    # Why a lead was lost (admin-editable like any dropdown).
+    "lost_reason": [
+        o("Client cancelled"), o("Fee not agreed"), o("Went to another valuer"), o("Duplicate instruction"),
+        o("Owner / contact unreachable"), o("Property not accessible"), o("Conflict of interest"), o("Other"),
+    ],
     "call_status": [
         o("Not Called", "not_called"), o("Answered – Not Scheduled", "answered_not_scheduled"),
         o("Answered – Scheduled", "answered_scheduled"), o("UTC (Unable to contact)", "utc"),

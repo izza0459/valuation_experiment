@@ -12,7 +12,9 @@ export type Me =
       authenticated: true;
       user: { id: number; name: string; email: string; roles: string[]; is_admin: boolean;
         /** Ops and platform admins take instructions in. */
-        can_create_jobs?: boolean };
+        can_create_jobs?: boolean;
+        /** Someone reports to them: they see their team on the dashboard. */
+        is_manager?: boolean };
     };
 
 export function useMe() {
@@ -30,6 +32,13 @@ export async function signIn(email: string, password: string) {
   // Never let a late sign-out end the session this sign-in starts.
   await signingOut;
   return apiFetch<Me>("/api/auth/login/", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+/** Signs in with the ID token Google's button hands back. Someone not yet
+ * added gets a 403 saying an admin needs to approve them. */
+export async function signInWithGoogle(credential: string) {
+  await signingOut;
+  return apiFetch<Me>("/api/auth/google/", { method: "POST", body: JSON.stringify({ credential }) });
 }
 
 /** Ends the session; retried once. keepalive: the request finishes even

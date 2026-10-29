@@ -99,7 +99,8 @@ def get_to(job, status):
 class TestRulesTable:
     def test_every_allowed_move_has_a_rule(self):
         """A move with no rule could never be made through the API."""
-        allowed = {(a, b) for a, targets in ALLOWED_TRANSITIONS.items() for b in targets}
+        # Marking a lead lost has its own action (apps.jobs.lost).
+        allowed = {(a, b) for a, targets in ALLOWED_TRANSITIONS.items() for b in targets if b != S.LOST}
         # Approval only happens as part of the reviewer's sign-off.
         assert allowed - set(TRANSITION_RULES) == {(S.PEER_REVIEW, S.APPROVED_SIGNED)}
 

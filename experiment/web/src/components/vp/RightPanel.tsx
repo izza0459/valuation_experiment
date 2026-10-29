@@ -1,20 +1,18 @@
 "use client";
 
 /**
- * Workspace right panel (design brief S3): the latest AVM result and review
- * comments.
- *
- * Every field change is still recorded in the audit trail (DLD / RICS need
- * it, and the Django admin shows it); it just isn't listed here.
+ * The lead card on the right of the workspace: Overview (the lead at a
+ * glance, with the latest AVM) and Activity (everything that happened to it,
+ * newest first: stage moves, review comments, calls, sends and edits).
  */
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Icon, Tabs } from "@/design-system";
+import { Avatar, Tabs } from "@/design-system";
 import { apiFetch } from "@/lib/api";
-import { useTransitions } from "@/lib/jobs";
+import { useJob } from "@/lib/jobs";
 import { aed, formatDateTime } from "./format";
-import { Conf } from "./ui";
+import { Conf, StatusChip, Tip } from "./ui";
 
 type AvmSummary = {
   suggested_value: string;
@@ -25,104 +23,182 @@ type AvmSummary = {
   created_at: string;
 };
 
-export function RightPanel({ jobId }: { jobId: string }) {
-  const [sub, setSub] = useState("AVM");
+type ActivityItem = {
+  kind: "stage" | "lost" | "call" | "send" | "edit";
+  title: string;
+  detail: string;
+  old?: string;
+  new?: string;
+  who: string;
+  at: string;
+};
 
+const ROLE_NAMES: Record<string, string> = {
+  admin: "Admin", inspector: "Inspector", valuer: "Valuer", peer_reviewer: "Peer reviewer",
+  counter_signatory: "Counter-signatory",
+};
+
+export function RightPanel({ jobId }: { jobId: string }) {
+  const [sub, setSub] = useState("Overview");
   return (
-    <aside
-      className="rightpanel"
-      style={{
-        width: 340,
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        alignSelf: "flex-start",
-      }}
-    >
-      <div className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <Tabs size="sm" items={["AVM", "Comments"]} active={sub} onChange={setSub} style={{ gap: 22, padding: "0 18px" }} />
-        <div style={{ padding: 18, overflowY: "auto" }}>
-          {sub === "AVM" && <Avm jobId={jobId} />}
-          {sub === "Comments" && <Comments jobId={jobId} />}
+    <aside className="rightpanel" style={{ width: 340, flexShrink: 0, alignSelf: "flex-start" }}>
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <Tabs size="sm" items={["Overview", "Activity"]} active={sub} onChange={setSub} style={{ gap: 22, padding: "0 18px" }} />
+        <div style={{ padding: 18, maxHeight: "calc(100vh - 220px)", overflowY: "auto" }}>
+          {sub === "Overview" ? <Overview jobId={jobId} /> : <Activity jobId={jobId} />}
         </div>
       </div>
     </aside>
   );
 }
 
-function PendingFeature({ icon, title, body }: { icon: string; title: string; body: string }) {
+function Row({ label, tip, children }: { label: string; tip?: string; children: React.ReactNode }) {
   return (
-    <div style={{ textAlign: "center", padding: "22px 6px" }}>
-      <div style={{ width: 44, height: 44, borderRadius: 22, background: "var(--gray-150)", margin: "0 auto 12px", display: "grid", placeItems: "center" }}>
-        <Icon name={icon} size={20} color="var(--text-muted)" />
-      </div>
-      <div style={{ fontSize: 15, marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>{body}</div>
+    <div className="ov-row">
+      <span className="row" style={{ gap: 4 }}>
+        {label}
+        <Tip text={tip} size={13} />
+      </span>
+      <span>{children || "—"}</span>
     </div>
   );
 }
 
-/** The latest AVM run, from the Evidence tab. */
-function Avm({ jobId }: { jobId: string }) {
-  const { data, isLoading } = useQuery({
+function Overview({ jobId }: { jobId: string }) {
+  const { data: job } = useJob(jobId);
+  const [now] = useState(() => Date.now());
+  const { data: evidence } = useQuery({
     queryKey: ["job-evidence", jobId],
     queryFn: () => apiFetch<{ avm: AvmSummary | null }>(`/api/jobs/${jobId}/evidence/`),
   });
-  if (isLoading) return <div className="skel" style={{ height: 60 }} />;
-  const run = data?.avm;
-  if (!run) {
-    return (
-      <PendingFeature
-        icon="scale"
-        title="No AVM run yet"
-        body="Add comparables on the Evidence tab, tick the ones to use, and run the AVM there."
-      />
-    );
-  }
-  const level = (run.confidence[0].toUpperCase() + run.confidence.slice(1)) as "High" | "Medium" | "Low";
+  if (!job) return <div className="skel" style={{ height: 200 }} />;
+  const value = (job.valuation as { market_value?: string | null } | null)?.market_value;
+  const summary = (job.summary ?? {}) as { property_category?: string; type_of_property?: string };
+  const property = (job.property ?? {}) as { community_name?: string };
+  const people = (job.assignees ?? []) as { id: number; name: string; roles: string[] }[];
+  const run = evidence?.avm;
+  const received = new Date(job.date_time_request_received ?? job.created_at).getTime();
+
   return (
-    <div style={{ display: "grid", gap: 10 }}>
+    <div style={{ display: "grid", gap: 16 }}>
       <div>
-        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>SUGGESTED VALUE</div>
-        <div style={{ fontSize: 22 }}>{aed(run.suggested_value)}</div>
+        <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+          <StatusChip s={job.progress?.stage_label ?? job.status_label} />
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{job.progress?.sub_status}</span>
+        </div>
+        {job.lost && (
+          <div className="ov-lost">
+            <b>Lost at {job.lost.stage}:</b> {job.lost.reason}
+            {job.lost.note ? ` · ${job.lost.note}` : ""}
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+              {job.lost.by}, {formatDateTime(job.lost.at)}
+            </div>
+          </div>
+        )}
       </div>
-      <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-        {aed(run.low_value)} – {aed(run.high_value)}
+
+      <div className="ov-group">
+        <Row label="Bayut ref"><span className="num">{job.bayut_internal_reference_no}</span></Row>
+        <Row label="Bank ref"><span className="num">{job.bank_reference_no}</span></Row>
+        <Row label="Bank">{job.bank_name}</Row>
+        <Row label="Purpose">{purposeLabel(job.purpose)}</Row>
       </div>
-      <div className="row" style={{ justifyContent: "space-between", fontSize: 14 }}>
-        <span>AED {Number(run.aed_per_sqft).toLocaleString("en-US", { maximumFractionDigits: 0 })} / sqft</span>
-        <Conf l={level} />
+
+      <div className="ov-group">
+        <Row label="Property">{job.property_label}</Row>
+        <Row label="Community">{property.community_name}</Row>
+        <Row label="Type">{summary.type_of_property || job.property_type}</Row>
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Run {formatDateTime(run.created_at)}</div>
+
+      <div className="ov-group">
+        <Row label="Received" tip="When the bank's request arrived.">
+          {formatDateTime(job.date_time_request_received ?? job.created_at)}
+        </Row>
+        <Row label="Inspection" tip="When the inspection is booked for.">
+          {job.inspection_booked_at ? formatDateTime(job.inspection_booked_at) : ""}
+        </Row>
+        <Row label="Age" tip="Days since the request arrived.">
+          {`${Math.max(0, Math.floor((now - received) / 864e5))} days`}
+        </Row>
+      </div>
+
+      <div className="ov-group">
+        <Row label="Market value" tip="The valuer's figure on the Valuation tab.">{value ? aed(value) : ""}</Row>
+        <Row label="AVM" tip="Latest AVM run on the ticked comparables (Evidence tab).">
+          {run ? `${aed(run.suggested_value)}` : ""}
+        </Row>
+        {run && (
+          <div className="row" style={{ justifyContent: "space-between", fontSize: 12.5, color: "var(--text-muted)" }}>
+            <span>{aed(run.low_value)} – {aed(run.high_value)}</span>
+            <Conf l={(run.confidence[0].toUpperCase() + run.confidence.slice(1)) as "High" | "Medium" | "Low"} />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>PEOPLE</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {people.length === 0 && <span style={{ fontSize: 14, color: "var(--text-muted)" }}>Nobody assigned yet</span>}
+          {people.map((p) => (
+            <div key={p.id} className="row" style={{ gap: 10, fontSize: 14 }}>
+              <Avatar name={p.name} size={26} />
+              <span style={{ minWidth: 0 }}>
+                {p.name}
+                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)" }}>
+                  {p.roles.map((r) => ROLE_NAMES[r] ?? r).join(", ")}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-/** Review comments: what a reviewer said when returning or reopening a job,
- * read from the lifecycle log. */
-function Comments({ jobId }: { jobId: string }) {
-  const { data, isLoading, isError } = useTransitions(jobId);
+function purposeLabel(p: string) {
+  return p ? p.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "";
+}
 
-  if (isLoading) return <div className="skel" style={{ height: 60 }} />;
-  if (isError) return <div style={{ fontSize: 14, color: "var(--text-error)" }}>Could not load comments.</div>;
-
-  const withComments = (data ?? []).filter((e) => e.comments);
-  if (withComments.length === 0) {
-    return <PendingFeature icon="message-square" title="No comments" body="Reasons given when a job is returned or reopened appear here." />;
-  }
+function Activity({ jobId }: { jobId: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["job-activity", jobId],
+    queryFn: () => apiFetch<ActivityItem[]>(`/api/jobs/${jobId}/activity/`),
+  });
+  const [edits, setEdits] = useState(false);
+  if (isLoading) return <div className="skel" style={{ height: 120 }} />;
+  if (isError) return <div style={{ fontSize: 14, color: "var(--text-error)" }}>Could not load the activity.</div>;
+  const items = (data ?? []).filter((i) => edits || i.kind !== "edit");
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      {withComments.map((e) => (
-        <div key={e.id} style={{ fontSize: 14, lineHeight: 1.45 }}>
-          <div>
-            <span style={{ fontWeight: 500 }}>{e.who}</span>{" "}
-            <span style={{ color: "var(--text-secondary)" }}>· {e.label}</span>
-          </div>
-          <div style={{ marginTop: 2, whiteSpace: "pre-wrap" }}>{e.comments}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{formatDateTime(e.at)}</div>
-        </div>
-      ))}
+    <div>
+      <label className="row" style={{ gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 12, cursor: "pointer" }}>
+        <input type="checkbox" checked={edits} onChange={(e) => setEdits(e.target.checked)} />
+        Show field changes
+      </label>
+      {items.length === 0 && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Nothing yet.</div>}
+      <ol className="timeline">
+        {items.map((i, n) => (
+          <li key={n} className={`tl-${i.kind}`}>
+            <span className="tl-dot" />
+            <div style={{ fontSize: 14, fontWeight: 500 }}>{i.title}</div>
+            {i.detail && <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap", marginTop: 2 }}>{i.detail}</div>}
+            {i.kind === "edit" && (
+              <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, wordBreak: "break-word" }}>
+                {short(i.old) || "(empty)"} → {short(i.new) || "(empty)"}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+              {i.who ? `${i.who} · ` : ""}
+              {formatDateTime(i.at)}
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
+}
+
+function short(v?: string) {
+  if (!v) return "";
+  return v.length > 80 ? `${v.slice(0, 80)}…` : v;
 }

@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "@/design-system";
-import { ApiError, apiUrl } from "@/lib/api";
-import { safeNext, signIn } from "@/lib/auth";
+import { ApiError, apiFetch, apiUrl } from "@/lib/api";
+import { safeNext, signIn, signInWithGoogle, type Me } from "@/lib/auth";
+
+type GoogleId = {
+  accounts: {
+    id: {
+      initialize: (o: { client_id: string; callback: (r: { credential: string }) => void }) => void;
+      renderButton: (el: HTMLElement, o: Record<string, unknown>) => void;
+    };
+  };
+};
 
 export function LoginForm() {
   const router = useRouter();
@@ -16,6 +25,46 @@ export function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [waking, setWaking] = useState(false);
+  const [googleId, setGoogleId] = useState<string | null>(null);
+  const googleBox = useRef<HTMLDivElement>(null);
+
+  /** Whichever way they signed in, land them where they were going. */
+  async function finish(attempt: () => Promise<Me>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const me = await attempt();
+      qc.setQueryData(["me"], me);
+      await qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+      router.replace(safeNext(params.get("next")));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't reach the server. Try again.");
+      setBusy(false);
+    }
+  }
+
+  // Google sign-in, when the API has a client ID for it.
+  useEffect(() => {
+    apiFetch<{ google_client_id: string }>("/api/auth/config/")
+      .then((c) => setGoogleId(c.google_client_id || null))
+      .catch(() => setGoogleId(null));
+  }, []);
+
+  useEffect(() => {
+    if (!googleId) return;
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => {
+      const google = (window as unknown as { google?: GoogleId }).google;
+      if (!google || !googleBox.current) return;
+      google.accounts.id.initialize({ client_id: googleId, callback: (r) => void finish(() => signInWithGoogle(r.credential)) });
+      google.accounts.id.renderButton(googleBox.current, { theme: "outline", size: "large", width: 316, text: "signin_with" });
+    };
+    document.head.appendChild(script);
+    return () => script.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per client ID
+  }, [googleId]);
 
   /** On the free hosting the API sleeps when idle and takes up to a minute
    * to start; until then requests time out. Wait for it (up to 2 minutes)
@@ -75,6 +124,17 @@ export function LoginForm() {
         </div>
         <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 24 }}>Sign in to continue</div>
 
+        {googleId && (
+          <>
+            <div ref={googleBox} style={{ minHeight: 44, display: "flex", justifyContent: "center" }} />
+            <div className="row" style={{ gap: 10, margin: "18px 0", color: "var(--text-muted)", fontSize: 13 }}>
+              <span style={{ flex: 1, height: 1, background: "var(--border-divider)" }} />
+              or with a password
+              <span style={{ flex: 1, height: 1, background: "var(--border-divider)" }} />
+            </div>
+          </>
+        )}
+
         <label style={{ display: "block", fontSize: 14, color: "var(--text-secondary)", marginBottom: 6 }}>Email</label>
         <Input
           type="email"
@@ -113,9 +173,6 @@ export function LoginForm() {
         <Button type="submit" block disabled={busy || !email || !password} style={{ marginTop: 22 }}>
           {waking ? "Starting the server…" : busy ? "Signing in…" : "Sign in"}
         </Button>
-        <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 14 }}>
-          Google Workspace sign-in will replace this.
-        </div>
       </form>
     </main>
   );

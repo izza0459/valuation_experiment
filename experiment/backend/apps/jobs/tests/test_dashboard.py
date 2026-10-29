@@ -59,8 +59,13 @@ class TestFunnel:
         stages = {s["key"]: s["count"] for s in funnel(boss, **{"from": start}).json()["stages"]}
         assert (stages["setup"], stages["scheduling"]) == (2, 1)
 
-    def test_admins_only(self, bank):
-        assert funnel(make_user("val", roles=[Role.VALUER])).status_code == 403
+    def test_others_see_only_their_own_leads(self, bank):
+        val = make_user("val", roles=[Role.VALUER])
+        mine = new_job(bank)
+        Job.objects.filter(pk=mine.pk).update(valuer=val)
+        new_job(bank)
+        setup = funnel(val).json()["stages"][0]
+        assert [j["id"] for j in setup["jobs"]] == [mine.pk]
 
     def test_bad_dates_are_refused(self, boss):
         assert funnel(boss, **{"from": "21/10/2026"}).status_code == 400

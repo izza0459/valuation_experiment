@@ -3,11 +3,13 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     CsrfView,
+    DashboardView,
     FieldConfigView,
     JobActivityView,
     JobCallView,
     JobFunnelView,
     JobKpiView,
+    JobLostView,
     JobReportFieldsView,
     JobReviewerEditsView,
     JobReviseView,
@@ -25,9 +27,11 @@ urlpatterns = [
     path("field-config/", FieldConfigView.as_view(), name="field-config"),
     path("options/", OptionsView.as_view(), name="options"),
     # Before the router so it isn't captured as /jobs/<pk>/.
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("jobs/kpis/", JobKpiView.as_view(), name="job-kpis"),
     path("jobs/funnel/", JobFunnelView.as_view(), name="job-funnel"),
     path("jobs/<int:pk>/activity/", JobActivityView.as_view(), name="job-activity"),
+    path("jobs/<int:pk>/lost/", JobLostView.as_view(), name="job-lost"),
     path("jobs/<int:pk>/revise/", JobReviseView.as_view(), name="job-revise"),
     path("jobs/<int:pk>/transitions/", JobTransitionView.as_view(), name="job-transitions"),
     path("jobs/<int:pk>/tabs/<str:tab>/", JobTabView.as_view(), name="job-tab"),

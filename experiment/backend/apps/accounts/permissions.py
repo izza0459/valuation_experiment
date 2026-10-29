@@ -81,6 +81,32 @@ def visible_jobs(queryset, user):
     return queryset.filter(condition).distinct()
 
 
+def team_condition(user_ids):
+    """Jobs where anyone in `user_ids` holds a role (a manager's team view)."""
+    from django.db.models import Q
+
+    condition = Q(registered_valuer_id__in=user_ids)
+    for field in JOB_ROLE_FIELDS.values():
+        condition |= Q(**{f"{field}_id__in": user_ids})
+    return condition
+
+
+def dashboard_jobs(queryset, user, person=None):
+    """The jobs a dashboard covers: an admin sees everything; a manager their
+    own and their team's (everyone below them); anyone else their own.
+    `person` narrows it to one person the viewer may see."""
+    if not user or not user.is_authenticated:
+        return queryset.none()
+    allowed = None if is_platform_admin(user) else user.team_ids()
+    if person is not None:
+        if allowed is not None and person not in allowed:
+            return queryset.none()
+        return queryset.filter(team_condition({person})).distinct()
+    if allowed is None:
+        return queryset
+    return queryset.filter(team_condition(allowed)).distinct()
+
+
 class IsPlatformAdmin(permissions.BasePermission):
     """Admin-only endpoints: creating instructions and managing users, banks
     and presets."""

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { Button, Icon, Input, Select, Table, Tag, Textarea } from "@/design-system";
 import { Chip, F, Toggle } from "@/components/vp/ui";
+import { Tip } from "@/components/vp/ui";
 import { useOptions } from "@/lib/options";
 import { flattenErrors, useAdminDelete, useAdminList, useAdminSave } from "@/lib/admin";
-import { Empty, FormDialog, Grid, muted } from "./parts";
+import { Empty, FormDialog, Grid } from "./parts";
 
 type Item = {
   id: number;
@@ -83,7 +84,7 @@ export function LibraryPanel() {
           <div style={{ width: 280 }}>
             <Select value={category} options={CATEGORIES} onChange={(e) => setCategory(e.target.value)} />
           </div>
-          <span style={muted}>Text the valuer inserts into a job, then edits for that job only.</span>
+          <Tip text="Text the valuer inserts into a job, then edits for that job only." />
         </div>
         <Button size="sm" icon={<Icon name="plus" size={16} />} onClick={() => open("new")}>
           Add entry

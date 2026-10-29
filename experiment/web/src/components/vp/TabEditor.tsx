@@ -17,6 +17,7 @@ import type { TabState } from "@/lib/jobs";
 import { useOptions } from "@/lib/options";
 import { useTabAutosave, type SaveStatus } from "@/lib/useTabAutosave";
 import { ChecklistUploads } from "./ChecklistUploads";
+import { CoiCard } from "./CoiCard";
 import { demoValuesForTab, uploadDemoFiles } from "./demoFill";
 import { FieldInput, formatComputed } from "./FieldInput";
 import { MapPreview } from "./MapPreview";
@@ -40,6 +41,7 @@ const DEMO_FILL = process.env.NEXT_PUBLIC_DEMO_FILL !== "false";
 
 /** Fields that need the full width: long text and pick-lists. */
 const WIDE = new Set(["textarea", "library", "multiselect", "storeys"]);
+const COI_IN_CARD = new Set(["coi_suggestion", "coi_confirmed"]);
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -72,7 +74,10 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
   // Rules can reach across tabs, and a field just edited here can change
   // what is visible here before it has even been saved.
   const context = { ...allValues, [tab.key]: merged };
-  const visible = tab.fields.filter((f) => isFieldVisible(f, context) && !omit?.includes(f.key));
+  // The COI suggestion and who confirmed it are shown in the COI card instead.
+  const visible = tab.fields.filter(
+    (f) => isFieldVisible(f, context) && !omit?.includes(f.key) && !COI_IN_CARD.has(f.key),
+  );
 
   const paused = save.status === "conflict" || save.status === "blocked";
   const tabReadOnly = !state.can_edit || paused;
@@ -174,6 +179,11 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
           const isMissing = missing.includes(field);
           return (
             <Fragment key={field.key}>
+            {field.key === "coi_check" && (
+              <div style={{ gridColumn: "span 2", minWidth: 0 }}>
+                <CoiCard jobId={jobId} />
+              </div>
+            )}
             <div id={`field-${tab.key}-${field.key}`} style={{ gridColumn: WIDE.has(field.type) ? "span 2" : undefined, minWidth: 0 }}>
             <F
               label={

@@ -342,9 +342,9 @@ export function Section({
         style={{ justifyContent: "space-between", marginBottom: collapsed ? 0 : 16, cursor: collapsible ? "pointer" : "default" }}
         onClick={collapsible ? () => setCollapsed(!collapsed) : undefined}
       >
-        <div>
+        <div className="row" style={{ gap: 8 }}>
           <div style={{ fontSize: 17, fontWeight: 500 }}>{title}</div>
-          {sub && <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{sub}</div>}
+          <Tip text={sub} />
         </div>
         <div className="row" style={{ gap: 8 }}>
           {right}
@@ -356,7 +356,21 @@ export function Section({
   );
 }
 
-/** Labelled field wrapper: label, optional source badge, helper/error. */
+/** An ⓘ that explains what it sits next to, on hover, focus or tap. The app
+ * keeps explanations here rather than as text on the screen. */
+export function Tip({ text, size = 15 }: { text?: React.ReactNode; size?: number }) {
+  if (!text) return null;
+  return (
+    <span className="tip" tabIndex={0} role="note" aria-label={typeof text === "string" ? text : undefined}
+      onClick={(e) => e.stopPropagation()}>
+      <Icon name="info" size={size} />
+      <span className="tip-body" role="tooltip">{text}</span>
+    </span>
+  );
+}
+
+/** Labelled field wrapper: label, optional source badge, error; the helper
+ * text is a tooltip on the label. */
 export const F = ({
   label,
   src,
@@ -378,9 +392,12 @@ export const F = ({
 }) => (
   <div style={{ gridColumn: span ? `span ${span}` : undefined, minWidth: 0 }}>
     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6, gap: 8 }}>
-      <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-        {label}
-        {optional && <span style={{ color: "var(--text-muted)" }}> (optional)</span>}
+      <span className="row" style={{ fontSize: 14, color: "var(--text-secondary)", gap: 6, minWidth: 0 }}>
+        <span>
+          {label}
+          {optional && <span style={{ color: "var(--text-muted)" }}> (optional)</span>}
+        </span>
+        <Tip text={helper} />
       </span>
       <span className="row" style={{ gap: 6 }}>
         {badge && <Tag tone="amber">{badge}</Tag>}
@@ -389,7 +406,6 @@ export const F = ({
     </div>
     {children}
     {error && <div style={{ color: "var(--text-error)", fontSize: 13, marginTop: 4 }}>{error}</div>}
-    {helper && <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>{helper}</div>}
   </div>
 );
 
@@ -400,6 +416,7 @@ export const G = ({ cols = 2, children, gap = 18 }: { cols?: number; children: R
 // Pages that exist. "Valuation register" (S9) isn't built, so it isn't linked:
 // a nav item that leads to a 404 is worse than no item.
 const NAV: { key: string; label: string; icon: string; adminOnly?: boolean }[] = [
+  { key: "dashboard", label: "Dashboard", icon: "layout-dashboard" },
   { key: "jobs", label: "Jobs", icon: "briefcase" },
   { key: "admin", label: "Admin", icon: "settings", adminOnly: true },
 ];
@@ -478,19 +495,24 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
   );
 }
 
+/** Page title. `sub` is a value shown beside it (a count, say); `tip`
+ * explains the page. */
 export const PageHead = ({
   title,
   sub,
+  tip,
   children,
 }: {
   title: React.ReactNode;
   sub?: React.ReactNode;
+  tip?: React.ReactNode;
   children?: React.ReactNode;
 }) => (
   <div className="row" style={{ justifyContent: "space-between", marginBottom: 18, gap: 16 }}>
-    <div>
+    <div className="row" style={{ gap: 10, alignItems: "baseline" }}>
       <h1 style={{ margin: 0, fontSize: 26 }}>{title}</h1>
-      {sub && <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 2 }}>{sub}</div>}
+      {sub && <span style={{ color: "var(--text-muted)", fontSize: 14 }}>{sub}</span>}
+      <Tip text={tip} />
     </div>
     <div className="row" style={{ gap: 10 }}>
       {children}

@@ -18,6 +18,9 @@ class JobStatus:
     PEER_REVIEW = "peer_review"
     APPROVED_SIGNED = "approved_signed"
     ISSUED = "issued"
+    # The lead won't go ahead (cancelled, fee not agreed, ...). Final: a lost
+    # lead can't be reopened; a new instruction is a new lead.
+    LOST = "lost"
 
     CHOICES = [
         (INSTRUCTION_RECEIVED, "Instruction Received"),
@@ -29,6 +32,7 @@ class JobStatus:
         (PEER_REVIEW, "Peer Review"),
         (APPROVED_SIGNED, "Approved & Signed"),
         (ISSUED, "Issued"),
+        (LOST, "Lost"),
     ]
 
 
@@ -61,7 +65,13 @@ ALLOWED_TRANSITIONS = {
     # report and then revising it. Not in the original lifecycle in CLAUDE.md.
     JobStatus.APPROVED_SIGNED: {JobStatus.ISSUED, JobStatus.VALUATION_IN_PROGRESS},
     JobStatus.ISSUED: set(),  # locked; re-issue creates a new Job version instead
+    JobStatus.LOST: set(),  # final
 }
+
+# Any lead not yet signed off can be marked lost (apps.jobs.lost); it has
+# its own action rather than a transition rule.
+for _status in [*PRE_REVIEW_STATUSES, JobStatus.PEER_REVIEW]:
+    ALLOWED_TRANSITIONS[_status] = ALLOWED_TRANSITIONS[_status] | {JobStatus.LOST}
 
 
 # While a job is under review or signed off its data must not move: an edit

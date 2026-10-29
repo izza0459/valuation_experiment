@@ -10,7 +10,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import CanCreateJobs, IsJobParticipantOrAdmin, IsPlatformAdmin, visible_jobs
+from apps.accounts.permissions import (
+    CanCreateJobs,
+    IsJobParticipantOrAdmin,
+    IsPlatformAdmin,
+    team_condition,
+    visible_jobs,
+)
 from apps.presets.options import options_for, user_options
 
 from .field_config import TABS, serialize_config
@@ -121,10 +127,17 @@ class JobViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
                 | Q(property__unit_number__icontains=search)
             )
 
-        # "My jobs" / "Awaiting my review" views.
+        # "My jobs" / "My team" / "Awaiting my review" / "Lost" views. Lost leads
+        # only show under Lost (or when a dashboard card names them).
         view = params.get("view")
         user = self.request.user
-        if view == "mine":
+        if view == "lost":
+            queryset = queryset.filter(status=JobStatus.LOST)
+        elif self.action == "list" and not ids and not params.get("status"):
+            queryset = queryset.exclude(status=JobStatus.LOST)
+        if view == "team":
+            queryset = queryset.filter(team_condition(user.team_ids()))
+        elif view == "mine":
             queryset = queryset.filter(
                 Q(valuer=user) | Q(registered_valuer=user) | Q(inspected_by=user) | Q(admin_user=user)
             )
@@ -304,35 +317,74 @@ class JobReviewerEditsView(APIView):
         return Response({"accepted": accepted})
 
 
-class JobActivityView(APIView):
-    """Activity feed for the workspace's right panel (design brief S3),
-    read straight off the audit trail (CLAUDE.md §3)."""
+class JobLostView(APIView):
+    """GET: the reasons a lead can be lost for. POST {"reason", "note"}: mark
+    it lost (final)."""
 
     permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
 
     def get(self, request, pk):
+        from .lost import reasons
+
+        return Response({"reasons": reasons()})
+
+    def post(self, request, pk):
+        from .lost import mark_lost
+
+        job = get_object_or_404(visible_jobs(Job.objects.all(), request.user), pk=pk)
+        self.check_object_permissions(request, job)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            job = mark_lost(job.pk, request.user, body.get("reason"), body.get("note"))
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response({"status": job.status, "status_label": job.get_status_display()})
+
+
+class JobActivityView(APIView):
+    """The lead's activity for the workspace's right panel, newest first: stage
+    moves (with review comments and lost reasons), calls, report sends and
+    field changes, read off the lifecycle log and the audit trail."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+
+    # Bookkeeping columns that change with real edits; not worth listing.
+    QUIET = {"updated_at", "version", "status", "tracker_coi_check", "issue_requested_at", "issue_requested_by",
+             "inspection_scheduled_at", "inspected_at", "countersigned_at", "countersigned_by", "lost_at",
+             "lost_by", "lost_from_status", "lost_reason", "lost_note", "coi_confirmed_at", "coi_confirmed_by"}
+
+    def get(self, request, pk):
         from apps.audit.models import AuditLog
+
+        from .transitions import transition_log
 
         job = get_object_or_404(visible_jobs(Job.objects.all(), request.user), pk=pk)
         self.check_object_permissions(request, job)
 
-        entries = (
-            AuditLog.objects.filter(job=job).select_related("changed_by").order_by("-changed_at")[:50]
-        )
-        return Response(
-            [
-                {
-                    "id": e.id,
-                    "who": str(e.changed_by) if e.changed_by else "System",
-                    "model": e.model_name,
-                    "field": e.field_name,
-                    "old_value": e.old_value,
-                    "new_value": e.new_value,
-                    "at": e.changed_at,
-                }
-                for e in entries
-            ]
-        )
+        labels = {f["key"]: f["label"] for tab in TABS for f in tab["fields"]}
+        items = []
+        for t in transition_log(job):
+            items.append({"kind": "lost" if t["to_status"] == JobStatus.LOST else "stage",
+                          "title": "Marked lost" if t["to_status"] == JobStatus.LOST else t["label"],
+                          "detail": t["comments"], "who": t["who"], "at": t["at"]})
+        for c in job.call_attempts.select_related("by"):
+            items.append({"kind": "call", "title": f"Call: {c.get_status_display()}", "detail": c.remark,
+                          "who": str(c.by) if c.by else "", "at": c.at})
+        for d in job.deliveries.select_related("requested_by"):
+            items.append({"kind": "send", "title": f"Report sent to {d.recipient_name or d.recipient_email}",
+                          "detail": d.get_status_display(), "who": str(d.requested_by) if d.requested_by else "",
+                          "at": d.requested_at})
+        entries = AuditLog.objects.filter(job=job).select_related("changed_by").order_by("-changed_at")[:150]
+        for e in entries:
+            if e.field_name in self.QUIET or e.field_name.endswith("_id") and e.field_name[:-3] in self.QUIET:
+                continue
+            label = labels.get(e.field_name) or labels.get(e.field_name.removesuffix("_id")) or (
+                e.field_name.replace("_", " ").capitalize())
+            items.append({"kind": "edit", "title": f"{label} changed", "detail": "",
+                          "old": e.old_value, "new": e.new_value,
+                          "who": str(e.changed_by) if e.changed_by else "System", "at": e.changed_at})
+        items.sort(key=lambda i: i["at"], reverse=True)
+        return Response(items[:150])
 
 
 class JobFunnelView(APIView):
@@ -340,9 +392,11 @@ class JobFunnelView(APIView):
     `?stage=` the counts by section within one stage (DB-03). Dates: `range`
     = today / week / month / 30d, or `from` / `to` (YYYY-MM-DD). Admins only."""
 
-    permission_classes = [IsAuthenticated, IsPlatformAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from apps.accounts.permissions import dashboard_jobs
+
         from . import dashboard
 
         params = request.query_params
@@ -350,13 +404,48 @@ class JobFunnelView(APIView):
             begin, end = dashboard.date_range(params.get("range"), params.get("from"), params.get("to"))
         except ValueError:
             return Response({"code": "validation", "detail": "Dates must be YYYY-MM-DD."}, status=400)
-        jobs = Job.objects.all()
+        jobs = dashboard_jobs(Job.objects.all(), request.user)
         stage = params.get("stage")
         if stage:
             if stage not in dict(dashboard.STAGES):
                 return Response({"code": "validation", "detail": "No such stage."}, status=400)
             return Response({"stage": stage, "sections": dashboard.sections(jobs, stage, begin, end)})
         return Response(dashboard.funnel(jobs, begin, end))
+
+
+class DashboardView(APIView):
+    """GET: the Dashboard tab. An admin sees every lead; a manager their own
+    and their team's; anyone else their own. `person` narrows it to one
+    person; dates as for the funnel."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+
+        from apps.accounts.permissions import dashboard_jobs, is_platform_admin
+
+        from . import dashboard
+
+        params = request.query_params
+        try:
+            begin, end = dashboard.date_range(params.get("range"), params.get("from"), params.get("to"))
+        except ValueError:
+            return Response({"code": "validation", "detail": "Dates must be YYYY-MM-DD."}, status=400)
+        person = params.get("person")
+        person = int(person) if person and person.isdigit() else None
+        user = request.user
+        jobs = dashboard_jobs(Job.objects.all(), user, person)
+        users = get_user_model().objects.filter(is_active=True)
+        if is_platform_admin(user):
+            scope = "all"
+        else:
+            team = user.team_ids()
+            users = users.filter(pk__in=team)
+            scope = "team" if len(team) > 1 else "mine"
+        people = [{"id": u.pk, "name": str(u)} for u in users.order_by("first_name", "last_name", "email")]
+        return Response({"scope": scope, "people": people if scope != "mine" else [],
+                         **dashboard.overview(jobs, begin, end)})
 
 
 class JobKpiView(APIView):
@@ -378,7 +467,7 @@ class JobKpiView(APIView):
 
         return Response(
             {
-                "in_progress": jobs.exclude(status=JobStatus.ISSUED).count(),
+                "in_progress": jobs.exclude(status__in=[JobStatus.ISSUED, JobStatus.LOST]).count(),
                 "awaiting_peer_review": jobs.filter(status=JobStatus.PEER_REVIEW).count(),
                 "issued_this_week": jobs.filter(status=JobStatus.ISSUED, issued_at__gte=week_ago).count(),
                 "avg_turnaround_hours": (

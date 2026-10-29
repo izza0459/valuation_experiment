@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Icon, Input, Table, Tag, Textarea } from "@/design-system";
 import { F, Toggle } from "@/components/vp/ui";
+import { Tip } from "@/components/vp/ui";
 import { flattenErrors, useAdminList, useAdminSave } from "@/lib/admin";
 import { Empty, FormDialog, Grid, muted } from "./parts";
 
@@ -62,7 +63,7 @@ export function PresetsPanel() {
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={muted}>Options in the “{label}” dropdown. Deactivate an option to hide it; jobs that already use it keep their label.</div>
+          <Tip text={`Options in the “${label}” dropdown. Deactivate an option to hide it; jobs that already use it keep their label.`} />
           <Button size="sm" icon={<Icon name="plus" size={16} />} onClick={() => open("new")} disabled={!current}>
             Add option
           </Button>

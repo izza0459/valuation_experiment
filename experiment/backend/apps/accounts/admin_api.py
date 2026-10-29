@@ -43,14 +43,24 @@ class UserAdminSerializer(serializers.ModelSerializer):
     valuer_profile = ValuerProfileSerializer(required=False, allow_null=True)
     licence = serializers.SerializerMethodField()
     roles = serializers.ListField(child=serializers.ChoiceField(choices=Role.choices), required=False)
+    manager = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), allow_null=True, required=False)
+    manager_name = serializers.SerializerMethodField()
+    team_size = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "email", "first_name", "last_name", "name", "roles", "is_active",
             "password", "valuer_profile", "licence", "last_login",
+            "manager", "manager_name", "team_size", "access_request", "access_requested_at",
         ]
-        read_only_fields = ["last_login"]
+        read_only_fields = ["last_login", "access_requested_at"]
+
+    def get_manager_name(self, user) -> str:
+        return str(user.manager) if user.manager_id else ""
+
+    def get_team_size(self, user) -> int:
+        return len(user.team_ids()) - 1
 
     def get_name(self, user) -> str:
         return str(user)
@@ -67,6 +77,12 @@ class UserAdminSerializer(serializers.ModelSerializer):
             clash = clash.exclude(pk=self.instance.pk)
         if clash.exists():
             raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate_manager(self, value):
+        if value is not None and self.instance is not None and value.pk in self.instance.team_ids():
+            # Managing yourself, or someone who reports to you, would loop.
+            raise serializers.ValidationError("That person reports to this user, so can't be their manager.")
         return value
 
     def validate_roles(self, value):
@@ -110,6 +126,9 @@ class UserAdminSerializer(serializers.ModelSerializer):
     def update(self, user, validated):
         profile = validated.pop("valuer_profile", None)
         password = validated.pop("password", "")
+        if validated.get("is_active") is True:
+            # Approving someone who asked for access.
+            validated["access_request"] = ""
         for attr, value in validated.items():
             setattr(user, attr, value)
         if "email" in validated:
@@ -129,6 +148,8 @@ class UserAdminViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = User.objects.select_related("valuer_profile").order_by("first_name", "last_name", "email")
+        if self.request.query_params.get("waiting"):
+            queryset = queryset.filter(access_request=User.PENDING)
         if search := self.request.query_params.get("q"):
             queryset = queryset.filter(email__icontains=search) | queryset.filter(first_name__icontains=search)
         return queryset

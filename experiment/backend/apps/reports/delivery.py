@@ -19,6 +19,7 @@ from django.utils import timezone
 from apps.accounts.permissions import is_platform_admin
 from apps.jobs.tabs import TabError
 
+from .emails import draft
 from .generate import stored_pdf_key
 from .models import ReportDelivery
 
@@ -50,7 +51,7 @@ def bank_contacts(job) -> list[dict]:
     ]
 
 
-def request_delivery(job, user, email, name="", message="") -> ReportDelivery:
+def request_delivery(job, user, email, name="", message="", subject=None, body=None) -> ReportDelivery:
     if not may_send(user, job):
         raise DeliveryNotAllowed("Only the admin who created this job can send the report.")
     version = job.report_versions.filter(issued_at__isnull=False).order_by("-issued_at").first()
@@ -66,12 +67,18 @@ def request_delivery(job, user, email, name="", message="") -> ReportDelivery:
     name = (name or "").strip() if isinstance(name, str) else ""
     if not name:
         name = next((c["name"] for c in bank_contacts(job) if c["email"].lower() == email.lower()), "")
+    # The bank's email template, unless the sender edited the text.
+    drafted = draft(job, name, user)
+    subject = subject.strip() if isinstance(subject, str) and subject.strip() else drafted["subject"]
+    body = body if isinstance(body, str) and body.strip() else drafted["body"]
     return ReportDelivery.objects.create(
         job=job,
         report_version=version,
         recipient_name=name[:255],
         recipient_email=email,
         message=message.strip() if isinstance(message, str) else "",
+        subject=subject[:255],
+        body=body,
         requested_by=user,
     )
 
@@ -82,6 +89,7 @@ def describe_delivery(delivery: ReportDelivery) -> dict:
         "recipient_name": delivery.recipient_name,
         "recipient_email": delivery.recipient_email,
         "message": delivery.message,
+        "subject": delivery.subject,
         "status": delivery.status,
         "status_label": delivery.get_status_display(),
         "requested_by": str(delivery.requested_by) if delivery.requested_by else "",
@@ -97,16 +105,14 @@ def send_delivery(delivery_id: int) -> ReportDelivery:
     if delivery.status == ReportDelivery.SENT:
         return delivery
     job, version = delivery.job, delivery.report_version
-    firm = settings.REPORT_FIRM_NAME
     ref = job.bayut_internal_reference_no
-    greeting = f"Dear {delivery.recipient_name}," if delivery.recipient_name else "Dear Sir/Madam,"
-    note = f"{delivery.message}\n\n" if delivery.message else ""
-    their_ref = f" (your ref. {job.bank_reference_no})" if job.bank_reference_no else ""
-    body = (
-        f"{greeting}\n\n{note}Please find attached our valuation report, ref. {ref}{their_ref}."
-        f"\n\nKind regards,\n{firm}\n"
-    )
-    subject = f"Valuation report {ref}" + (f" / {job.bank_reference_no}" if job.bank_reference_no else "")
+    if delivery.subject and delivery.body:
+        subject, body = delivery.subject, delivery.body
+    else:  # requested before email templates
+        drafted = draft(job, delivery.recipient_name, delivery.requested_by)
+        subject, body = drafted["subject"], drafted["body"]
+    if delivery.message:
+        body = f"{delivery.message}\n\n{body}"
     to = [delivery.recipient_email]
     # Demo / staging: the report goes to our own inbox, never to the bank.
     if settings.REPORT_EMAIL_REDIRECT_TO:

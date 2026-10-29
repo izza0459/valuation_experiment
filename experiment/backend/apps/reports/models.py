@@ -65,6 +65,9 @@ class ReportDelivery(models.Model):
     recipient_name = models.CharField(max_length=255, blank=True)
     recipient_email = models.EmailField()
     message = models.TextField(blank=True)
+    # The email as sent: from the bank's email template, as the sender left it.
+    subject = models.CharField(max_length=255, blank=True)
+    body = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=QUEUED)
     requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     requested_at = models.DateTimeField(auto_now_add=True)
@@ -76,3 +79,24 @@ class ReportDelivery(models.Model):
 
     def __str__(self):
         return f"ReportDelivery<{self.job} to {self.recipient_email}>"
+
+
+class EmailTemplate(models.Model):
+    """The email a report is sent to the bank with. A bank's own template wins;
+    otherwise the default. Merge fields in braces, e.g. {our_ref} (see
+    apps.reports.emails.MERGE_FIELDS)."""
+
+    name = models.CharField(max_length=120)
+    bank = models.ForeignKey("banks.Bank", on_delete=models.CASCADE, null=True, blank=True,
+                             related_name="email_templates")
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    is_default = models.BooleanField(default=False, help_text="Used for banks without their own template.")
+    active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_default", "bank__name", "name"]
+
+    def __str__(self):
+        return self.name

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Icon, Input, Table, Tag, Textarea } from "@/design-system";
 import { F, Toggle } from "@/components/vp/ui";
+import { Tip } from "@/components/vp/ui";
 import { emptyToNull, flattenErrors, useAdminList, useAdminSave } from "@/lib/admin";
 import { Empty, FormDialog, Grid, muted } from "./parts";
 
@@ -73,7 +74,7 @@ export function BanksPanel() {
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 14 }}>
-        <div style={muted}>Client banks, their contacts and the report rules specific to each.</div>
+        <Tip text="Client banks, their contacts and the report rules specific to each." />
         <Button size="sm" icon={<Icon name="plus" size={16} />} onClick={() => open(BLANK)}>
           Add bank
         </Button>

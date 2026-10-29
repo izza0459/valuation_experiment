@@ -141,3 +141,86 @@ def sections(jobs, stage: str, begin, end) -> list[dict]:
                 add(section, job)
     return [{"label": label, "count": len(group), "jobs": [_describe(j) for j in group]}
             for label, group in groups.items()]
+
+
+# --- the Dashboard tab ----------------------------------------------------------------
+
+# A lost lead's stage, from the status it was lost at.
+LOST_STAGE = {
+    JobStatus.INSTRUCTION_RECEIVED: "setup", JobStatus.SETUP: "setup", JobStatus.SCHEDULING: "scheduling",
+    JobStatus.INSPECTION_SCHEDULED: "inspection", JobStatus.INSPECTED: "inspection",
+    JobStatus.VALUATION_IN_PROGRESS: "valuation", JobStatus.PEER_REVIEW: "peer_review",
+}
+CLOSED = {JobStatus.ISSUED, JobStatus.LOST}
+
+
+def _count_by(rows, key, label=None) -> list[dict]:
+    counts: dict = {}
+    for row in rows:
+        k = key(row) or "Not set"
+        counts.setdefault(k, {"key": k, "label": label(k) if label else k, "count": 0, "ids": []})
+        counts[k]["count"] += 1
+        counts[k]["ids"].append(row.pk)
+    return sorted(counts.values(), key=lambda c: -c["count"])
+
+
+def overview(jobs, begin, end) -> dict:
+    """Everything on the Dashboard tab for one set of jobs and date range.
+    Current figures (active leads, the map) ignore the range; flows (new,
+    issued, lost, the funnel) are within it."""
+    from apps.presets.models import PresetOption
+
+    from .tabs import STAGE_FOR_STATUS, STAGE_LABELS, job_progress
+
+    active = list(jobs.exclude(status__in=CLOSED).select_related("property", "bank", "valuer", "registered_valuer"))
+    new = jobs.filter(created_at__gte=begin, created_at__lt=end)
+    issued = jobs.filter(status=JobStatus.ISSUED, issued_at__gte=begin, issued_at__lt=end)
+    lost = list(jobs.filter(status=JobStatus.LOST, lost_at__gte=begin, lost_at__lt=end))
+    reasons = dict(PresetOption.objects.filter(field_key="lost_reason").values_list("value", "label"))
+
+    flow = funnel(jobs, begin, end)
+    lost_at = {}
+    for job in lost:
+        lost_at.setdefault(LOST_STAGE.get(job.lost_from_status, "setup"), []).append(job.pk)
+    for stage in flow["stages"]:
+        stage["lost"] = {"count": len(lost_at.get(stage["key"], [])), "ids": lost_at.get(stage["key"], [])}
+
+    turnaround = [(j.issued_at - (j.date_time_request_received or j.created_at)).total_seconds() / 3600
+                  for j in issued]
+    closed = issued.count() + len(lost)
+    stage_order = list(STAGE_LABELS)
+    by_stage = _count_by(active, lambda j: STAGE_FOR_STATUS.get(j.status, "setup"), lambda k: STAGE_LABELS[k])
+    by_stage.sort(key=lambda c: stage_order.index(c["key"]))
+
+    def person(job):
+        who = job.valuer or job.registered_valuer
+        return str(who) if who else "Unassigned"
+
+    pins = []
+    for job in active:
+        prop = job.property
+        if prop.latitude is not None and prop.longitude is not None:
+            progress = job_progress(job)
+            pins.append({"id": job.pk, "ref": job.bayut_internal_reference_no, "property": str(prop),
+                         "lat": float(prop.latitude), "lng": float(prop.longitude),
+                         "stage": progress["stage_label"], "community": prop.community_name})
+    return {
+        "from": begin.date(), "to": (end - datetime.timedelta(days=1)).date(),
+        "tiles": {
+            "active": len(active),
+            "new": new.count(),
+            "issued": issued.count(),
+            "lost": len(lost),
+            # Of the leads closed in the range, the share issued rather than lost.
+            "win_rate": round(issued.count() / closed * 100) if closed else None,
+            "avg_turnaround_hours": round(sum(turnaround) / len(turnaround), 1) if turnaround else None,
+        },
+        "by_stage": by_stage,
+        "funnel": flow["stages"],
+        "lost_reasons": _count_by(lost, lambda j: j.lost_reason, lambda k: reasons.get(k, k)),
+        "by_community": _count_by(active, lambda j: (j.property.community_name or "").strip()),
+        "by_bank": _count_by(active, lambda j: j.organisation_name),
+        "by_person": _count_by(active, person),
+        "pins": pins,
+        "unmapped": len(active) - len(pins),
+    }

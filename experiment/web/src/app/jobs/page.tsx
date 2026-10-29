@@ -8,7 +8,7 @@
  * replaced by the real API (filters are applied server-side).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Avatar, Button, Icon, Input, Table, Tabs } from "@/design-system";
 import { PageHead, Shell, StatusChip } from "@/components/vp/ui";
@@ -20,14 +20,27 @@ import { useJobKpis, useJobs, type JobFilters, type JobKpis, type JobListItem } 
 const VIEWS = [
   { key: "all", label: "All" },
   { key: "mine", label: "My jobs" },
+  // Managers: their own and everyone below them.
+  { key: "team", label: "My team", managers: true },
   // "Awaiting review", as in the design: short enough for a phone.
   { key: "review", label: "Awaiting review" },
+  { key: "lost", label: "Lost" },
 ] as const;
 
 export default function JobsPage() {
   const [filters, setFilters] = useState<JobFilters>({ view: "all" });
   // A pipeline card the admin clicked: the table shows that card's jobs.
   const [card, setCard] = useState<CardFilter>(null);
+  // A count clicked on the Dashboard opens here as ?ids=…&label=….
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ids = params.get("ids");
+    if (ids) {
+      // Read once on arrival; the URL isn't known while the page prerenders.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCard({ label: params.get("label") || "Selected", ids: ids.split(",").map(Number).filter(Boolean) });
+    }
+  }, []);
   const { data: page, isLoading, isError, error } = useJobs(
     card ? { ...filters, view: "all", ids: card.ids.length ? card.ids.join(",") : "0" } : filters,
   );
@@ -38,6 +51,8 @@ export default function JobsPage() {
   const canCreate = me?.authenticated ? Boolean(me.user.can_create_jobs ?? me.user.is_admin) : false;
 
   const rows = page?.results ?? [];
+  const isManager = me?.authenticated ? Boolean(me.user.is_manager) : false;
+  const views = VIEWS.filter((v) => !("managers" in v) || isManager);
   const set = (patch: Partial<JobFilters>) => setFilters((f) => ({ ...f, ...patch }));
   // Stage is filtered from the Pipeline; the table keeps the search box only.
   const hasFilters = Boolean(filters.q);
@@ -63,9 +78,9 @@ export default function JobsPage() {
 
       <div className="card" style={{ padding: 0 }}>
         <Tabs
-          items={VIEWS.map((v) => (v.key === "all" ? { label: v.label, count: everything?.count } : v.label))}
-          active={VIEWS.find((v) => v.key === filters.view)?.label ?? "All"}
-          onChange={(label: string) => set({ view: VIEWS.find((v) => v.label === label)?.key ?? "all" })}
+          items={views.map((v) => (v.key === "all" ? { label: v.label, count: everything?.count } : v.label))}
+          active={views.find((v) => v.key === filters.view)?.label ?? "All"}
+          onChange={(label: string) => set({ view: views.find((v) => v.label === label)?.key ?? "all" })}
           size="sm"
         />
 

@@ -5,17 +5,15 @@
  * report, and the AVM that runs on the ticked ones.
  *
  * Each comparable names its source and links to the listing or record it came
- * from. Connectors (DLD open data, Bayut, Property Monitor) will add rows to
- * the same list later, searched from what the job already holds.
+ * from. Comparables are added by hand only (pasted from a listing or typed in).
  */
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Icon, Input, Select, Textarea } from "@/design-system";
 import { ApiError, apiFetch } from "@/lib/api";
-import { DldFinder } from "./DldFinder";
 import { aed, formatDate } from "./format";
-import { Banner, Conf } from "./ui";
+import { Banner, Conf, Tip } from "./ui";
 
 type Comparable = {
   id: number;
@@ -102,7 +100,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
     queryKey: key,
     queryFn: () => apiFetch<EvidenceState>(`/api/jobs/${jobId}/evidence/`),
   });
-  const [mode, setMode] = useState<null | "dld" | "paste" | "manual">(null);
+  const [mode, setMode] = useState<null | "paste" | "manual">(null);
   const [prefill, setPrefill] = useState<{ values: Record<string, string>; found: string[] } | null>(null);
   const adding = mode === "manual";
   const close = () => {
@@ -110,7 +108,6 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
     setPrefill(null);
   };
   const [error, setError] = useState<string | null>(null);
-  const [added, setAdded] = useState<string | null>(null);
   // Once some are ticked, the unticked ones fold away under a link.
   const [showUnused, setShowUnused] = useState(false);
 
@@ -153,18 +150,13 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
 
       <div>
         <div className="row wrap" style={{ justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
-          <div style={{ minWidth: 0 }}>
+          <div className="row" style={{ minWidth: 0, gap: 6 }}>
             <div style={{ fontSize: 16 }}>Comparables</div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-              Ticked ones go into the report&apos;s comparables table and the AVM.
-            </div>
+            <Tip text="Ticked ones go into the report's comparables table and the AVM." />
           </div>
           {canEdit && mode === null && (
             <div className="row wrap" style={{ gap: 8 }}>
-              <Button size="sm" icon={<Icon name="search" size={16} />} onClick={() => setMode("dld")}>
-                Find DLD sales
-              </Button>
-              <Button size="sm" variant="outline" icon={<Icon name="clipboard" size={16} />} onClick={() => setMode("paste")}>
+              <Button size="sm" icon={<Icon name="clipboard" size={16} />} onClick={() => setMode("paste")}>
                 Paste a listing
               </Button>
               <Button size="sm" variant="outline" icon={<Icon name="plus" size={16} />} onClick={() => setMode("manual")}>
@@ -173,26 +165,6 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
             </div>
           )}
         </div>
-
-        {added && mode === null && (
-          <div style={{ marginBottom: 10 }}>
-            <Banner tone="green" icon="check">
-              {added}
-            </Banner>
-          </div>
-        )}
-
-        {mode === "dld" && (
-          <DldFinder
-            jobId={jobId}
-            canEdit={canEdit}
-            onClose={close}
-            onAdded={(n) => {
-              setAdded(`${n} DLD sale${n === 1 ? "" : "s"} added and ticked for the report.`);
-              close();
-            }}
-          />
-        )}
 
         {mode === "paste" && (
           <PasteListing
@@ -223,7 +195,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
 
         {data.comparables.length === 0 && !adding ? (
           <div style={{ fontSize: 14, color: "var(--text-muted)", padding: "18px 0" }}>
-            No comparables yet. Find DLD sales, paste a listing from Bayut, Property Finder or Property Monitor, or add one by hand.
+            No comparables yet. Paste a listing from Bayut, Property Finder or Property Monitor, or add one by hand.
           </div>
         ) : (
           <>
@@ -420,12 +392,9 @@ function PasteListing({
 
   return (
     <div className="card" style={{ padding: 18, marginBottom: 14, display: "grid", gap: 12 }}>
-      <div>
+      <div className="row" style={{ gap: 6 }}>
         <div style={{ fontSize: 16 }}>Paste a listing</div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-          Open the listing on Bayut, Property Finder or Property Monitor, select everything on the page (Ctrl+A), copy it
-          (Ctrl+C) and paste it below with the page&apos;s link. The form fills in for you to check.
-        </div>
+        <Tip text="Open the listing on Bayut, Property Finder or Property Monitor, select everything on the page (Ctrl+A), copy it (Ctrl+C) and paste it below with the page's link. The form fills in for you to check." />
       </div>
       <Input value={link} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLink(e.target.value)} placeholder="https://www.bayut.com/property/details-…" />
       <Textarea rows={6} value={text} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)} placeholder="Paste the listing's text here" />
@@ -580,12 +549,9 @@ function AvmCard({
   return (
     <div className="card" style={{ padding: 18, display: "grid", gap: 12, background: "var(--surface-subtle)" }}>
       <div className="row wrap" style={{ justifyContent: "space-between", gap: 10 }}>
-        <div style={{ minWidth: 0, flex: "1 1 240px" }}>
+        <div className="row" style={{ minWidth: 0, flex: "1 1 240px", gap: 6 }}>
           <div style={{ fontSize: 16 }}>Suggested value (AVM)</div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            Median AED/sqft of the {ticked} ticked comparable{ticked === 1 ? "" : "s"} × the subject&apos;s BUA. You set and
-            sign the final value.
-          </div>
+          <Tip text={`Median AED/sqft of the ${ticked} ticked comparable${ticked === 1 ? "" : "s"} × the subject's BUA. You set and sign the final value.`} />
         </div>
         {canEdit && (
           <Button size="sm" variant={run ? "outline" : "primary"} disabled={busy || ticked === 0} onClick={() => void runAvm()}>
