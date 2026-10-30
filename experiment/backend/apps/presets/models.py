@@ -20,6 +20,9 @@ class PresetOption(models.Model):
     )
     order = models.PositiveIntegerField(default=0)
     active = models.BooleanField(default=True)
+    # Heading the option is listed under, as Bayut groups property types
+    # (Residential / Commercial). Blank: not grouped.
+    group = models.CharField(max_length=60, blank=True)
 
     class Meta:
         ordering = ["field_key", "order", "label"]

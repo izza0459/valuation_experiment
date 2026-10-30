@@ -9,11 +9,12 @@
  * Nothing about a particular tab is hard-coded here.
  */
 
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Icon } from "@/design-system";
 import { isFieldVisible, type FieldDef, type TabDef } from "@/lib/fieldConfig";
-import type { TabState } from "@/lib/jobs";
+import { ApiError, apiFetch } from "@/lib/api";
+import type { Suggestion, TabState } from "@/lib/jobs";
 import { useOptions } from "@/lib/options";
 import { useTabAutosave, type SaveStatus } from "@/lib/useTabAutosave";
 import { ChecklistUploads } from "./ChecklistUploads";
@@ -22,6 +23,7 @@ import { demoValuesForTab, uploadDemoFiles } from "./demoFill";
 import { FieldInput, formatComputed } from "./FieldInput";
 import { MapPreview } from "./MapPreview";
 import { MediaTab } from "./MediaTab";
+import { SuggestionItem } from "./Suggestions";
 import { Banner, F } from "./ui";
 
 type Props = {
@@ -33,6 +35,10 @@ type Props = {
   /** Fields entered elsewhere on the page, not autosaved here (the call
    * status, remark and booked date are logged with Save call). */
   omit?: string[];
+  /** The peer reviewer's suggestions on this lead, shown under their fields. */
+  suggestions?: Suggestion[];
+  /** This user (the valuer) may accept or decline them. */
+  canDecide?: boolean;
 };
 
 /** The "Fill demo data" button; set NEXT_PUBLIC_DEMO_FILL=false to hide it
@@ -45,10 +51,15 @@ const COI_IN_CARD = new Set(["coi_suggestion", "coi_confirmed"]);
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
+export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, canDecide }: Props) {
   const qc = useQueryClient();
   const { data: options, isError: optionsFailed } = useOptions();
   const save = useTabAutosave(jobId, tab.key, state);
+  // The peer reviewer, during review: what they change is sent as a
+  // suggestion, and the valuer's saved values stay as they are.
+  const suggesting = Boolean(state.can_suggest);
+  const suggest = useSuggest(jobId, tab.key);
+  const open = (suggestions ?? []).filter((s) => s.tab === tab.key && s.status === "open");
 
   // Photos and documents have no form fields: they are files. Photos also
   // shows the location map from the coordinates.
@@ -70,7 +81,8 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
     );
   }
 
-  const merged = { ...state.values, ...save.draft };
+  const suggested = Object.fromEntries(open.map((s) => [s.field, s.new]));
+  const merged = suggesting ? { ...state.values, ...suggested, ...suggest.draft } : { ...state.values, ...save.draft };
   // Rules can reach across tabs, and a field just edited here can change
   // what is visible here before it has even been saved.
   const context = { ...allValues, [tab.key]: merged };
@@ -80,7 +92,10 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
   );
 
   const paused = save.status === "conflict" || save.status === "blocked";
-  const tabReadOnly = !state.can_edit || paused;
+  // Uploads and demo data follow the real edit right; fields also open up
+  // for the reviewer's suggestions.
+  const editable = state.can_edit && !paused;
+  const tabReadOnly = !(editable || suggesting);
   const label = (key: string) => tab.fields.find((f) => f.key === key)?.label ?? key;
   const empty = (v: unknown) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
   // Required fields still to fill in, shown on the field and listed at the top.
@@ -107,17 +122,28 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
   return (
     <div>
       <div className="row" style={{ justifyContent: "flex-end", gap: 12, marginBottom: 12, minHeight: 22 }}>
-        {DEMO_FILL && !tabReadOnly && (
+        {DEMO_FILL && editable && (
           <Button variant="outline" size="sm" onClick={fillDemo}>
             Fill demo data
           </Button>
         )}
         {state.can_edit && <SaveIndicator status={save.status} dirty={save.dirty} onRetry={save.retry} />}
+        {suggesting && suggest.status && (
+          <span style={{ fontSize: 13, color: suggest.status === "error" ? "var(--text-error)" : "var(--purple-600)" }}>
+            {suggest.status === "saving" ? "Sending suggestion…" : suggest.status === "error" ? "Couldn't send" : "Suggestion sent"}
+          </span>
+        )}
       </div>
+
+      {suggesting && (
+        <Banner tone="purple" icon="sparkles">
+          You&apos;re reviewing. Anything you change here is sent to the valuer as a suggestion; their saved value stays until they accept it.
+        </Banner>
+      )}
 
       {/* Another role's stage is shown read-only without an error; locked or
           frozen jobs still say why. */}
-      {!state.can_edit && state.read_only_reason && state.read_only_code !== "forbidden" && (
+      {!state.can_edit && !suggesting && state.read_only_reason && state.read_only_code !== "forbidden" && (
         <Banner tone="blue" icon="lock">
           {state.read_only_reason}
         </Banner>
@@ -194,7 +220,7 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
                 </>
               }
               badge={field.calculated ? "Calculated" : undefined}
-              error={save.errors[field.key]}
+              error={suggesting ? suggest.errors[field.key] : save.errors[field.key]}
               helper={field.help_text || undefined}
             >
               {field.calculated ? (
@@ -203,29 +229,37 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
                 <FieldInput
                   field={field}
                   value={merged[field.key]}
-                  onChange={(v) => save.setField(field.key, v)}
+                  onChange={(v) => (suggesting ? suggest.setField(field.key, v) : save.setField(field.key, v))}
                   options={options?.[field.options_key ?? ""] ?? []}
                   users={options?.users ?? []}
                   readOnly={readOnly}
-                  invalid={Boolean(save.errors[field.key])}
+                  invalid={Boolean((suggesting ? suggest.errors : save.errors)[field.key])}
                   propertyCategory={propertyCategory}
                   siblings={merged}
                 />
               )}
             </F>
+            {!suggesting && open.filter((s) => s.field === field.key).map((s) => (
+              <div key={s.id} style={{ marginTop: 8 }}>
+                <SuggestionItem jobId={jobId} s={s} canDecide={Boolean(canDecide)} compact />
+              </div>
+            ))}
+            {suggesting && field.key in suggested && !(field.key in suggest.draft) && (
+              <div className="sugg-tag"><Icon name="sparkles" size={12} /> Suggested · saved value: {String(state.values[field.key] ?? "(empty)")}</div>
+            )}
             </div>
             {/* The title document is uploaded right where its type is chosen,
                 above the details read from it. */}
             {field.key === "title_doc_type" && (
               <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
-                <ChecklistUploads jobId={jobId} mode="title" canEdit={!tabReadOnly} inline
+                <ChecklistUploads jobId={jobId} mode="title" canEdit={editable} inline
                   lockedReason={state.read_only_reason} />
               </div>
             )}
             {/* A conflict of interest needs the client's consent, uploaded here. */}
             {field.key === "coi_check" && merged.coi_check === "yes" && (
               <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
-                <ChecklistUploads jobId={jobId} mode="coi" canEdit={!tabReadOnly} inline
+                <ChecklistUploads jobId={jobId} mode="coi" canEdit={editable} inline
                   lockedReason={state.read_only_reason} />
               </div>
             )}
@@ -243,12 +277,47 @@ export function TabEditor({ jobId, tab, state, allValues, omit }: Props) {
           mode="photos"
           makani={merged.makani_photo === true}
           dewa={merged.dewa_photo === true}
-          canEdit={!tabReadOnly}
+          canEdit={editable}
           lockedReason={state.read_only_reason}
         />
       )}
     </div>
   );
+}
+
+/** The reviewer's edits, each sent as a suggestion shortly after typing
+ * stops. A value set back to the saved one withdraws the suggestion. */
+function useSuggest(jobId: string, tabKey: string) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<Record<string, unknown>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState<"" | "saving" | "sent" | "error">("");
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
+
+  const send = async (field: string, value: unknown) => {
+    setStatus("saving");
+    try {
+      await apiFetch(`/api/jobs/${jobId}/suggestions/`, {
+        method: "POST",
+        body: JSON.stringify({ tab: tabKey, field, value }),
+      });
+      setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => k !== field)));
+      await qc.invalidateQueries({ queryKey: ["jobs", jobId] });
+      setDraft((d) => (Object.is(d[field], value) ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== field)) : d));
+      setStatus("sent");
+    } catch (err) {
+      const body = err instanceof ApiError ? (err.body as { errors?: Record<string, string> } | null) : null;
+      setErrors((e) => ({ ...e, [field]: body?.errors?.[field] ?? (err instanceof Error ? err.message : "Couldn't send") }));
+      setStatus("error");
+    }
+  };
+  const setField = (field: string, value: unknown) => {
+    setDraft((d) => ({ ...d, [field]: value }));
+    clearTimeout(timers.current[field]);
+    timers.current[field] = setTimeout(() => void send(field, value), 900);
+  };
+  return { draft, errors, status, setField };
 }
 
 function ComputedValue({ field, value }: { field: FieldDef; value: unknown }) {

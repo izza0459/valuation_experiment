@@ -57,6 +57,8 @@ class JobListSerializer(serializers.ModelSerializer):
     # The bank on mortgage work, otherwise the client organisation.
     bank_name = serializers.CharField(source="organisation_name", read_only=True)
     property_label = serializers.CharField(source="property.__str__", read_only=True)
+    # Unit · Building · Sub-community · Community, for the one-line list cell.
+    location_line = serializers.CharField(source="property.one_line", read_only=True)
     property_type = serializers.CharField(source="summary.property_category", read_only=True, default="")
     valuer_name = serializers.SerializerMethodField()
     status_label = serializers.CharField(source="get_status_display", read_only=True)
@@ -72,14 +74,14 @@ class JobListSerializer(serializers.ModelSerializer):
         model = Job
         fields = [
             "id", "bayut_internal_reference_no", "bank_reference_no", "bank_name",
-            "property_label", "property_type", "valuer_name", "purpose",
+            "property_label", "location_line", "property_type", "valuer_name", "purpose",
             "status", "status_label", "progress", "version", "is_locked",
             "date_time_request_received", "created_at", "updated_at", "inspection_booked_at",
             "reviewer_changes_to_accept",
         ]
 
     def get_reviewer_changes_to_accept(self, job) -> int:
-        return job.reviewer_edits.filter(accepted_at__isnull=True).count()
+        return job.reviewer_edits.filter(accepted_at__isnull=True, declined_at__isnull=True).count()
 
     def get_progress(self, job) -> dict:
         from .tabs import job_progress
@@ -89,6 +91,25 @@ class JobListSerializer(serializers.ModelSerializer):
     def get_valuer_name(self, job) -> str:
         valuer = job.valuer or job.registered_valuer
         return str(valuer) if valuer else ""
+
+
+def lead_checks(job) -> list[dict]:
+    """What has been checked on a lead, as Bayut shows TruCheck: each with
+    whether it has been done."""
+    checklist = getattr(job, "checklist", None)
+    slots = set(job.photos.values_list("slot", flat=True))
+    title_deed = job.documents.filter(doc_type="title_deed").exists() or (
+        "title_deed" in (getattr(getattr(job, "summary", None), "information_provided", None) or [])
+    )
+    inspected = job.status in {"inspected", "valuation_in_progress", "peer_review", "approved_signed", "issued"}
+    return [
+        {"key": "dld", "label": "DLD location checked", "ok": bool(checklist and checklist.dld_location_checked)},
+        {"key": "title", "label": "Title deed received", "ok": title_deed},
+        {"key": "coi", "label": "Conflict check clear", "ok": job.coi_check == "no"},
+        {"key": "makani", "label": "Makani photo", "ok": "makani" in slots},
+        {"key": "dewa", "label": "DEWA photo", "ok": "dewa" in slots},
+        {"key": "inspected", "label": "Inspected", "ok": inspected},
+    ]
 
 
 class JobDetailSerializer(serializers.ModelSerializer):
@@ -140,6 +161,37 @@ class JobDetailSerializer(serializers.ModelSerializer):
     lost = serializers.SerializerMethodField()
     can_mark_lost = serializers.SerializerMethodField()
     coi = serializers.SerializerMethodField()
+    # Bayut-style lead card: the location broad to narrow, the checks passed
+    # (shown as badges) and the first photo.
+    location_path = serializers.ListField(source="property.location_path", read_only=True)
+    checks = serializers.SerializerMethodField()
+    cover_photo = serializers.SerializerMethodField()
+    # Peer-review suggestions (apps.jobs.suggestions), newest first.
+    suggestions = serializers.SerializerMethodField()
+    can_decide_suggestions = serializers.SerializerMethodField()
+    can_reassign = serializers.SerializerMethodField()
+
+    def get_checks(self, job) -> list:
+        return lead_checks(job)
+
+    def get_cover_photo(self, job):
+        photo = job.photos.filter(slot="general").order_by("order", "pk").first()
+        return f"/api/jobs/{job.pk}/photos/{photo.pk}/thumb/" if photo else None
+
+    def get_suggestions(self, job) -> list:
+        from .suggestions import describe
+
+        return [describe(e) for e in job.reviewer_edits.select_related("by", "accepted_by", "declined_by")]
+
+    def get_can_decide_suggestions(self, job) -> bool:
+        from .suggestions import may_decide
+
+        return may_decide(self.context["request"].user, job)
+
+    def get_can_reassign(self, job) -> bool:
+        from .assign import may_reassign
+
+        return may_reassign(self.context["request"].user, job)
 
     def get_progress(self, job) -> dict:
         from .tabs import job_progress

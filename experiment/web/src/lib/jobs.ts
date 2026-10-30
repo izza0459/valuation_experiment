@@ -7,6 +7,8 @@ export type JobListItem = {
   bank_reference_no: string;
   bank_name: string;
   property_label: string;
+  /** Unit · Building · Sub-community · Community, for one-line cells. */
+  location_line?: string;
   property_type: string;
   valuer_name: string;
   purpose: string;
@@ -23,20 +25,6 @@ export type JobListItem = {
   inspection_booked_at?: string | null;
   /** Peer reviewer changes still to accept (the valuer's badge). */
   reviewer_changes_to_accept?: number;
-};
-
-/** A wording change the peer reviewer made during review. */
-export type ReviewerEdit = {
-  id: number;
-  tab: string;
-  field: string;
-  label: string;
-  old: unknown;
-  new: unknown;
-  by: string;
-  at: string;
-  accepted_by: string;
-  accepted_at: string | null;
 };
 
 /** A call made to book the inspection (Scheduling stage). */
@@ -65,6 +53,8 @@ export type TabState = {
   read_only_code?: string;
   /** Fields on an otherwise editable tab this user may not change. */
   read_only_fields: string[];
+  /** The peer reviewer, during review: changes here become suggestions. */
+  can_suggest?: boolean;
 };
 
 /** A lifecycle move this user may make now (backend/apps/jobs/transitions.py). */
@@ -113,14 +103,44 @@ export type JobDetail = JobListItem & {
   /** Where the issued report has been sent. */
   deliveries?: Delivery[];
   call_log?: CallAttempt[];
-  reviewer_edits?: ReviewerEdit[];
-  can_accept_reviewer_edits?: boolean;
   /** Why the lead was lost, once it is (final). */
   lost?: { reason: string; note: string; stage: string; by: string; at: string } | null;
   can_mark_lost?: boolean;
+  can_reassign?: boolean;
+  /** Emirate › Community › Sub-community › Building › Unit. */
+  location_path?: string[];
+  /** What has been checked, shown as badges when done. */
+  checks?: LeadCheck[];
+  /** Thumbnail URL of the first photo. */
+  cover_photo?: string | null;
+  suggestions?: Suggestion[];
+  can_decide_suggestions?: boolean;
   /** The conflict-of-interest check: earlier instructions that may conflict. */
   coi?: CoiCheck;
 } & Record<string, unknown>;
+
+export type LeadCheck = { key: string; label: string; ok: boolean };
+
+/** A change the peer reviewer suggests; saved only when the valuer accepts it. */
+export type Suggestion = {
+  id: number;
+  tab: string;
+  field: string;
+  label: string;
+  old: unknown;
+  new: unknown;
+  /** The values as the screen shows them (option labels, Yes/No). */
+  old_text: string;
+  new_text: string;
+  note: string;
+  by: string;
+  by_id: number | null;
+  at: string;
+  status: "open" | "accepted" | "declined";
+  decided_by: string;
+  decided_at: string | null;
+  decline_reason: string;
+};
 
 export type CoiCheck = {
   matches: { id: number; ref: string; why: string; property: string; status: string; created_at: string }[];

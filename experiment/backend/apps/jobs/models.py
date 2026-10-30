@@ -81,6 +81,17 @@ class Property(SoftDeleteModel):
     def __str__(self):
         return f"{self.unit_number} {self.building_name}, {self.community_name}".strip()
 
+    def location_path(self) -> list[str]:
+        """Emirate › Community › Sub-community › Building › Unit, as Bayut
+        orders a location; parts not entered are left out."""
+        unit = f"Unit {self.unit_number}" if self.unit_number else ""
+        parts = (self.title_doc_emirate or "Dubai", self.community_name, self.development, self.building_name, unit)
+        return [p for p in parts if p]
+
+    def one_line(self) -> str:
+        """Narrow to broad on one line, for lists: Unit · Building · Sub-community · Community."""
+        return " · ".join(reversed(self.location_path()[1:]))
+
     def save(self, *args, **kwargs):
         """The address on an issued report is part of what was signed, so a
         property that a locked job points at can't be edited. (Revisions get
@@ -653,9 +664,10 @@ class SchedulingData(JobTabData):
 
 
 class ReviewerEdit(models.Model):
-    """A change the peer reviewer made to the report's wording during review
-    (CRM feedback PR-01). The valuer accepts them before the report is signed
-    off; the audit log records the same change as every other edit."""
+    """A change the peer reviewer suggests during review (CRM feedback PR-01;
+    apps.jobs.suggestions). It isn't saved until the valuer accepts it, which
+    saves it as an ordinary audit-logged edit; or the valuer declines it with
+    a reason. Sign-off waits until none are open."""
 
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="reviewer_edits")
     tab_key = models.CharField(max_length=30)
@@ -669,6 +681,11 @@ class ReviewerEdit(models.Model):
     accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name="+")
     accepted_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField(blank=True)
+    declined_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name="+")
+    declined_at = models.DateTimeField(null=True, blank=True)
+    decline_reason = models.TextField(blank=True)
 
     class Meta:
         ordering = ["-at", "-id"]

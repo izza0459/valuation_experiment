@@ -341,6 +341,90 @@ class JobLostView(APIView):
         return Response({"status": job.status, "status_label": job.get_status_display()})
 
 
+class JobSuggestionsView(APIView):
+    """POST {"tab", "field", "value", "note"}: the peer reviewer suggests a
+    change (apps.jobs.suggestions); suggesting the saved value withdraws it."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+
+    def post(self, request, pk):
+        from .suggestions import describe, suggest
+
+        job = get_object_or_404(visible_jobs(Job.objects.all(), request.user), pk=pk)
+        self.check_object_permissions(request, job)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            edit = suggest(job.pk, request.user, str(body.get("tab", "")), str(body.get("field", "")),
+                           body.get("value"), str(body.get("note") or ""))
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response(describe(edit) if edit else None, status=201 if edit else 200)
+
+
+class JobSuggestionView(APIView):
+    """POST .../accept/, .../decline/ {"reason"} (the valuer) or DELETE
+    (the reviewer withdraws it)."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+    action = ""
+
+    def post(self, request, pk, sid):
+        from . import suggestions
+
+        job = get_object_or_404(visible_jobs(Job.objects.all(), request.user), pk=pk)
+        self.check_object_permissions(request, job)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            if self.action == "accept":
+                edit = suggestions.accept(job.pk, sid, request.user)
+            else:
+                edit = suggestions.decline(job.pk, sid, request.user, str(body.get("reason") or ""))
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response(suggestions.describe(edit))
+
+    def delete(self, request, pk, sid):
+        from . import suggestions
+
+        job = get_object_or_404(visible_jobs(Job.objects.all(), request.user), pk=pk)
+        self.check_object_permissions(request, job)
+        try:
+            suggestions.withdraw(job.pk, sid, request.user)
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response(status=204)
+
+
+class JobAssignView(APIView):
+    """GET: who can take each role. POST {"role", "person"}: reassign that
+    role on the lead (apps.jobs.assign)."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+
+    def get(self, request, pk):
+        from .assign import ROLE_LABELS, candidates
+
+        return Response({"roles": [{"key": k, "label": v} for k, v in ROLE_LABELS.items()],
+                         "people": candidates()})
+
+    def post(self, request, pk):
+        from .assign import reassign
+
+        job = get_object_or_404(visible_jobs(Job.objects.all(), request.user), pk=pk)
+        self.check_object_permissions(request, job)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            reassign(job.pk, request.user, str(body.get("role", "")), body.get("person"))
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response({"ok": True})
+
+
+# The job's role columns, shown in the activity as reassignments.
+ROLE_OF_FIELD = {"admin_user": "Admin", "inspected_by": "Inspector", "valuer": "Valuer",
+                 "peer_reviewer": "Peer reviewer", "counter_signatory": "Counter-signatory"}
+
+
 class JobActivityView(APIView):
     """The lead's activity for the workspace's right panel, newest first: stage
     moves (with review comments and lost reasons), calls, report sends and
@@ -378,11 +462,30 @@ class JobActivityView(APIView):
         for e in entries:
             if e.field_name in self.QUIET or e.field_name.endswith("_id") and e.field_name[:-3] in self.QUIET:
                 continue
+            role = ROLE_OF_FIELD.get(e.field_name.removesuffix("_id"))
+            if role:
+                items.append({"kind": "assign", "title": f"{role} reassigned", "detail": "",
+                              "old": e.old_value, "new": e.new_value,
+                              "who": str(e.changed_by) if e.changed_by else "System", "at": e.changed_at})
+                continue
             label = labels.get(e.field_name) or labels.get(e.field_name.removesuffix("_id")) or (
                 e.field_name.replace("_", " ").capitalize())
             items.append({"kind": "edit", "title": f"{label} changed", "detail": "",
                           "old": e.old_value, "new": e.new_value,
                           "who": str(e.changed_by) if e.changed_by else "System", "at": e.changed_at})
+        from .suggestions import as_text
+
+        for s in job.reviewer_edits.select_related("by", "accepted_by", "declined_by"):
+            items.append({"kind": "suggest", "title": f"Suggested: {s.label}", "detail": s.note,
+                          "old": as_text(s.tab_key, s.field_key, s.old_value),
+                          "new": as_text(s.tab_key, s.field_key, s.new_value),
+                          "who": str(s.by) if s.by else "", "at": s.at})
+            if s.accepted_at or s.declined_at:
+                who = s.accepted_by if s.accepted_at else s.declined_by
+                verb = "accepted" if s.accepted_at else "declined"
+                items.append({"kind": "suggest", "title": f"Suggestion {verb}: {s.label}",
+                              "detail": s.decline_reason, "who": str(who) if who else "",
+                              "at": s.accepted_at or s.declined_at})
         items.sort(key=lambda i: i["at"], reverse=True)
         return Response(items[:150])
 

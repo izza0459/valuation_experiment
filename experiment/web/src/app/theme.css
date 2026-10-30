@@ -44,10 +44,19 @@
   --blue-50: #e4f3fc;
   --blue-600: #0793ea;
 
-  /* Brand: KSA teal */
+  /* Brand (Bayut): teal for actions, its pale tint for secondary buttons,
+     green for brand and done, purple for anything suggested (AVM, reviewer
+     suggestions; Bayut's TruEstimate colour), red for alerts. */
   --accent: #006169;
   --accent-dark: #004146;
   --accent-soft: #e1f2f0;
+  --accent-tint: #e5eff0;
+  --brand-green: #28b16d;
+  --purple-50: #f1edfa;
+  --purple-100: #e2d9f5;
+  --purple-600: #7b5ec3;
+  --purple-700: #5f45a3;
+  --alert-red: #f73131;
 
   /* Semantic */
   --surface-page: #f5f5f5;
@@ -63,7 +72,7 @@
   --text-link: var(--accent);
   --text-accent: var(--accent);
   --text-error: #c32b2a;
-  --border-default: #e6e6e6;
+  --border-default: #dbdbdb;
   --border-subtle: #e6e6e6;
   --border-divider: #ededed;
   --border-active: #a6c8ca;
@@ -73,9 +82,9 @@
   --action-primary-pressed: #00353a;
   --brand-red: var(--accent); /* DS name kept; it is the brand colour */
 
-  /* KSA radii and elevation */
-  --radius-sm: 4px;
-  --radius-md: 6px;
+  /* Bayut radii (8px on buttons, inputs and cards) and elevation */
+  --radius-sm: 8px;
+  --radius-md: 8px;
   --radius-lg: 8px;
   --radius-xl: 12px;
   --shadow-card: 0 4px 16px -2px hsl(0 0% 0% / 8%);
@@ -92,8 +101,15 @@ h3 {
   color: var(--text-primary);
   letter-spacing: 0;
 }
-h1 {
-  font-weight: 900;
+h1,
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+body {
+  font-size: 14px;
+  line-height: 21px;
 }
 a:hover {
   color: var(--accent-dark);

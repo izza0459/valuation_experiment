@@ -11,6 +11,8 @@ export type Option = {
   categories?: string[];
   /** Banks: the bank's own code, which fills the Bank Reference No. */
   code?: string;
+  /** Heading the option is listed under (e.g. Residential / Commercial). */
+  group?: string;
 };
 
 export type UserOption = Option & { roles: string[] };

@@ -8,11 +8,14 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Avatar, Tabs } from "@/design-system";
+import { Avatar, Icon, Tabs } from "@/design-system";
 import { apiFetch } from "@/lib/api";
+import { useOptions } from "@/lib/options";
 import { useJob } from "@/lib/jobs";
 import { aed, formatDateTime } from "./format";
-import { Conf, StatusChip, Tip } from "./ui";
+import { ReassignDialog } from "./ReassignDialog";
+import { SuggestionItem } from "./Suggestions";
+import { CheckBadges, Conf, LocationPath, StatusChip, Tip } from "./ui";
 
 type AvmSummary = {
   suggested_value: string;
@@ -24,7 +27,7 @@ type AvmSummary = {
 };
 
 type ActivityItem = {
-  kind: "stage" | "lost" | "call" | "send" | "edit";
+  kind: "stage" | "lost" | "call" | "send" | "edit" | "assign" | "suggest";
   title: string;
   detail: string;
   old?: string;
@@ -67,6 +70,8 @@ function Row({ label, tip, children }: { label: string; tip?: string; children: 
 function Overview({ jobId }: { jobId: string }) {
   const { data: job } = useJob(jobId);
   const [now] = useState(() => Date.now());
+  const [reassigning, setReassigning] = useState(false);
+  const { data: options } = useOptions();
   const { data: evidence } = useQuery({
     queryKey: ["job-evidence", jobId],
     queryFn: () => apiFetch<{ avm: AvmSummary | null }>(`/api/jobs/${jobId}/evidence/`),
@@ -74,10 +79,13 @@ function Overview({ jobId }: { jobId: string }) {
   if (!job) return <div className="skel" style={{ height: 200 }} />;
   const value = (job.valuation as { market_value?: string | null } | null)?.market_value;
   const summary = (job.summary ?? {}) as { property_category?: string; type_of_property?: string };
+  const category = options?.property_category?.find((o) => o.value === summary.property_category)?.label;
   const property = (job.property ?? {}) as { community_name?: string };
   const people = (job.assignees ?? []) as { id: number; name: string; roles: string[] }[];
   const run = evidence?.avm;
   const received = new Date(job.date_time_request_received ?? job.created_at).getTime();
+  const open = (job.suggestions ?? []).filter((s) => s.status === "open");
+  const holders = Object.fromEntries(people.flatMap((p) => p.roles.map((r) => [r, p.id])));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -104,11 +112,27 @@ function Overview({ jobId }: { jobId: string }) {
         <Row label="Purpose">{purposeLabel(job.purpose)}</Row>
       </div>
 
+      {open.length > 0 && (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 8, color: "var(--purple-600)" }}>
+            Suggestions ({open.length})
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {open.map((s) => (
+              <SuggestionItem key={s.id} jobId={jobId} s={s} canDecide={Boolean(job.can_decide_suggestions)} compact />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="ov-group">
         <Row label="Property">{job.property_label}</Row>
         <Row label="Community">{property.community_name}</Row>
-        <Row label="Type">{summary.type_of_property || job.property_type}</Row>
+        <Row label="Type">{summary.type_of_property || category}</Row>
+        <LocationPath parts={job.location_path} />
       </div>
+
+      <CheckBadges checks={job.checks} all />
 
       <div className="ov-group">
         <Row label="Received" tip="When the bank's request arrived.">
@@ -136,7 +160,14 @@ function Overview({ jobId }: { jobId: string }) {
       </div>
 
       <div>
-        <div className="eyebrow" style={{ marginBottom: 8 }}>People</div>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          <span className="eyebrow">People</span>
+          {job.can_reassign && (
+            <button type="button" className="link-btn" onClick={() => setReassigning(true)}>
+              <Icon name="user-round-pen" size={14} /> Reassign
+            </button>
+          )}
+        </div>
         <div style={{ display: "grid", gap: 8 }}>
           {people.length === 0 && <span style={{ fontSize: 14, color: "var(--text-muted)" }}>Nobody assigned yet</span>}
           {people.map((p) => (
@@ -152,6 +183,7 @@ function Overview({ jobId }: { jobId: string }) {
           ))}
         </div>
       </div>
+      {reassigning && <ReassignDialog jobId={jobId} current={holders} onClose={() => setReassigning(false)} />}
     </div>
   );
 }
@@ -182,7 +214,7 @@ function Activity({ jobId }: { jobId: string }) {
             <span className="tl-dot" />
             <div style={{ fontSize: 14, fontWeight: 500 }}>{i.title}</div>
             {i.detail && <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap", marginTop: 2 }}>{i.detail}</div>}
-            {i.kind === "edit" && (
+            {(i.kind === "edit" || i.kind === "assign" || i.kind === "suggest") && (i.old !== undefined || i.new !== undefined) && (
               <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2, wordBreak: "break-word" }}>
                 {short(i.old) || "(empty)"} → {short(i.new) || "(empty)"}
               </div>

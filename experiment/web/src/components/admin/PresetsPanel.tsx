@@ -8,7 +8,7 @@ import { flattenErrors, useAdminList, useAdminSave } from "@/lib/admin";
 import { Empty, FormDialog, Grid, muted } from "./parts";
 
 type Key = { key: string; label: string; tab: string; count: number };
-type Option = { id: number; field_key: string; value: string; label: string; report_text: string; order: number; active: boolean };
+type Option = { id: number; field_key: string; value: string; label: string; report_text: string; order: number; active: boolean; group: string };
 
 export function PresetsPanel() {
   const { data: keys } = useAdminList<Key>("preset-keys/");
@@ -18,15 +18,15 @@ export function PresetsPanel() {
   const { data: options, isLoading } = useAdminList<Option>(current ? `presets/?field_key=${current}` : "presets/?field_key=__none__");
   const save = useAdminSave("presets");
   const [editing, setEditing] = useState<Option | "new" | null>(null);
-  const [form, setForm] = useState({ label: "", report_text: "", order: "0", active: true });
+  const [form, setForm] = useState({ label: "", report_text: "", order: "0", active: true, group: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function open(option: Option | "new") {
     setEditing(option);
     setErrors({});
     setForm(option === "new"
-      ? { label: "", report_text: "", order: String((options?.length ?? 0) + 1), active: true }
-      : { label: option.label, report_text: option.report_text, order: String(option.order), active: option.active });
+      ? { label: "", report_text: "", order: String((options?.length ?? 0) + 1), active: true, group: "" }
+      : { label: option.label, report_text: option.report_text, order: String(option.order), active: option.active, group: option.group ?? "" });
   }
 
   async function submit() {
@@ -101,6 +101,9 @@ export function PresetsPanel() {
           </F>
           <F label="Order" error={errors.order}>
             <Input inputMode="numeric" value={form.order} onChange={(e) => setForm({ ...form, order: e.target.value })} />
+          </F>
+          <F label="Group" span={2} helper="Heading this option is listed under, such as Residential or Commercial. Leave blank for none." error={errors.group}>
+            <Input value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value })} />
           </F>
           <F label="Report text" span={2} helper="Optional paragraph this option can insert into the report." error={errors.report_text}>
             <Textarea rows={4} value={form.report_text} onChange={(e) => setForm({ ...form, report_text: e.target.value })} />

@@ -26,11 +26,11 @@ import { useEffect, useState } from "react";
 import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
 import { Avatar, Button, Icon } from "@/design-system";
-import { Banner, Shell, StatusChip } from "@/components/vp/ui";
+import { Banner, CheckBadges, LocationPath, Shell, StatusChip } from "@/components/vp/ui";
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
-import { ReviewerChanges } from "@/components/vp/ReviewerChanges";
+import { SuggestionsPanel } from "@/components/vp/Suggestions";
 import { CallForm } from "@/components/vp/CallForm";
 
 /** Logged together with Save call (CallForm), not autosaved field by field. */
@@ -244,7 +244,6 @@ export function JobDetailClient({ id }: { id: string }) {
     go((firstOpen ?? inStage[0]).key);
   };
 
-  const property = (job.property ?? {}) as Record<string, string>;
   const assignees = (job.assignees ?? []) as Assignee[];
   const ownerOf = (role: string) => assignees.find((a) => a.roles.includes(role))?.name;
   const isLocked = job.is_locked;
@@ -280,7 +279,8 @@ export function JobDetailClient({ id }: { id: string }) {
           .map((p) => (
             <div key={p.key} style={{ marginBottom: 24, paddingBottom: 8, borderBottom: "1px solid var(--border-divider)" }}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
-              <TabEditor key={p.key} jobId={id} tab={p.tab!} state={job.tabs[p.key]} allValues={allValues} />
+              <TabEditor key={p.key} jobId={id} tab={p.tab!} state={job.tabs[p.key]} allValues={allValues}
+                suggestions={job.suggestions} canDecide={job.can_decide_suggestions} />
             </div>
           ))}
         {pages.some((p) => p.within === page.key) && (
@@ -288,7 +288,8 @@ export function JobDetailClient({ id }: { id: string }) {
         )}
         {/* Keyed so each section keeps its own autosave state. */}
         <TabEditor key={page.key} jobId={id} tab={page.tab} state={job.tabs[page.key]} allValues={allValues}
-          omit={page.key === "scheduling" ? CALL_FIELDS : undefined} />
+          omit={page.key === "scheduling" ? CALL_FIELDS : undefined}
+          suggestions={job.suggestions} canDecide={job.can_decide_suggestions} />
         {page.key === "scheduling" && (
           <>
             <CallForm
@@ -319,11 +320,11 @@ export function JobDetailClient({ id }: { id: string }) {
               › {job.bayut_internal_reference_no}
             </div>
             <div className="row" style={{ gap: 10 }}>
-              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 500 }}>{job.property_label}</h1>
+              <h1 className="page-title" style={{ margin: 0 }}>{job.property_label}</h1>
               {isLocked && <Icon name="lock" size={18} color="var(--text-muted)" />}
             </div>
+            <LocationPath parts={job.location_path} />
             <div className="row wrap" style={{ gap: "4px 14px", marginTop: 6, fontSize: 14, color: "var(--text-secondary)" }}>
-              <span>{property.title_doc_emirate || "Dubai"}</span>
               <span>
                 Bayut ref <span className="num">{job.bayut_internal_reference_no}</span>
               </span>
@@ -334,15 +335,17 @@ export function JobDetailClient({ id }: { id: string }) {
               ) : null}
               <span>{job.bank_name}</span>
             </div>
+            <div style={{ marginTop: 8 }}><CheckBadges checks={job.checks} /></div>
           </div>
 
           <div className="row jobmeta" style={{ gap: 12, flexShrink: 0 }}>
             {!isLocked && current.stage !== "review" && current.stage !== "send" && <ReportActions jobId={id} />}
             <StatusChip s={job.status_label as string} />
             {job.can_mark_lost && !showPanel && (
-              <Button size="sm" variant="outline" icon={<Icon name="circle-x" size={16} />} onClick={() => setLosing(true)}>
+              <button type="button" className="lost-btn sm" onClick={() => setLosing(true)} aria-label="Mark as lost">
+                <Icon name="circle-x" size={16} />
                 <span className="hide-app">Mark as lost</span>
-              </Button>
+              </button>
             )}
             <div className="row" style={{ gap: 0 }}>
               {assignees.map((person, i) => (
@@ -470,14 +473,17 @@ export function JobDetailClient({ id }: { id: string }) {
         </div>
       )}
 
-      {/* Changes a peer reviewer made before reviewers became read-only, for the valuer to accept (PR-01). */}
-      <ReviewerChanges
-        jobId={id}
-        edits={job.reviewer_edits ?? []}
-        canAccept={Boolean(job.can_accept_reviewer_edits)}
-        reviewing={job.status === "peer_review" && Boolean(me?.authenticated && (job.assignees as Assignee[] | undefined)
-          ?.some((a) => a.id === me.user.id && a.roles.includes("peer_reviewer")))}
-      />
+      {/* The peer reviewer's suggestions, all together on Review (PR-01);
+          elsewhere they show under their fields and in the lead card. */}
+      {current.stage === "review" && (
+        <SuggestionsPanel
+          jobId={id}
+          suggestions={job.suggestions ?? []}
+          canDecide={Boolean(job.can_decide_suggestions)}
+          reviewing={job.status === "peer_review" && Boolean(me?.authenticated && (job.assignees as Assignee[] | undefined)
+            ?.some((a) => a.id === me.user.id && a.roles.includes("peer_reviewer")))}
+        />
+      )}
 
       {job.lost && (
         <Banner tone="red" icon="circle-x">
@@ -601,7 +607,7 @@ export function JobDetailClient({ id }: { id: string }) {
           <div className="sidecol">
             <RightPanel jobId={id} />
             {job.can_mark_lost && (
-              <button type="button" className="lost-link" onClick={() => setLosing(true)}>
+              <button type="button" className="lost-btn" onClick={() => setLosing(true)}>
                 <Icon name="circle-x" size={16} />
                 Mark lead as lost
               </button>

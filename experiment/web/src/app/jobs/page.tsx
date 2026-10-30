@@ -11,10 +11,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Avatar, Button, Icon, Input, Table, Tabs } from "@/design-system";
+import { LeadPreview } from "@/components/vp/LeadPreview";
 import { PageHead, Shell, StatusChip } from "@/components/vp/ui";
 import { PipelineFunnel, type CardFilter } from "@/components/vp/PipelineFunnel";
 import { formatDateTime } from "@/components/vp/format";
 import { useMe } from "@/lib/auth";
+import { useOptions } from "@/lib/options";
 import { useJobKpis, useJobs, type JobFilters, type JobKpis, type JobListItem } from "@/lib/jobs";
 
 const VIEWS = [
@@ -47,7 +49,11 @@ export default function JobsPage() {
   // The true total, whatever the table is filtered to (QA: counts must be accurate).
   const { data: everything } = useJobs({ view: "all" });
   const { data: kpis } = useJobKpis();
+  // The lead shown in the preview panel, if any.
+  const [preview, setPreview] = useState<number | null>(null);
   const { data: me } = useMe();
+  const { data: options } = useOptions();
+  const categoryLabel = (v?: string) => options?.property_category?.find((o) => o.value === v)?.label ?? v;
   const canCreate = me?.authenticated ? Boolean(me.user.can_create_jobs ?? me.user.is_admin) : false;
 
   const rows = page?.results ?? [];
@@ -56,6 +62,11 @@ export default function JobsPage() {
   const set = (patch: Partial<JobFilters>) => setFilters((f) => ({ ...f, ...patch }));
   // Stage is filtered from the Pipeline; the table keeps the search box only.
   const hasFilters = Boolean(filters.q);
+  const step = (by: -1 | 1) => {
+    const at = rows.findIndex((r) => r.id === preview);
+    const next = rows[at + by];
+    if (next) setPreview(next.id);
+  };
 
   return (
     <Shell>
@@ -145,7 +156,9 @@ export default function JobsPage() {
                   </b>
                   <StatusChip s={j.progress?.stage_label ?? j.status_label} />
                 </div>
-                <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>{j.property_label}</div>
+                <div className="one-line" style={{ fontSize: 14, color: "var(--text-secondary)" }} title={j.location_line || j.property_label}>
+                  {j.location_line || j.property_label}
+                </div>
                 <div className="row" style={{ justifyContent: "space-between", gap: 10, fontSize: 13, color: "var(--text-muted)" }}>
                   <span>{j.valuer_name || "Unassigned"}</span>
                   <span>
@@ -186,10 +199,13 @@ export default function JobsPage() {
                 key: "property",
                 label: "Property",
                 render: (j: JobListItem) => (
-                  <span style={{ display: "block", maxWidth: 260, whiteSpace: "normal" }}>{j.property_label}</span>
+                  <button type="button" className="cell-link one-line" style={{ maxWidth: 230 }}
+                    title={`${j.location_line || j.property_label} · click to preview`} onClick={() => setPreview(j.id)}>
+                    {j.location_line || j.property_label}
+                  </button>
                 ),
               },
-              { key: "type", label: "Type", render: (j: JobListItem) => j.property_type || "—" },
+              { key: "type", label: "Type", render: (j: JobListItem) => categoryLabel(j.property_type) || "—" },
               {
                 key: "status",
                 label: "Status",
@@ -230,6 +246,16 @@ export default function JobsPage() {
                   </span>
                 ),
               },
+              {
+                key: "preview",
+                label: "",
+                render: (j: JobListItem) => (
+                  <button type="button" className={"icon-btn" + (preview === j.id ? " on" : "")} aria-label="Preview lead"
+                    title="Preview" onClick={() => setPreview(j.id)}>
+                    <Icon name="eye" size={18} />
+                  </button>
+                ),
+              },
             ]}
             rows={rows}
           />
@@ -246,6 +272,7 @@ export default function JobsPage() {
           </div>
         )}
       </div>
+      {preview !== null && <LeadPreview jobId={preview} onClose={() => setPreview(null)} onStep={step} />}
     </Shell>
   );
 }

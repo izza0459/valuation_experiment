@@ -45,6 +45,7 @@ type Overview = {
   by_person: Count[];
   pins: Pin[];
   unmapped: number;
+  misplaced: number[];
 };
 
 const RANGES = [
@@ -125,7 +126,16 @@ export default function DashboardPage() {
           <Card
             title="Where the active leads are"
             tip="One dot per open lead with coordinates, coloured by stage. Click a dot to open it."
-            right={data.unmapped ? <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{data.unmapped} without coordinates</span> : null}
+            right={
+              <span className="row" style={{ gap: 12, fontSize: 13, color: "var(--text-muted)" }}>
+                {data.misplaced.length > 0 && (
+                  <Link href={jobsLink("Coordinates to check", data.misplaced)} style={{ color: "var(--red-600)", fontWeight: 700 }}>
+                    {data.misplaced.length} need coordinates checked
+                  </Link>
+                )}
+                {data.unmapped > 0 && <span>{data.unmapped} without coordinates</span>}
+              </span>
+            }
           >
             <LeadsMap pins={data.pins} />
             <div className="row wrap" style={{ gap: 14, marginTop: 10, fontSize: 13, color: "var(--text-secondary)" }}>

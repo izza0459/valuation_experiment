@@ -39,7 +39,7 @@ class PresetKeysView(APIView):
 class PresetOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = PresetOption
-        fields = ["id", "field_key", "value", "label", "report_text", "order", "active"]
+        fields = ["id", "field_key", "value", "label", "report_text", "order", "active", "group"]
         # The value is the stable key rules and stored jobs refer to: it is
         # derived from the label once and never changes after that.
         read_only_fields = ["value"]

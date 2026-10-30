@@ -118,9 +118,13 @@ ROUND_TO_COLUMN_PRECISION = {"latitude", "longitude", "bua_sqm"}
 # against their range. A negative market value would otherwise reach the
 # value-in-words renderer and fail there instead of being rejected here.
 SIGNED_DECIMALS = {"ground_elevation", "latitude", "longitude"}
+# The UAE's latitudes and longitudes. They don't overlap, so a value of one
+# in the other's field means the two were typed the wrong way round.
+UAE_LATITUDE = (Decimal("22.5"), Decimal("26.5"))
+UAE_LONGITUDE = (Decimal("51"), Decimal("56.5"))
 DECIMAL_RANGES = {
-    "latitude": (Decimal(-90), Decimal(90)),
-    "longitude": (Decimal(-180), Decimal(180)),
+    "latitude": UAE_LATITUDE,
+    "longitude": UAE_LONGITUDE,
     "completion_pct": (Decimal(0), Decimal(100)),
     "forced_sale_discount_pct": (Decimal(0), Decimal(100)),
     # Plausible ranges, so a slip of the keyboard isn't saved (QA #8).
@@ -386,6 +390,9 @@ def job_tab_state(job, user=None) -> dict:
             # "forbidden": not this user's stage (shown quietly, not as an error);
             # "locked" / "frozen": nobody can edit it now.
             tab_state["read_only_code"] = denial.code if denial else ""
+            from .suggestions import may_suggest  # imports this module
+
+            tab_state["can_suggest"] = may_suggest(user, job, key)
             # Fields on an otherwise editable tab that this user may not change.
             tab_state["read_only_fields"] = (
                 [] if may_assign(user, job)
@@ -518,6 +525,13 @@ def _coerce_decimal(raw, mf, key):
         raise _Invalid("Must be a number.")
 
     low, high = DECIMAL_RANGES.get(key, (None if key in SIGNED_DECIMALS else Decimal(0), None))
+    if key in ("latitude", "longitude") and not low <= value <= high:
+        other_low, other_high = UAE_LONGITUDE if key == "latitude" else UAE_LATITUDE
+        if other_low <= value <= other_high:
+            other = "longitude" if key == "latitude" else "latitude"
+            raise _Invalid(f"That looks like the {other}: latitude and longitude may be the wrong way round. "
+                           f"In the UAE the {key} is {low} to {high}.")
+        raise _Invalid(f"Outside the UAE: the {key} is {low} to {high}.")
     if (low is not None and value < low) or (high is not None and value > high):
         if low is not None and high is not None:
             raise _Invalid(f"Must be between {low} and {high}.")
@@ -854,14 +868,18 @@ def _follow_bank_billing_address(job, old_bank_id, supplied):
 
 
 def accept_reviewer_edits(job_id: int, user) -> int:
-    """The valuer (or an admin) accepts the reviewer's changes; returns how many."""
+    """The valuer (or an admin) accepts every open suggestion, all or none;
+    returns how many."""
+    from .suggestions import accept, open_suggestions  # imports this module
+
     with acting_as(user), transaction.atomic():
         job = Job.objects.select_for_update().get(pk=job_id)
         if not (is_platform_admin(user) or Role.VALUER in roles_on_job(user, job)):
             raise NotPermitted("Only the valuer on this job can accept the reviewer's changes.")
-        return job.reviewer_edits.filter(accepted_at__isnull=True).update(
-            accepted_at=timezone.now(), accepted_by=user
-        )
+        ids = list(open_suggestions(job).values_list("pk", flat=True))
+        for pk in reversed(ids):  # oldest first
+            accept(job_id, pk, user)
+    return len(ids)
 
 
 def _log_call(job, scheduling, user, cleaned) -> None:

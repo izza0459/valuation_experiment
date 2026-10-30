@@ -18,6 +18,8 @@ export const STAGE_COLOURS: Record<string, string> = {
 };
 
 const DUBAI: [number, number] = [25.13, 55.2];
+// The map stays on the UAE: it can't be panned or zoomed out past it.
+const UAE: [[number, number], [number, number]] = [[22.3, 50.8], [26.7, 56.7]];
 
 export function LeadsMap({ pins }: { pins: Pin[] }) {
   const box = useRef<HTMLDivElement>(null);
@@ -27,7 +29,8 @@ export function LeadsMap({ pins }: { pins: Pin[] }) {
     let cancelled = false;
     void import("leaflet").then((L) => {
       if (cancelled || !box.current) return;
-      map = L.map(box.current, { scrollWheelZoom: false }).setView(DUBAI, 10);
+      map = L.map(box.current, { scrollWheelZoom: false, minZoom: 7, maxBounds: UAE, maxBoundsViscosity: 1 })
+        .setView(DUBAI, 10);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 18,
         attribution: "&copy; OpenStreetMap contributors",

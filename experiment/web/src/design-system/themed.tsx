@@ -6,8 +6,8 @@
  * weight, corners or per-variant colour). index.ts exports these in their
  * place.
  *
- * Buttons, as in the Bayut valuations design: bold labels, 6px corners;
- * primary solid teal, outline white with teal text, ghost a bold teal text
+ * Buttons, as on Bayut: bold labels, 8px corners; primary solid teal,
+ * outline (secondary) pale teal with teal text, ghost a bold teal text
  * button, danger bold red text. Avatars get a steady colour per person.
  */
 
@@ -24,7 +24,7 @@ const SIZES: Record<string, React.CSSProperties> = {
 };
 
 const VARIANTS: Record<string, React.CSSProperties> = {
-  outline: { color: "var(--text-accent)" },
+  outline: { background: "var(--accent-tint)", color: "var(--text-accent)", borderColor: "var(--accent-tint)" },
   danger: { background: "transparent", color: "var(--red-600)", borderColor: "transparent" },
 };
 
@@ -33,7 +33,7 @@ export function Button({ variant = "primary", size = "md", style, ...rest }: But
     <BaseButton
       variant={variant}
       size={size}
-      style={{ fontWeight: 700, borderRadius: 6, ...SIZES[size as string], ...VARIANTS[variant as string], ...style }}
+      style={{ fontWeight: 700, borderRadius: 8, ...SIZES[size as string], ...VARIANTS[variant as string], ...style }}
       {...rest}
     />
   );

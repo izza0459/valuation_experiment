@@ -196,14 +196,23 @@ def overview(jobs, begin, end) -> dict:
         who = job.valuer or job.registered_valuer
         return str(who) if who else "Unassigned"
 
-    pins = []
+    from .tabs import UAE_LATITUDE, UAE_LONGITUDE
+
+    pins, misplaced = [], []
     for job in active:
         prop = job.property
-        if prop.latitude is not None and prop.longitude is not None:
-            progress = job_progress(job)
-            pins.append({"id": job.pk, "ref": job.bayut_internal_reference_no, "property": str(prop),
-                         "lat": float(prop.latitude), "lng": float(prop.longitude),
-                         "stage": progress["stage_label"], "community": prop.community_name})
+        if prop.latitude is None or prop.longitude is None:
+            continue
+        # Outside the UAE means the coordinates were mistyped: listed for
+        # checking rather than drawn somewhere else in the world.
+        if not (UAE_LATITUDE[0] <= prop.latitude <= UAE_LATITUDE[1]
+                and UAE_LONGITUDE[0] <= prop.longitude <= UAE_LONGITUDE[1]):
+            misplaced.append(job.pk)
+            continue
+        progress = job_progress(job)
+        pins.append({"id": job.pk, "ref": job.bayut_internal_reference_no, "property": str(prop),
+                     "lat": float(prop.latitude), "lng": float(prop.longitude),
+                     "stage": progress["stage_label"], "community": prop.community_name})
     return {
         "from": begin.date(), "to": (end - datetime.timedelta(days=1)).date(),
         "tiles": {
@@ -222,5 +231,6 @@ def overview(jobs, begin, end) -> dict:
         "by_bank": _count_by(active, lambda j: j.organisation_name),
         "by_person": _count_by(active, person),
         "pins": pins,
-        "unmapped": len(active) - len(pins),
+        "unmapped": len(active) - len(pins) - len(misplaced),
+        "misplaced": misplaced,
     }

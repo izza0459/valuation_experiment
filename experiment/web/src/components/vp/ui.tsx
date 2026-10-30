@@ -251,6 +251,33 @@ const SOURCE_COLOURS: Record<string, [string, string]> = {
 };
 
 /** Every value shows where it came from (design brief §3.4). */
+/** A lead's location broad to narrow, Bayut's order: Dubai › Community ›
+ * Sub-community › Building › Unit. One line; what doesn't fit ends in "…". */
+export const LocationPath = ({ parts }: { parts?: string[] }) =>
+  parts && parts.length ? (
+    <div className="loc-path" title={parts.join(" › ")}>
+      <Icon name="map-pin" size={13} />
+      <span>{parts.join(" › ")}</span>
+    </div>
+  ) : null;
+
+/** The checks done on a lead, as Bayut shows TruCheck: only the ones passed,
+ * unless `all` (then the rest show greyed). */
+export const CheckBadges = ({ checks, all }: { checks?: { key: string; label: string; ok: boolean }[]; all?: boolean }) => {
+  const shown = (checks ?? []).filter((c) => all || c.ok);
+  if (!shown.length) return null;
+  return (
+    <div className="check-badges">
+      {shown.map((c) => (
+        <span key={c.key} className={"check-badge" + (c.ok ? "" : " todo")} title={c.ok ? "Done" : "Not done yet"}>
+          <Icon name={c.ok ? "badge-check" : "circle-dashed"} size={13} />
+          {c.label}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 export const SourceBadge = ({ s }: { s: string }) => {
   const [bg, fg] = SOURCE_COLOURS[s] ?? SOURCE_COLOURS.Manual;
   return (
@@ -526,7 +553,7 @@ export const Banner = ({
   children,
   right,
 }: {
-  tone?: "amber" | "red" | "blue" | "green";
+  tone?: "amber" | "red" | "blue" | "green" | "purple";
   icon?: string;
   children: React.ReactNode;
   right?: React.ReactNode;
@@ -536,6 +563,7 @@ export const Banner = ({
     red: ["var(--red-100)", "var(--red-600)"],
     blue: ["var(--blue-50)", "var(--blue-600)"],
     green: ["var(--green-50)", "var(--green-600)"],
+    purple: ["var(--purple-50)", "var(--purple-600)"],
   }[tone];
   return (
     <div

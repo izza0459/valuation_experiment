@@ -49,7 +49,8 @@ export function LostDialog({ jobId, onClose }: { jobId: string; onClose: () => v
       actions={
         <>
           <Button variant="outline" onClick={onClose}>Keep it open</Button>
-          <Button disabled={busy || !reason} onClick={() => void submit()}>
+          <Button disabled={busy || !reason} onClick={() => void submit()}
+            style={{ background: "var(--red-600)", borderColor: "var(--red-600)", color: "#fff" }}>
             {busy ? "Saving…" : "Mark as lost"}
           </Button>
         </>

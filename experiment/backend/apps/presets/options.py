@@ -41,7 +41,8 @@ def preset_options(options_key: str, *, free_text: bool = False) -> list[dict]:
     # Free-text fields (community, emirate) store what is shown, not a slug:
     # the master list is "later" (CLAUDE.md §4) and report text uses it verbatim.
     return [
-        {"value": r.label if free_text else r.value, "label": r.label, "report_text": r.report_text}
+        {"value": r.label if free_text else r.value, "label": r.label, "report_text": r.report_text,
+         **({"group": r.group} if r.group else {})}
         for r in rows
     ]
 

@@ -369,18 +369,41 @@ function Dropdown({
   invalid?: boolean;
   onChange: (v: unknown) => void;
 }) {
+  // Record ids are numbers; the dropdown only deals in strings.
+  const pick = (v: string) => {
+    const picked = choices.find((o) => String(o.value) === v);
+    onChange(picked ? picked.value : "");
+  };
+  if (choices.some((o) => o.group)) return <GroupedSelect value={str(value)} choices={choices} invalid={invalid} onPick={pick} />;
   return (
     <Select
       value={str(value)}
       invalid={invalid}
       placeholder="Select…"
       options={choices.map((o) => ({ value: String(o.value), label: o.label }))}
-      onChange={(e) => {
-        // Record ids are numbers; the dropdown only deals in strings.
-        const picked = choices.find((o) => String(o.value) === e.target.value);
-        onChange(picked ? picked.value : "");
-      }}
+      onChange={(e) => pick(e.target.value)}
     />
+  );
+}
+
+/** A dropdown with its options under headings (Residential / Commercial),
+ * styled as the design system's Select, which has no groups. */
+function GroupedSelect({ value, choices, invalid, onPick }: {
+  value: string; choices: Option[]; invalid?: boolean; onPick: (v: string) => void;
+}) {
+  const groups = [...new Set(choices.map((o) => o.group ?? ""))];
+  return (
+    <div className="gselect">
+      <select value={value} onChange={(e) => onPick(e.target.value)} className={(invalid ? "invalid " : "") + (value ? "" : "empty")}>
+        <option value="">Select…</option>
+        {groups.map((g) => {
+          const items = choices.filter((o) => (o.group ?? "") === g).map((o) => (
+            <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+          ));
+          return g ? <optgroup key={g} label={g}>{items}</optgroup> : items;
+        })}
+      </select>
+    </div>
   );
 }
 
