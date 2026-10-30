@@ -19,7 +19,6 @@ import { useOptions } from "@/lib/options";
 import { useTabAutosave, type SaveStatus } from "@/lib/useTabAutosave";
 import { ChecklistUploads } from "./ChecklistUploads";
 import { CoiCard } from "./CoiCard";
-import { demoValuesForTab, uploadDemoFiles } from "./demoFill";
 import { FieldInput, formatComputed } from "./FieldInput";
 import { MapPreview } from "./MapPreview";
 import { MediaTab } from "./MediaTab";
@@ -41,9 +40,6 @@ type Props = {
   canDecide?: boolean;
 };
 
-/** The "Fill demo data" button; set NEXT_PUBLIC_DEMO_FILL=false to hide it
- * once real valuations are entered. */
-const DEMO_FILL = process.env.NEXT_PUBLIC_DEMO_FILL !== "false";
 
 /** Fields that need the full width: long text and pick-lists. */
 const WIDE = new Set(["textarea", "library", "multiselect", "storeys"]);
@@ -52,7 +48,6 @@ const COI_IN_CARD = new Set(["coi_suggestion", "coi_confirmed"]);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, canDecide }: Props) {
-  const qc = useQueryClient();
   const { data: options, isError: optionsFailed } = useOptions();
   const save = useTabAutosave(jobId, tab.key, state);
   // The peer reviewer, during review: what they change is sent as a
@@ -107,26 +102,12 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
     el?.querySelector<HTMLElement>("input, select, textarea, button")?.focus({ preventScroll: true });
   };
-  // Fills only what is empty, editable and on screen; typed values stay.
-  // Fills what is empty and editable, including fields an earlier answer
-  // reveals. Sections with uploads get dummy files as well.
-  const fillDemo = () => {
-    const filled = demoValuesForTab(tab, merged, allValues, state.read_only_fields, options);
-    for (const [key, value] of Object.entries(filled)) save.setField(key, value);
-    const files = tab.key === "address" ? "title" : tab.key === "checklist" ? "slot_photos" : null;
-    if (files) void uploadDemoFiles(jobId, files, qc);
-  };
   const summary = (tab.key === "summary" ? merged : (allValues.summary as Record<string, unknown> | undefined)) ?? {};
   const propertyCategory = typeof summary.property_category === "string" ? summary.property_category : undefined;
 
   return (
     <div>
       <div className="row" style={{ justifyContent: "flex-end", gap: 12, marginBottom: 12, minHeight: 22 }}>
-        {DEMO_FILL && editable && (
-          <Button variant="outline" size="sm" onClick={fillDemo}>
-            Fill demo data
-          </Button>
-        )}
         {state.can_edit && <SaveIndicator status={save.status} dirty={save.dirty} onRetry={save.retry} />}
         {suggesting && suggest.status && (
           <span style={{ fontSize: 13, color: suggest.status === "error" ? "var(--text-error)" : "var(--purple-600)" }}>

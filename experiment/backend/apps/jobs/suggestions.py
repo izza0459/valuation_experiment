@@ -16,8 +16,17 @@ from apps.audit.middleware import acting_as
 
 from .field_config import get_tab
 from .models import Job, JobTabVersion, ReviewerEdit
+from .tabs import (
+    ASSIGNMENT_FIELDS,
+    NotPermitted,
+    TabError,
+    ValidationFailed,
+    _validated,
+    _wire,
+    job_tab_state,
+    patch_tab,
+)
 from .workflow import JobStatus
-from .tabs import ASSIGNMENT_FIELDS, NotPermitted, TabError, ValidationFailed, _validated, _wire, job_tab_state, patch_tab
 
 
 class NotFound(TabError):
@@ -143,7 +152,8 @@ def as_text(tab_key: str, field_key: str, value) -> str:
             labels = {}
     if isinstance(value, list):
         return ", ".join(
-            str(v.get("title") or v.get("body", "")) if isinstance(v, dict) else labels.get(str(v), str(v)) for v in value
+            str(v.get("title") or v.get("body", "")) if isinstance(v, dict) else labels.get(str(v), str(v))
+            for v in value
         )
     if isinstance(value, dict):
         return ", ".join(f"{k}: {v}" for k, v in value.items() if v not in (None, "", []))

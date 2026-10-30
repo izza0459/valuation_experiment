@@ -76,7 +76,8 @@ class TestReassign:
 
     def test_only_someone_who_can_take_the_role(self, job, dan):
         nobody = get_user_model().objects.create_user("ins", "ins@example.test", roles=["inspector"])
-        res = client_for(dan).post(f"/api/jobs/{job.pk}/assign/", {"role": "valuer", "person": nobody.pk}, format="json")
+        res = client_for(dan).post(f"/api/jobs/{job.pk}/assign/", {"role": "valuer", "person": nobody.pk},
+                                   format="json")
         assert res.status_code == 400 and "person" in res.json()["errors"]
 
     def test_not_by_an_outsider_or_on_a_closed_lead(self, job, dan, other):
@@ -89,5 +90,6 @@ class TestReassign:
     def test_a_manager_can_reassign_their_reports_lead(self, job, dan, other):
         boss = get_user_model().objects.create_user("boss", "boss@example.test", roles=["valuer"])
         get_user_model().objects.filter(pk=dan.pk).update(manager=boss)
-        res = client_for(boss).post(f"/api/jobs/{job.pk}/assign/", {"role": "valuer", "person": other.pk}, format="json")
+        res = client_for(boss).post(f"/api/jobs/{job.pk}/assign/", {"role": "valuer", "person": other.pk},
+                                    format="json")
         assert res.status_code == 200, res.json()

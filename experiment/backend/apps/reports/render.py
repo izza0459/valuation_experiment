@@ -132,4 +132,13 @@ def render_pdf(html: str) -> bytes:
             "The PDF engine can't load its system libraries (Pango). "
             "Install them (macOS: `brew install pango`) and try again."
         ) from exc
-    return HTML(string=html).write_pdf()
+    return HTML(string=html, url_fetcher=embedded_only_fetcher()).write_pdf()
+
+
+def embedded_only_fetcher():
+    """Everything a report shows is embedded as a data: URI. Templates are
+    editable in the admin, so nothing else is fetched: no local files, no
+    network."""
+    from weasyprint.urls import URLFetcher
+
+    return URLFetcher(allowed_protocols={"data"}, allow_redirects=False)

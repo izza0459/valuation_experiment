@@ -441,7 +441,8 @@ def job_progress(job) -> dict:
     elif job.status == "peer_review":
         # Suggestions are answered while the lead stays in Review.
         open_count = job.reviewer_edits.filter(accepted_at__isnull=True, declined_at__isnull=True).count()
-        sub = f"{open_count} suggestion{'s' if open_count != 1 else ''} to answer" if open_count else "Awaiting peer review"
+        plural = "s" if open_count != 1 else ""
+        sub = f"{open_count} suggestion{plural} to answer" if open_count else "Awaiting peer review"
     elif job.status == "approved_signed":
         sub = "Approved & signed"
     elif job.status == "lost":

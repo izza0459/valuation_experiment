@@ -76,7 +76,8 @@ class TestSuggestions:
         assert res.status_code == 400 and "market_value" in res.json()["errors"]
 
     def test_the_team_cant_be_suggested(self, in_review):
-        assert suggest(in_review.peer_reviewer, in_review, "checklist", "valuer", in_review.peer_reviewer.pk).status_code == 400
+        reviewer = in_review.peer_reviewer
+        assert suggest(reviewer, in_review, "checklist", "valuer", reviewer.pk).status_code == 400
 
     def test_suggesting_again_updates_and_the_saved_value_withdraws(self, in_review):
         reviewer = in_review.peer_reviewer

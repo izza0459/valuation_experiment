@@ -16,7 +16,6 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Icon } from "@/design-system";
 import { FieldInput } from "@/components/vp/FieldInput";
-import { demoValuesFor } from "@/components/vp/demoFill";
 import { Banner, F, PageHead, Section, Shell } from "@/components/vp/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { useMe } from "@/lib/auth";
@@ -49,8 +48,6 @@ const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
 
 const WIDE = new Set<string>([]);
 
-/** Same switch as the workspace's "Fill demo data" button. */
-const DEMO_FILL = process.env.NEXT_PUBLIC_DEMO_FILL !== "false";
 
 export function NewInstruction() {
   const router = useRouter();
@@ -99,22 +96,6 @@ export function NewInstruction() {
       void _gone;
       return rest;
     });
-  }
-
-  // Fills only the empty fields on screen; anything typed stays.
-  function fillDemo() {
-    const onScreen = SECTIONS.flatMap((s) => s.keys)
-      .map((key) => fields.get(key))
-      .filter((f): f is FieldDef => Boolean(f && shown(f)));
-    const current = Object.fromEntries(onScreen.map((f) => [f.key, valueOf(f)]));
-    const demo = demoValuesFor(onScreen, current, options, options?.users ?? []);
-    // The bank goes through set() so its code fills the reference as usual.
-    if ("bank" in demo) {
-      set("bank", demo.bank);
-      delete demo.bank;
-      delete demo.bank_reference_no;
-    }
-    for (const [key, value] of Object.entries(demo)) set(key, value);
   }
 
   async function submit(event: React.FormEvent) {
@@ -169,11 +150,6 @@ export function NewInstruction() {
   return (
     <Shell>
       <PageHead title="New valuation instruction" tip="Open a job from a bank's or client's request.">
-        {DEMO_FILL && (
-          <Button variant="outline" onClick={fillDemo}>
-            Fill demo data
-          </Button>
-        )}
         <Link href="/jobs">
           <Button variant="outline">Cancel</Button>
         </Link>
