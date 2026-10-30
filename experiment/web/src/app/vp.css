@@ -1061,8 +1061,7 @@
   border-radius: 4px; }
 .sugg-status.accepted { background: var(--green-50); color: #1d7f4f; }
 .sugg-status.declined { background: var(--gray-150); color: var(--text-muted); }
-.sugg-panel { margin-bottom: 16px; border-top: 3px solid var(--purple-600); }
-.sugg-panel .sugg-list { display: grid; gap: 8px; margin-top: 12px; }
+.card-sugg { padding: 12px; border-radius: 8px; border: 1px solid var(--purple-100); background: #fbfaff; }
 .sugg-tag { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; color: var(--purple-700); }
 .suggest-note { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--purple-700); }
 .tl-assign .tl-dot { background: var(--accent); }

@@ -112,8 +112,9 @@ export function SuggestionItem({ jobId, s, canDecide, compact }: {
   );
 }
 
-/** Every suggestion on the lead, open ones first (Review tab). */
-export function SuggestionsPanel({ jobId, suggestions, canDecide, reviewing }: {
+/** The suggestions section of the lead card: open ones to answer, then
+ * the answered ones on request. The reviewer sees how to make them. */
+export function LeadCardSuggestions({ jobId, suggestions, canDecide, reviewing }: {
   jobId: string; suggestions: Suggestion[]; canDecide: boolean; reviewing: boolean;
 }) {
   const qc = useQueryClient();
@@ -139,36 +140,32 @@ export function SuggestionsPanel({ jobId, suggestions, canDecide, reviewing }: {
   }
 
   return (
-    <div className="card sugg-panel">
-      <div className="row wrap" style={{ justifyContent: "space-between", gap: 10 }}>
-        <div>
-          <div className="row" style={{ gap: 8, fontSize: 16, fontWeight: 700 }}>
-            <Icon name="sparkles" size={17} />
-            {open.length ? `${open.length} suggestion${open.length === 1 ? "" : "s"} to answer` : "Suggestions"}
-          </div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-            {reviewing
-              ? "Change any field on the earlier stages: it's saved as a suggestion for the valuer, not over their value."
-              : canDecide
-                ? "Accept to save the reviewer's value, or decline with a reason. Sign-off waits until each is answered."
-                : "The valuer answers these before the report can be signed off."}
-          </div>
-        </div>
-        {canDecide && open.length > 1 && (
-          <Button size="sm" disabled={busy} icon={<Icon name="check-check" size={16} />} onClick={() => void acceptAll()}>
+    <div className="card-sugg">
+      <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+        <span className="eyebrow row" style={{ gap: 6, color: "var(--purple-600)" }}>
+          <Icon name="sparkles" size={13} />
+          {open.length ? `Suggestions to answer (${open.length})` : "Suggestions"}
+        </span>
+        {canDecide && !reviewing && open.length > 1 && (
+          <button type="button" className="link-btn" disabled={busy} onClick={() => void acceptAll()}>
             {busy ? "Accepting…" : "Accept all"}
-          </Button>
+          </button>
         )}
       </div>
-      {error && <div style={{ color: "var(--text-error)", fontSize: 13, marginTop: 8 }}>{error}</div>}
+      {reviewing && (
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 4 }}>
+          Change any field on the earlier stages: it&apos;s sent to the valuer as a suggestion. The lead stays in Review.
+        </div>
+      )}
+      {error && <div style={{ color: "var(--text-error)", fontSize: 13, marginTop: 6 }}>{error}</div>}
       {shown.length > 0 && (
-        <div className="sugg-list">
-          {shown.map((s) => <SuggestionItem key={s.id} jobId={jobId} s={s} canDecide={canDecide} />)}
+        <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+          {shown.map((s) => <SuggestionItem key={s.id} jobId={jobId} s={s} canDecide={canDecide} compact />)}
         </div>
       )}
       {suggestions.length > open.length && (
-        <button type="button" className="link-btn" style={{ marginTop: 10 }} onClick={() => setShowAll(!showAll)}>
-          {showAll ? "Show only open ones" : `Show all ${suggestions.length}, including answered`}
+        <button type="button" className="link-btn" style={{ marginTop: 8 }} onClick={() => setShowAll(!showAll)}>
+          {showAll ? "Hide answered" : `Show ${suggestions.length - open.length} answered`}
         </button>
       )}
     </div>

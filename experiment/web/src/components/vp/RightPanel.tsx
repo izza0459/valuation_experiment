@@ -8,12 +8,12 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Avatar, Tabs } from "@/design-system";
+import { Tabs } from "@/design-system";
 import { apiFetch } from "@/lib/api";
 import { useOptions } from "@/lib/options";
 import { useJob } from "@/lib/jobs";
 import { aed, formatDateTime } from "./format";
-import { SuggestionItem } from "./Suggestions";
+import { LeadCardSuggestions } from "./Suggestions";
 import { CheckBadges, Conf, LocationPath, StatusChip, Tip } from "./ui";
 
 type AvmSummary = {
@@ -33,11 +33,6 @@ type ActivityItem = {
   new?: string;
   who: string;
   at: string;
-};
-
-const ROLE_NAMES: Record<string, string> = {
-  admin: "Admin", inspector: "Inspector", valuer: "Valuer", peer_reviewer: "Peer reviewer",
-  counter_signatory: "Counter-signatory",
 };
 
 export function RightPanel({ jobId }: { jobId: string }) {
@@ -79,10 +74,8 @@ function Overview({ jobId }: { jobId: string }) {
   const summary = (job.summary ?? {}) as { property_category?: string; type_of_property?: string };
   const category = options?.property_category?.find((o) => o.value === summary.property_category)?.label;
   const property = (job.property ?? {}) as { community_name?: string };
-  const people = (job.assignees ?? []) as { id: number; name: string; roles: string[] }[];
   const run = evidence?.avm;
   const received = new Date(job.date_time_request_received ?? job.created_at).getTime();
-  const open = (job.suggestions ?? []).filter((s) => s.status === "open");
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -109,18 +102,12 @@ function Overview({ jobId }: { jobId: string }) {
         <Row label="Purpose">{purposeLabel(job.purpose)}</Row>
       </div>
 
-      {open.length > 0 && (
-        <div>
-          <div className="eyebrow" style={{ marginBottom: 8, color: "var(--purple-600)" }}>
-            Suggestions ({open.length})
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {open.map((s) => (
-              <SuggestionItem key={s.id} jobId={jobId} s={s} canDecide={Boolean(job.can_decide_suggestions)} compact />
-            ))}
-          </div>
-        </div>
-      )}
+      <LeadCardSuggestions
+        jobId={jobId}
+        suggestions={job.suggestions ?? []}
+        canDecide={Boolean(job.can_decide_suggestions)}
+        reviewing={Object.values(job.tabs).some((tab) => tab.can_suggest)}
+      />
 
       <div className="ov-group">
         <Row label="Property">{job.property_label}</Row>
@@ -156,23 +143,6 @@ function Overview({ jobId }: { jobId: string }) {
         )}
       </div>
 
-      <div>
-        <div className="eyebrow" style={{ marginBottom: 8 }}>People</div>
-        <div style={{ display: "grid", gap: 8 }}>
-          {people.length === 0 && <span style={{ fontSize: 14, color: "var(--text-muted)" }}>Nobody assigned yet</span>}
-          {people.map((p) => (
-            <div key={p.id} className="row" style={{ gap: 10, fontSize: 14 }}>
-              <Avatar name={p.name} size={26} />
-              <span style={{ minWidth: 0 }}>
-                {p.name}
-                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)" }}>
-                  {p.roles.map((r) => ROLE_NAMES[r] ?? r).join(", ")}
-                </span>
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

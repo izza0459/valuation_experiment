@@ -31,7 +31,6 @@ import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
 import { ReassignDialog } from "@/components/vp/ReassignDialog";
-import { SuggestionsPanel } from "@/components/vp/Suggestions";
 import { CallForm } from "@/components/vp/CallForm";
 
 /** Logged together with Save call (CallForm), not autosaved field by field. */
@@ -252,14 +251,12 @@ export function JobDetailClient({ id }: { id: string }) {
 
   const nextLabel = (p: Page) => `Next: ${stageLabel(p.stage)}`;
   const prevLabel = (p: Page) => stageLabel(p.stage);
-  // Review and Send to bank are one page each; the data-entry stages list
-  // their sections as an accordion.
-  const asAccordion = current.stage !== "review" && current.stage !== "send";
   const openKeys = expanded ?? [current.key];
   const toggle = (key: string) =>
     setExpanded(openKeys.includes(key) ? openKeys.filter((k) => k !== key) : [...openKeys, key]);
   const allOpen = stagePages.every((p) => openKeys.includes(p.key));
-  const showPanel = asAccordion;
+  // The lead card shows beside every stage but Send to bank, which needs the width.
+  const showPanel = current.stage !== "send";
 
   /** One section's form (or Evidence's table), as it was shown on its own. */
   const sectionBody = (page: Page) => {
@@ -473,18 +470,6 @@ export function JobDetailClient({ id }: { id: string }) {
             </ul>
           )}
         </div>
-      )}
-
-      {/* The peer reviewer's suggestions, all together on Review (PR-01);
-          elsewhere they show under their fields and in the lead card. */}
-      {current.stage === "review" && (
-        <SuggestionsPanel
-          jobId={id}
-          suggestions={job.suggestions ?? []}
-          canDecide={Boolean(job.can_decide_suggestions)}
-          reviewing={job.status === "peer_review" && Boolean(me?.authenticated && (job.assignees as Assignee[] | undefined)
-            ?.some((a) => a.id === me.user.id && a.roles.includes("peer_reviewer")))}
-        />
       )}
 
       {job.lost && (

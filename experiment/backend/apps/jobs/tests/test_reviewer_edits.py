@@ -99,6 +99,15 @@ class TestSuggestions:
         assert Job.objects.get(pk=in_review.pk).summary.departures == "None, as instructed."
         assert not any("hasn't answered" in b for b in signoff_ready(in_review))
 
+    def test_the_lead_stays_in_review_throughout(self, in_review, dan):
+        made = suggest(in_review.peer_reviewer, in_review, "summary", "departures", "A").json()
+        progress = detail(dan, in_review)["progress"]
+        assert progress["stage"] == "review" and progress["sub_status"] == "1 suggestion to answer"
+        client_for(dan).post(f"/api/jobs/{in_review.pk}/suggestions/{made['id']}/accept/")
+        job = Job.objects.get(pk=in_review.pk)
+        assert job.status == S.PEER_REVIEW
+        assert detail(dan, job)["progress"]["sub_status"] == "Awaiting peer review"
+
     def test_declining_needs_a_reason(self, in_review, dan):
         made = suggest(in_review.peer_reviewer, in_review, "summary", "departures", "X").json()
         url = f"/api/jobs/{in_review.pk}/suggestions/{made['id']}/decline/"
