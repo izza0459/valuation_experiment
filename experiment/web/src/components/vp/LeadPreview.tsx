@@ -14,7 +14,7 @@ import { apiUrl } from "@/lib/api";
 import { useJob } from "@/lib/jobs";
 import { useOptions } from "@/lib/options";
 import { aed, formatDateTime } from "./format";
-import { LostDialog } from "./LostDialog";
+import { ReassignDialog } from "./ReassignDialog";
 import { CheckBadges, LocationPath, StatusChip } from "./ui";
 
 const ROLE_NAMES: Record<string, string> = {
@@ -29,19 +29,19 @@ export function LeadPreview({ jobId, onClose, onStep }: {
   onStep: (by: -1 | 1) => void;
 }) {
   const { data: job, isLoading } = useJob(String(jobId));
-  const [losing, setLosing] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
   const { data: options } = useOptions();
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (losing || (e.target as HTMLElement).closest("input, textarea, select")) return;
+      if (reassigning || (e.target as HTMLElement).closest("input, textarea, select")) return;
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowDown") { e.preventDefault(); onStep(1); }
       if (e.key === "ArrowUp") { e.preventDefault(); onStep(-1); }
     };
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
-  }, [onClose, onStep, losing]);
+  }, [onClose, onStep, reassigning]);
 
   const summary = (job?.summary ?? {}) as { type_of_property?: string; property_category?: string; no_of_bedrooms?: number | null };
   const bua = (job?.tabs.summary?.values?.bua_sqm ?? null) as string | null;
@@ -130,10 +130,10 @@ export function LeadPreview({ jobId, onClose, onStep }: {
 
         {job && (
           <div className="preview-foot">
-            {job.can_mark_lost && (
-              <button type="button" className="lost-btn" onClick={() => setLosing(true)}>
-                <Icon name="circle-x" size={16} /> Mark as lost
-              </button>
+            {job.can_reassign && (
+              <Button variant="outline" icon={<Icon name="user-round-pen" size={16} />} onClick={() => setReassigning(true)}>
+                Reassign
+              </Button>
             )}
             <Link href={`/jobs/${job.id}`} style={{ marginLeft: "auto" }}>
               <Button icon={<Icon name="arrow-right" size={16} />}>Open lead</Button>
@@ -141,7 +141,10 @@ export function LeadPreview({ jobId, onClose, onStep }: {
           </div>
         )}
       </aside>
-      {losing && job && <LostDialog jobId={String(job.id)} onClose={() => setLosing(false)} />}
+      {reassigning && job && (
+        <ReassignDialog jobId={String(job.id)} onClose={() => setReassigning(false)}
+          current={Object.fromEntries(people.flatMap((p) => p.roles.map((r) => [r, p.id])))} />
+      )}
     </>
   );
 }
