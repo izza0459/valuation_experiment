@@ -93,6 +93,8 @@ export default function JobsPage() {
           active={views.find((v) => v.key === filters.view)?.label ?? "All"}
           onChange={(label: string) => set({ view: views.find((v) => v.label === label)?.key ?? "all" })}
           size="sm"
+          // The underline overhangs by a pixel, which showed a scrollbar.
+          style={{ scrollbarWidth: "none" }}
         />
 
         <div className="row wrap" style={{ padding: "14px 24px", gap: 10, borderBottom: "1px solid var(--border-divider)" }}>
@@ -170,7 +172,7 @@ export default function JobsPage() {
               </Link>
             ))}
           </div>
-          <div className="hide-app">
+          <div className="hide-app jobs-table">
           <Table
             columns={[
               {
@@ -194,12 +196,12 @@ export default function JobsPage() {
                   <span className="num" style={{ color: "var(--text-secondary)" }}>{j.bank_reference_no || "—"}</span>
                 ),
               },
-              { key: "bank", label: "Bank", render: (j: JobListItem) => j.bank_name },
+              { key: "bank", label: "Bank", render: (j: JobListItem) => <span title={j.bank_name}>{j.bank_name}</span> },
               {
                 key: "property",
                 label: "Property",
                 render: (j: JobListItem) => (
-                  <button type="button" className="cell-link one-line" style={{ maxWidth: 230 }}
+                  <button type="button" className="cell-link one-line" style={{ width: "100%" }}
                     title={`${j.location_line || j.property_label} · click to preview`} onClick={() => setPreview(j.id)}>
                     {j.location_line || j.property_label}
                   </button>
@@ -231,7 +233,7 @@ export default function JobsPage() {
                   j.valuer_name ? (
                     <span className="row" style={{ gap: 8 }}>
                       <Avatar name={j.valuer_name} size={26} />
-                      {j.valuer_name}
+                      <span className="one-line" title={j.valuer_name}>{j.valuer_name}</span>
                     </span>
                   ) : (
                     <span style={{ color: "var(--text-muted)" }}>Unassigned</span>
@@ -240,11 +242,16 @@ export default function JobsPage() {
               {
                 key: "received",
                 label: "Received",
-                render: (j: JobListItem) => (
-                  <span className="num" style={{ color: "var(--text-secondary)" }}>
-                    {formatDateTime(j.date_time_request_received ?? j.created_at)}
-                  </span>
-                ),
+                render: (j: JobListItem) => {
+                  // Date over time, so the column stays narrow.
+                  const [day, time] = formatDateTime(j.date_time_request_received ?? j.created_at).split(", ");
+                  return (
+                    <span className="num" style={{ color: "var(--text-secondary)", display: "grid", lineHeight: 1.35 }}>
+                      {day}
+                      <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{time}</span>
+                    </span>
+                  );
+                },
               },
               {
                 key: "preview",

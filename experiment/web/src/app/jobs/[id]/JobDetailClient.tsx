@@ -30,6 +30,7 @@ import { Banner, CheckBadges, LocationPath, Shell, StatusChip } from "@/componen
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
+import { ReassignDialog } from "@/components/vp/ReassignDialog";
 import { SuggestionsPanel } from "@/components/vp/Suggestions";
 import { CallForm } from "@/components/vp/CallForm";
 
@@ -100,6 +101,7 @@ export function JobDetailClient({ id }: { id: string }) {
   // The include-in-report step, and where to go once it is saved.
   const [reportStep, setReportStep] = useState<string | null>(null);
   const [losing, setLosing] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
   // The stage's open sections; null until the user opens or closes one, when
   // the section the stage opened on is the open one.
   const [expanded, setExpanded] = useState<string[] | null>(null);
@@ -492,6 +494,10 @@ export function JobDetailClient({ id }: { id: string }) {
         </Banner>
       )}
       {losing && <LostDialog jobId={id} onClose={() => setLosing(false)} />}
+      {reassigning && (
+        <ReassignDialog jobId={id} onClose={() => setReassigning(false)}
+          current={Object.fromEntries(assignees.flatMap((p) => p.roles.map((r) => [r, p.id])))} />
+      )}
 
       {job.issue_in_progress && (
         <Banner tone="blue" icon="loader">
@@ -611,6 +617,12 @@ export function JobDetailClient({ id }: { id: string }) {
                 <Icon name="circle-x" size={16} />
                 Mark lead as lost
               </button>
+            )}
+            {job.can_reassign && (
+              <Button variant="outline" icon={<Icon name="user-round-pen" size={16} />} onClick={() => setReassigning(true)}
+                style={{ width: "100%", height: 40 }}>
+                Reassign lead
+              </Button>
             )}
           </div>
         )}

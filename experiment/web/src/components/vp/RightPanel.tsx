@@ -8,12 +8,11 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Avatar, Icon, Tabs } from "@/design-system";
+import { Avatar, Tabs } from "@/design-system";
 import { apiFetch } from "@/lib/api";
 import { useOptions } from "@/lib/options";
 import { useJob } from "@/lib/jobs";
 import { aed, formatDateTime } from "./format";
-import { ReassignDialog } from "./ReassignDialog";
 import { SuggestionItem } from "./Suggestions";
 import { CheckBadges, Conf, LocationPath, StatusChip, Tip } from "./ui";
 
@@ -70,7 +69,6 @@ function Row({ label, tip, children }: { label: string; tip?: string; children: 
 function Overview({ jobId }: { jobId: string }) {
   const { data: job } = useJob(jobId);
   const [now] = useState(() => Date.now());
-  const [reassigning, setReassigning] = useState(false);
   const { data: options } = useOptions();
   const { data: evidence } = useQuery({
     queryKey: ["job-evidence", jobId],
@@ -85,7 +83,6 @@ function Overview({ jobId }: { jobId: string }) {
   const run = evidence?.avm;
   const received = new Date(job.date_time_request_received ?? job.created_at).getTime();
   const open = (job.suggestions ?? []).filter((s) => s.status === "open");
-  const holders = Object.fromEntries(people.flatMap((p) => p.roles.map((r) => [r, p.id])));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -160,14 +157,7 @@ function Overview({ jobId }: { jobId: string }) {
       </div>
 
       <div>
-        <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-          <span className="eyebrow">People</span>
-          {job.can_reassign && (
-            <button type="button" className="link-btn" onClick={() => setReassigning(true)}>
-              <Icon name="user-round-pen" size={14} /> Reassign
-            </button>
-          )}
-        </div>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>People</div>
         <div style={{ display: "grid", gap: 8 }}>
           {people.length === 0 && <span style={{ fontSize: 14, color: "var(--text-muted)" }}>Nobody assigned yet</span>}
           {people.map((p) => (
@@ -183,7 +173,6 @@ function Overview({ jobId }: { jobId: string }) {
           ))}
         </div>
       </div>
-      {reassigning && <ReassignDialog jobId={jobId} current={holders} onClose={() => setReassigning(false)} />}
     </div>
   );
 }
