@@ -24,7 +24,19 @@ waits for an admin to approve them. Django's built-in admin isn't exposed.
 `~/axia/app/{backend,web}`, secrets in `~/axia/backend.env` and `~/axia/.env`
 (see `backend.env.example`). The previous code is kept in `~/axia/app.prev`.
 
-**Deploy** from this folder: `./deploy.sh <path to axia.pem>`, or
-`./deploy.sh <key> web` to rebuild only the web app.
+**Auto-deploy:** every commit to `main` goes live within about a minute
+plus build time. The `axia-autodeploy.timer` systemd timer runs
+`~/axia/autodeploy.sh` each minute. It fetches `main` with a read-only
+GitHub deploy key (`~/.ssh/axia_deploy`, ssh host `github-axia`), and when
+the commit is new it rebuilds backend, celery and web, then reloads Caddy.
+If the build fails or the site isn't healthy within 5 minutes, it puts the
+previous code back. Log: `journalctl -u axia-autodeploy`.
+
+The script and both units live here; after changing the units, copy them
+to `/etc/systemd/system/` and run `sudo systemctl daemon-reload`.
+
+**Manual deploy** (a branch, or without GitHub): `./deploy.sh <path to
+axia.pem>`, or `./deploy.sh <key> web` to rebuild only the web app. The next
+commit to `main` replaces it.
 
 Not UAE-hosted (CLAUDE.md §7): demo/staging data only.
