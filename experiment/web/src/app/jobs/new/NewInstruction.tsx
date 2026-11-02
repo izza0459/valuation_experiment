@@ -10,7 +10,7 @@
  * edit. The server creates the job, its property and its tab rows in one go.
  */
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -61,11 +61,6 @@ export function NewInstruction() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // The bank's own documents (instruction / validation request), uploaded as
-  // "Bank instruction" documents once the lead exists.
-  const [bankDocs, setBankDocs] = useState<File[]>([]);
-  const [createdId, setCreatedId] = useState<number | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const fields = new Map<string, FieldDef>();
   for (const tab of tabs ?? []) for (const f of tab.fields) fields.set(f.key, f);
@@ -121,20 +116,10 @@ export function NewInstruction() {
     }
 
     try {
-      const created = await apiFetch<{ id: number }>("/api/jobs/", {
+      await apiFetch<{ id: number }>("/api/jobs/", {
         method: "POST",
         body: JSON.stringify({ values: payload }),
       });
-      if (bankDocs.length) {
-        const problem = await uploadBankDocs(created.id);
-        if (problem) {
-          // The lead exists: don't create it twice. Say what didn't upload.
-          setCreatedId(created.id);
-          setFormError(`The instruction was created, but the bank's documents weren't all added: ${problem}`);
-          setBusy(false);
-          return;
-        }
-      }
       // Back to the dashboard, where the new job now shows, rather than
       // straight into its workspace.
       await Promise.all([qc.invalidateQueries({ queryKey: ["jobs"] }), qc.invalidateQueries({ queryKey: ["job-kpis"] })]);
@@ -147,24 +132,6 @@ export function NewInstruction() {
         setFormError(err instanceof ApiError ? err.message : "Couldn't reach the server. Try again.");
       }
       setBusy(false);
-    }
-  }
-
-  async function uploadBankDocs(jobId: number): Promise<string | null> {
-    const form = new FormData();
-    bankDocs.forEach((f) => form.append("files", f));
-    form.append("doc_type", "bank_instruction");
-    try {
-      const res = await apiFetch<{ rejected: { name: string; reason: string }[] }>(`/api/jobs/${jobId}/documents/`, {
-        method: "POST",
-        body: form,
-      });
-      return res.rejected?.length ? res.rejected.map((r) => `${r.name}: ${r.reason}`).join("; ") : null;
-    } catch (err) {
-      const rejected = err instanceof ApiError && Array.isArray(err.body?.rejected)
-        ? (err.body.rejected as { name: string; reason: string }[]).map((r) => `${r.name}: ${r.reason}`).join("; ")
-        : "";
-      return rejected || (err instanceof ApiError ? err.message : "Couldn't reach the server.");
     }
   }
 
@@ -232,47 +199,10 @@ export function NewInstruction() {
           </Section>
         ))}
 
-        <Section title="Bank documents" sub="The instruction or validation request the bank sent (PDF or image). Optional; it's kept with the lead under Documents.">
-          <input ref={fileInput} type="file" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/*"
-            onChange={(e) => {
-              const picked = Array.from(e.target.files ?? []);
-              setBankDocs((docs) => [...docs, ...picked.filter((f) => !docs.some((d) => d.name === f.name && d.size === f.size))]);
-              e.target.value = "";
-            }} />
-          <div style={{ display: "grid", gap: 8 }}>
-            {bankDocs.map((f) => (
-              <div key={`${f.name}-${f.size}`} className="row" style={{ gap: 10, fontSize: 14 }}>
-                <Icon name="file-text" size={16} color="var(--text-muted)" />
-                <span className="one-line" style={{ flex: 1, minWidth: 0 }} title={f.name}>{f.name}</span>
-                <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{(f.size / 1024 / 1024).toFixed(1)} MB</span>
-                {!createdId && (
-                  <button type="button" className="linkbtn" aria-label={`Remove ${f.name}`}
-                    onClick={() => setBankDocs((docs) => docs.filter((d) => d !== f))}>
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
-            {!createdId && (
-              <div>
-                <Button type="button" variant="outline" icon={<Icon name="upload" size={16} />} onClick={() => fileInput.current?.click()}>
-                  {bankDocs.length ? "Add more" : "Add documents"}
-                </Button>
-              </div>
-            )}
-          </div>
-        </Section>
-
         <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
-          {createdId ? (
-            <Link href={`/jobs/${createdId}`}>
-              <Button type="button" icon={<Icon name="arrow-right" size={18} />}>Open the lead</Button>
-            </Link>
-          ) : (
-            <Button type="submit" disabled={busy} icon={<Icon name="check" size={18} />}>
-              {busy ? "Creating…" : "Create instruction"}
-            </Button>
-          )}
+          <Button type="submit" disabled={busy} icon={<Icon name="check" size={18} />}>
+            {busy ? "Creating…" : "Create instruction"}
+          </Button>
         </div>
       </form>
     </Shell>

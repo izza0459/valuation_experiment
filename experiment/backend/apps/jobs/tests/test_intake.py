@@ -38,27 +38,6 @@ def create(user, values):
     return client.post("/api/jobs/", {"values": values}, format="json")
 
 
-class TestBankDocuments:
-    """New instruction uploads the bank's instruction / validation documents
-    as soon as the lead exists, by whoever took it in."""
-
-    @pytest.mark.parametrize("role", [Role.ADMIN, Role.OPS])
-    def test_the_creator_can_add_the_banks_document(self, bank, role, tmp_path, settings):
-        from apps.media_files.models import Document
-        from apps.media_files.tests.helpers import pdf_bytes, upload_file
-
-        settings.MEDIA_ROOT = tmp_path
-        user = make_user(f"taker-{role}", roles=[role])
-        job_id = create(user, {"bank": bank.pk, "applicant_name": "A. Applicant"}).json()["id"]
-        client = APIClient()
-        client.force_authenticate(user)
-        res = client.post(f"/api/jobs/{job_id}/documents/",
-                          {"files": [upload_file("instruction.pdf", pdf_bytes())], "doc_type": "bank_instruction"},
-                          format="multipart")
-        assert res.status_code == 201, res.json()
-        assert list(Document.objects.filter(job_id=job_id).values_list("doc_type", flat=True)) == ["bank_instruction"]
-
-
 class TestCreate:
     def test_the_bank_reference_starts_as_the_banks_code(self, admin, bank):
         bank.code = "TB-VAL"
