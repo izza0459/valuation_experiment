@@ -771,6 +771,8 @@ class SummaryData(JobTabData):
     ]
     bua_source = models.CharField(max_length=40, choices=BUA_SOURCE_CHOICES, blank=True)
 
+    # Entered in sqm like BUA; sqft follows (QA #11).
+    plot_area_sqm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     plot_area_sqft = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     plot_area_source = models.CharField(max_length=40, blank=True)
 
@@ -789,13 +791,10 @@ class SummaryData(JobTabData):
     def save(self, *args, **kwargs):
         if self.bua_sqm is not None:
             self.bua_sqft = calculations.sqm_to_sqft_exact(self.bua_sqm)
+        self.plot_area_sqft = (
+            calculations.sqm_to_sqft_exact(self.plot_area_sqm) if self.plot_area_sqm is not None else None
+        )
         super().save(*args, **kwargs)
-
-    @property
-    def plot_area_sqm(self):
-        if self.property_category not in PLOT_BEARING_CATEGORIES:
-            return None
-        return calculations.sqft_to_sqm(self.plot_area_sqft)
 
     @property
     def bua_requires_spa_caveat(self) -> bool:
@@ -848,7 +847,7 @@ class InspectionData(JobTabData):
     # Villas, townhouses and duplexes, storey by storey (CRM feedback IN-05):
     # {"basement": [...], "ground": [...], "first": [...], ...}.
     floors_above_ground = models.PositiveSmallIntegerField(
-        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(MAX_FLOORS_ABOVE_GROUND)],
+        null=True, blank=True, validators=[MinValueValidator(0), MaxValueValidator(MAX_FLOORS_ABOVE_GROUND)],
     )
     has_basement = models.BooleanField(default=False)
     accommodation_by_storey = models.JSONField(default=dict, blank=True)
@@ -913,8 +912,8 @@ class LocationData(JobTabData):
 
     @property
     def exact_age(self) -> str:
-        """'7 years, 7 months, 14 days' from the built date; whole years from
-        the built year when no date is given (field dictionary)."""
+        """'7 years, 7 months' from the built date; whole years from the built
+        year when no date is given."""
         return calculations.age_text(self.built_date, self.built_about, as_of=self._age_as_of())
 
     @property

@@ -39,6 +39,8 @@ from .maps import location_map_key
 
 NOT_APPLICABLE = "Not Applicable"
 EMPTY = "—"
+# Their floor prints as G (QA #19).
+VILLA_FLOOR_G = ("villa", "custom_villa", "townhouse")
 
 # Cited in every report (CLAUDE.md §2).
 STANDARDS = (
@@ -295,6 +297,7 @@ def _comparables(job) -> list[dict]:
             "views": c.view or EMPTY,
             "floor": c.floor or EMPTY,
             "bua_sqft": fmt_number(c.bua_sqft) or EMPTY,
+            "plot_sqft": fmt_number(c.plot_area_sqft) or EMPTY,
             "type": _join(f"{c.beds} BR" if c.beds is not None else "", c.property_type, sep=" ") or EMPTY,
             "price": fmt_number(c.price_aed) or EMPTY,
             "rate": fmt_number(c.price_per_sqft.quantize(Decimal("1"))) if c.price_per_sqft else EMPTY,
@@ -360,11 +363,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     year_built = "Under construction" if under_construction else (
         str(location.built_about) if location.built_about else ""
     )
-    # Years.months from the built date when there is one, else whole years.
-    if location.built_date:
-        age = calculations.age_years_months(location.built_date, as_of=valuation.valuation_date)
-    else:
-        age = fmt_number(location.age_years, " years") if location.age_years is not None else ""
+    # As Axia shows it (QA #20): years and months from the built date, else whole years.
+    age = calculations.age_text(location.built_date, location.built_about, as_of=valuation.valuation_date)
 
     beds = summary.no_of_bedrooms
     type_of_property = f"{beds} Bedroom {category.lower()}" if beds and category else category
@@ -373,10 +373,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
 
     tenancy = ""
     if tenanted:
-        tenancy = "The property is let"
-        if inspection.rent_if_any:
-            tenancy += f" at {fmt_aed(inspection.rent_if_any)} per annum"
-        tenancy += "."
+        tenancy = "The property is tenanted at the time of inspection."  # QA #22
     elif inspection.occupancy == "vacant":
         tenancy = "The subject property is currently vacant."
     elif inspection.occupancy == "assumed_vacant":
@@ -411,10 +408,12 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     )
     # Exclusions saved before BUA was entered in sqm name the sqft field.
     bua_key = "summary.bua_sqft" if "summary.bua_sqft" in excluded else "summary.bua_sqm"
+    # sqm first, like BUA (QA #21); exclusions saved before name the sqft field.
     plot_text = (
-        calculations.format_area(summary.plot_area_sqft)
-        if plot_bearing and summary.plot_area_sqft is not None else ""
+        calculations.format_sqm_area(summary.plot_area_sqm)
+        if plot_bearing and summary.plot_area_sqm is not None else ""
     )
+    plot_key = "summary.plot_area_sqft" if "summary.plot_area_sqft" in excluded else "summary.plot_area_sqm"
 
     # Yes / Assumed, with the number of spaces when known (CRM feedback IN-02).
     parking_text = ""
@@ -449,7 +448,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     )
     approaches = labels.many("valuation", "valuation_approaches", valuation.valuation_approaches)
     approach = ", ".join(approaches) or valuation.valuation_approach
-    report_date = valuation.report_date or timezone.localdate()
+    report_date = valuation.report_date  # picked by the valuer (QA #15)
     applicants = ", ".join(prop.applicant_names)
     owners = ", ".join(prop.ownership_names)
 
@@ -463,8 +462,10 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         _row("Address (as per title document)", prop.address_as_per_document),
         _row("Address (as inspected)", address_inspected),
         row("Built-up area", bua_text, bua_key),
-        row("Plot area", (plot_text or EMPTY) if plot_bearing else NOT_APPLICABLE, "summary.plot_area_sqft"),
-        row("Floor", summary.property_floor_no, "summary.property_floor_no"),
+        row("Plot area", (plot_text or EMPTY) if plot_bearing else NOT_APPLICABLE, plot_key),
+        # A villa is its own building: its floor is the ground (QA #19).
+        row("Floor", "G" if summary.property_category in VILLA_FLOOR_G else summary.property_floor_no,
+            "summary.property_floor_no"),
         row("Total no. of floors", f"G + {summary.total_floors} Floors" if summary.total_floors else "",
             "summary.total_floors"),
         row("Elevation above sea level",
@@ -511,7 +512,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
 
     areas = _rows(
         row("Built-up area", bua_text, bua_key),
-        row("Plot area", plot_text or EMPTY, "summary.plot_area_sqft") if plot_bearing else None,
+        row("Plot area", plot_text or EMPTY, plot_key) if plot_bearing else None,
     )
 
     def spec(label, key, value):

@@ -12,9 +12,11 @@ __all__ = ["bank", "dan", "job", "presets"]
 
 
 def test_the_storeys_follow_floors_and_basement():
-    assert [k for k, _ in storeys_for(2, False)] == ["ground", "first"]
-    assert [k for k, _ in storeys_for(3, True)] == ["basement", "ground", "first", "second"]
-    assert len(storeys_for(9, False)) == 6  # at most six above ground
+    # Floors above the ground floor: G+1 is 1 (QA #12).
+    assert [k for k, _ in storeys_for(1, False)] == ["ground", "first"]
+    assert [k for k, _ in storeys_for(2, True)] == ["basement", "ground", "first", "second"]
+    assert len(storeys_for(9, False)) == 6  # ground and at most five above it
+    assert [k for k, _ in storeys_for(0, False)] == ["ground"]
     assert [k for k, _ in storeys_for(None, False)] == ["ground"]
 
 

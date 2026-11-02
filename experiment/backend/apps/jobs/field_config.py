@@ -180,7 +180,8 @@ TABS = [
                   help_text="Written for this job; no approved library wording yet."),
             field("property_floor_no", "Property Floor No.", "text"),
             field("floor_configuration", "Floor Configuration", "text", help_text="e.g. B+G+2P+10"),
-            field("total_floors", "Total Floors", "number", help_text="Floors in the building."),
+            field("total_floors", "Total Floors", "number",
+                  help_text="Floors above the ground floor (G + n); the report prints G + n Floors."),
             field("ground_elevation", "Sea Level (m)", "decimal", help_text="Elevation above sea level."),
             field("no_of_bedrooms", "No. of Bedrooms", "number"),
             field("property_category", "Property Category", "select", required=True, options_key="property_category"),
@@ -192,8 +193,9 @@ TABS = [
             field("bua_sqm", "BUA (sqm)", "decimal", required=True, help_text="Up to 2 decimals, e.g. 125.75."),
             field("bua_sqft", "BUA (sqft)", "decimal", calculated=True),
             field("bua_source", "BUA Source", "select", options_key="area_source"),
-            field("plot_area_sqft", "Plot Area (sqft)", "decimal", visible_if=PLOT_BEARING),
-            field("plot_area_sqm", "Plot Area (sqm)", "decimal", calculated=True, visible_if=PLOT_BEARING),
+            field("plot_area_sqm", "Plot Area (sqm)", "decimal", visible_if=PLOT_BEARING,
+                  help_text="Up to 2 decimals, e.g. 418.06."),
+            field("plot_area_sqft", "Plot Area (sqft)", "decimal", calculated=True, visible_if=PLOT_BEARING),
             field("plot_area_source", "Plot Area Source", "select", options_key="area_source",
                   visible_if=PLOT_BEARING),
             field("disclosure", "Disclosure", "library", required=True, options_key="disclosure",
@@ -240,7 +242,7 @@ TABS = [
                   options_key="accommodation_room", custom=True, visible_if=NOT_PLOT_BEARING),
             # Villas, townhouses and duplexes: one block of rooms per storey (IN-05).
             field("floors_above_ground", "Floors above ground", "number", visible_if=PLOT_BEARING,
-                  help_text="The ground floor counts: G+1 is 2. Up to 6."),
+                  help_text="Floors above the ground floor: G+1 is 1, ground only is 0. Up to 5."),
             field("has_basement", "Basement", "boolean", default=False, visible_if=PLOT_BEARING),
             field("accommodation_by_storey", "Accommodation by storey", "storeys",
                   options_key="accommodation_room", custom=True, visible_if=PLOT_BEARING),
@@ -270,8 +272,9 @@ TABS = [
             field("built_about", "Built Year", "number"),
             field("built_date", "Built Date", "date",
                   help_text="Gives the exact age in years, months and days."),
-            field("exact_age", "Exact Age", "text", calculated=True,
-                  help_text="As at the valuation date; from the built date, else the built year."),
+            field("exact_age", "Age", "text", calculated=True,
+                  help_text="Years and months at the valuation date, from the built date (else the built year); "
+                            "the report prints the same."),
             field("developer", "Developer", "text"),
             field("remaining_economic_life", "Remaining economic life (years)", "number", calculated=True,
                   help_text="45 years less the property's age at the valuation date."),
@@ -290,20 +293,16 @@ TABS = [
         "fields": [
             field("valuation_date", "Valuation Date", "date", required=True,
                   help_text="Usually the inspection date."),
-            field("report_date", "Report Date", "date", calculated=True,
-                  help_text="Set automatically: today, then the date the report is issued."),
+            field("report_date", "Report Date", "date", required=True,
+                  help_text="The date printed on the report."),
             field("basis_of_valuation", "Basis of Valuation", "select", required=True,
                   options_key="basis_of_valuation", default="market_value"),
             field("valuation_approaches", "Valuation Approach", "multiselect", required=True,
                   options_key="valuation_approach"),
             field("valuation_commentary", "Valuation Commentary", "library", options_key="valuation_commentary",
-                  help_text="Written for this job; no approved library wording yet."),
-            field("commentary_villas", "Commentary: Villas / Townhouses", "textarea",
-                  help_text="Left empty, it isn't printed."),
-            field("commentary_offices", "Commentary: Shell & Core / Fitted Offices", "textarea",
-                  help_text="Left empty, it isn't printed."),
-            field("commentary_retail", "Commentary: Shell & Core / Fitted Retail", "textarea",
-                  help_text="Left empty, it isn't printed."),
+                  help_text="Filled in for the property type; edit it for this job."),
+            # One commentary box, filled in for the property type (QA #16); the old
+            # per-type boxes are gone from the form, and still print if they hold text.
             field("market_value", "Market Value (AED)", "decimal", required=True),
             field("market_value_rate_per_sqft", "Market Value rate (AED/sqft)", "decimal", calculated=True,
                   help_text="= Market Value ÷ BUA sqft"),
@@ -361,7 +360,7 @@ for _tab in TABS:
         _field["report_optional"] = _field["report"] == "optional"
 
 # The workspace groups its tabs under these stages. Filling in a stage's tabs
-# moves the job on (see transitions.sync_stage); nothing is locked by stage.
+# lets Next move the job on (transitions.advance_stage); nothing is locked by stage.
 STAGES = [
     {"key": "setup", "label": "Setup"},
     {"key": "scheduling", "label": "Scheduling"},
@@ -417,7 +416,6 @@ TOOLTIPS = {
     "bua_sqft": "Built-up area converted from sqm (x 10.76391).",
     "bua_source": "Which document the BUA comes from. An SPA area is stated as assumed correct.",
     "plot_area_sqft": "Plot area converted from sqm (x 10.76391).",
-    "plot_area_sqm": "Plot area in sqm (villas and townhouses).",
     "plot_area_source": "Which document the plot area comes from.",
     "capacity_of_valuer": "External unless stated otherwise (RICS requirement).",
     "departures": "Any departure from the Red Book; normally None.",

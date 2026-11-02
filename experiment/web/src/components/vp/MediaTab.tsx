@@ -44,7 +44,7 @@ type Notice = { tone: "green" | "red" | "amber"; text: string };
 
 const sizeText = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
-export function MediaTab({ jobId, kind }: { jobId: string; kind: MediaKind }) {
+export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kind: MediaKind; readOnly?: boolean }) {
   const { data, isLoading, isError } = useMedia(jobId, kind);
   const actions = useMediaActions(jobId, kind);
   const copy = COPY[kind];
@@ -69,7 +69,7 @@ export function MediaTab({ jobId, kind }: { jobId: string; kind: MediaKind }) {
   }
 
   const items = data.items;
-  const canEdit = data.can_edit;
+  const canEdit = data.can_edit && !readOnly;
   const docTypes = data.doc_types;
   const typeLabel = (value?: string) => docTypes.find((t) => t.value === value)?.label ?? value ?? "";
   const summaryIds = new Set(
@@ -146,7 +146,7 @@ export function MediaTab({ jobId, kind }: { jobId: string; kind: MediaKind }) {
         </Banner>
       )}
 
-      {data.needs.length > 0 && (
+      {!readOnly && data.needs.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6 }}>THIS JOB NEEDS</div>
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>

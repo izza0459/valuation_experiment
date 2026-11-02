@@ -93,10 +93,13 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
   const tabReadOnly = !(editable || suggesting);
   const label = (key: string) => tab.fields.find((f) => f.key === key)?.label ?? key;
   const empty = (v: unknown) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
-  // Required fields still to fill in, shown on the field and listed at the top.
-  const missing = state.can_edit
-    ? visible.filter((f) => f.required && !f.calculated && empty(merged[f.key]))
-    : [];
+  // Required fields still to fill in, shown on the field and listed at the top,
+  // to everyone who opens the tab (QA #9).
+  const missing = visible.filter((f) => f.required && !f.calculated && empty(merged[f.key]));
+  // What else the server counts as missing (COI consent, the inspector, the
+  // booking): items that aren't a field on this form.
+  const fieldLabels = new Set(visible.map((f) => f.label));
+  const otherMissing = (state.completion?.missing ?? []).filter((m) => !fieldLabels.has(m));
   const jump = (key: string) => {
     const el = document.getElementById(`field-${tab.key}-${key}`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -130,11 +133,17 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
         </Banner>
       )}
 
-      {missing.length > 0 && (
+      {missing.length + otherMissing.length > 0 && (
         <div className="row wrap" style={{ gap: 6, marginBottom: 16, fontSize: 13 }}>
           <span style={{ color: "var(--text-error)", fontWeight: 700 }}>
-            {missing.length} still required:
+            {missing.length + otherMissing.length} still required:
           </span>
+          {otherMissing.map((m) => (
+            <span key={m} style={{ border: "1px solid var(--red-200)", background: "var(--red-50)", color: "var(--text-error)",
+              borderRadius: 999, padding: "3px 10px", fontSize: 13 }}>
+              {m}
+            </span>
+          ))}
           {missing.map((f) => (
             <button
               key={f.key}
@@ -182,7 +191,9 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
 
       <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "14px 20px" }}>
         {visible.map((field) => {
-          const readOnly = tabReadOnly || field.calculated || state.read_only_fields.includes(field.key);
+          // Built Year follows a Built Date, so it's only typed when there's no date (QA #14).
+          const followsDate = field.key === "built_about" && Boolean(merged.built_date);
+          const readOnly = tabReadOnly || field.calculated || followsDate || state.read_only_fields.includes(field.key);
           const isMissing = missing.includes(field);
           return (
             <Fragment key={field.key}>
@@ -210,7 +221,12 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
                 <FieldInput
                   field={field}
                   value={merged[field.key]}
-                  onChange={(v) => (suggesting ? suggest.setField(field.key, v) : save.setField(field.key, v))}
+                  onChange={(v) => {
+                    const set = suggesting ? suggest.setField : save.setField;
+                    set(field.key, v);
+                    // Picking a Built Date fills in the Built Year straight away.
+                    if (field.key === "built_date" && typeof v === "string" && /^\d{4}-/.test(v)) set("built_about", Number(v.slice(0, 4)));
+                  }}
                   options={options?.[field.options_key ?? ""] ?? []}
                   users={options?.users ?? []}
                   readOnly={readOnly}

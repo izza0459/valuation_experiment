@@ -220,6 +220,7 @@ class TestEvidence:
 
     @pytest.fixture
     def issued_with_evidence(self, approved, boss, comparable):
+        JobComparable.objects.filter(job=approved).delete()  # just this test's comparable
         JobComparable.objects.create(job=approved, comparable=comparable, order=1)
         AVMRun.objects.create(job=approved, job_version=1, suggested_value=710000)
         issue(boss, approved)

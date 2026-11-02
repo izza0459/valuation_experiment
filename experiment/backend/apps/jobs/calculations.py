@@ -33,6 +33,15 @@ def format_bua(sqm, sqft) -> str:
     return f"{sqm:,.2f} sqm ({sqm_to_sqft(sqm):,.0f} sqft)"
 
 
+def format_sqm_area(sqm) -> str:
+    """`418 sqm (4,500 sqft)`: sqm as entered (no .00), sqft whole (QA #21)."""
+    if sqm in (None, ""):
+        return "Not Applicable"
+    sqm = Decimal(sqm)
+    shown = f"{sqm:,.0f}" if sqm == sqm.to_integral_value() else f"{sqm:,.2f}"
+    return f"{shown} sqm ({sqm_to_sqft(sqm):,.0f} sqft)"
+
+
 def sqft_to_sqm(sqft) -> Decimal:
     if sqft in (None, ""):
         return None
@@ -116,12 +125,12 @@ def _plural(n: int, word: str) -> str:
 
 
 def age_text(built_date: date | None, built_year: int | None, as_of: date | None = None) -> str:
-    """The exact age shown on screen: '7 years, 7 months, 14 days' from the
-    built date, or '7 years' from the built year when there is no date."""
+    """The age shown on screen and in the report (QA #20): '7 years, 7 months'
+    from the built date, or '7 years' from the built year when there is no date."""
     parts = age_parts(built_date, as_of)
     if parts is not None:
-        years, months, days = parts
-        return ", ".join([_plural(years, "year"), _plural(months, "month"), _plural(days, "day")])
+        years, months, _days = parts
+        return ", ".join([_plural(years, "year"), _plural(months, "month")])
     years = age_from_year(built_year, as_of)
     return _plural(years, "year") if years is not None else ""
 

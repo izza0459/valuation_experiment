@@ -226,6 +226,26 @@ class JobTransitionView(APIView):
         )
 
 
+class JobAdvanceView(APIView):
+    """POST {"stage": "setup" | "scheduling" | "inspection"}: the Next button.
+    Moves the job on to the following stage once that stage is complete;
+    409 `stage_incomplete` while anything on it is missing."""
+
+    permission_classes = [IsAuthenticated, IsJobParticipantOrAdmin]
+
+    def post(self, request, pk):
+        from .transitions import advance_stage
+
+        job = get_object_or_404(visible_jobs(Job.objects.all(), request.user), pk=pk)
+        self.check_object_permissions(request, job)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            job = advance_stage(job.pk, request.user, str(body.get("stage", "")))
+        except TabError as exc:
+            return Response(exc.payload(), status=exc.status)
+        return Response({"status": job.status, "status_label": job.get_status_display()})
+
+
 class JobReviseView(APIView):
     """POST: start a new version of an issued job (CLAUDE.md §3: a re-issue
     keeps the old version and creates a new one). Admins only; once per version."""

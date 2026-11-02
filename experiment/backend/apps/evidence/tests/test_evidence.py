@@ -131,5 +131,6 @@ class TestReport:
         rows = build_context(Job.objects.get(pk=job.pk))["comparables"]
         assert rows == [{
             "district": "Marina Gate, Dubai Marina", "views": "Sea", "floor": "12", "bua_sqft": "1,000",
+            "plot_sqft": "—",
             "type": "1 BR Apartment", "price": "1,500,000", "rate": "1,500", "transaction": "Asking Aug-26",
         }]

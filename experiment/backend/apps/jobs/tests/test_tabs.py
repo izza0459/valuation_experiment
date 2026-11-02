@@ -755,9 +755,30 @@ class TestCrmFeedbackSmallItems:
         job.refresh_from_db()
         assert job.summary.property_sub_type == "Corner"
 
-    def test_the_three_commentary_boxes_save(self, job, dan):
-        res = patch(client_for(dan), job, "valuation", {"commentary_offices": "Grade A stock is limited."})
-        assert res.status_code == 200
+    def test_one_commentary_box_filled_in_for_the_property_type(self, job, dan):
+        """QA #16: the per-type boxes are gone; the one box takes the type's wording."""
+        from apps.presets.models import TextLibraryItem
+
+        villa = TextLibraryItem.objects.create(category="valuation_commentary", title="Villa test",
+                                               body="Villas here trade on plot.", property_categories=["villa"])
+        office = TextLibraryItem.objects.create(category="valuation_commentary", title="Office test",
+                                                body="Grade A stock is limited.", property_categories=["fitted_office"])
+        assert patch(client_for(dan), job, "valuation", {"commentary_offices": "x"}).status_code == 400
+        client = client_for(dan)
+        assert patch(client, job, "summary", {"property_category": "villa"}).status_code == 200
+        job.refresh_from_db()
+        assert job.valuation.valuation_commentary == villa.body
+        # Unedited, it follows a change of type; once edited it stays.
+        version = client.get(f"/api/jobs/{job.pk}/").json()["tabs"]["summary"]["version"]
+        patch(client, job, "summary", {"property_category": "fitted_office"}, base_version=version)
+        job.refresh_from_db()
+        assert job.valuation.valuation_commentary == office.body
+        job.valuation.valuation_commentary = "Written for this job."
+        job.valuation.save()
+        version = client.get(f"/api/jobs/{job.pk}/").json()["tabs"]["summary"]["version"]
+        patch(client, job, "summary", {"property_category": "villa"}, base_version=version)
+        job.refresh_from_db()
+        assert job.valuation.valuation_commentary == "Written for this job."
 
 
 class TestExactAge:
@@ -773,10 +794,10 @@ class TestExactAge:
         """A report regenerated next year must still state the age it was
         valued at. (A valuation years ago is the case where 'today' and 'at
         valuation' give different answers.)"""
-        assert self.age(job, dan, "2019-03-01", "2024-02-01") == "4 years, 11 months, 0 days"
+        assert self.age(job, dan, "2019-03-01", "2024-02-01") == "4 years, 11 months"
 
     def test_the_day_before_the_anniversary_is_still_the_younger_age(self, job, dan):
-        assert self.age(job, dan, "2019-09-01", "2026-08-31") == "6 years, 11 months, 30 days"
+        assert self.age(job, dan, "2019-09-01", "2026-08-31") == "6 years, 11 months"
 
     def test_falls_back_to_today_until_there_is_a_valuation_date(self, job, dan):
         from apps.jobs.calculations import age_text
@@ -796,7 +817,7 @@ class TestExactAge:
         patch(client, job, "location", {"built_about": 2015, "built_date": "2015-12-31"})
         patch(client, job, "valuation", {"valuation_date": "2026-01-02"})
         job.refresh_from_db()
-        assert job.location.exact_age == "10 years, 0 months, 2 days"
+        assert job.location.exact_age == "10 years, 0 months"
 
 
 class TestAddressTab:
