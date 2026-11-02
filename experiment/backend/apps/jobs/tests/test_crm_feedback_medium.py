@@ -104,7 +104,7 @@ class TestMarketRent:
 class TestDuplex:
     def test_a_duplex_follows_the_villa_fields(self, job, dan):
         res = patch(client_for(dan), job, "summary", {"property_category": "duplex", "property_sub_type": "Corner",
-                                                       "plot_area_sqm": "278.71"})
+                                                       "plot_area_sqft": "3000"})
         assert res.status_code == 200, res.json()
         assert build_context(Job.objects.get(pk=job.pk))["plot_bearing"] is True
 

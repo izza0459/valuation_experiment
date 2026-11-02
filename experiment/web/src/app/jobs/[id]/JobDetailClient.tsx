@@ -23,8 +23,6 @@
  */
 
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, apiFetch } from "@/lib/api";
 import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
 import { Avatar, Button, Icon } from "@/design-system";
@@ -40,7 +38,6 @@ const CALL_FIELDS = ["call_status", "call_remark", "inspection_booked_at"];
 import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { LostDialog } from "@/components/vp/LostDialog";
 import { RightPanel } from "@/components/vp/RightPanel";
-import { MediaTab } from "@/components/vp/MediaTab";
 import { TabEditor } from "@/components/vp/TabEditor";
 import { useFieldConfig, type TabDef } from "@/lib/fieldConfig";
 import { buildTabValues, useJob, type CallAttempt, type JobDetail } from "@/lib/jobs";
@@ -89,7 +86,6 @@ function stageDone(stage: NavStage, job: JobDetail, pages: Page[]): boolean {
 
 export function JobDetailClient({ id }: { id: string }) {
   const { data: job, isLoading: jobLoading, isError } = useJob(id);
-  const qc = useQueryClient();
   const { data: tabs, isLoading: tabsLoading } = useFieldConfig();
   const { data: me } = useMe();
   const [active, setActive] = useState<string | null>(null);
@@ -143,9 +139,6 @@ export function JobDetailClient({ id }: { id: string }) {
         tab: t,
         within: SHOWN_WITHIN[t.key],
       })),
-    // The documents Admin uploaded, for the inspector to read on site (QA #10).
-    // They're added and managed on Documents in the Valuation stage.
-    { key: "documents-received", label: "Documents received", stage: "inspection" },
     { key: "send", label: "Send to bank", stage: "send" },
   ];
   // What the user moves between: sections shown inside another are left out.
@@ -218,24 +211,9 @@ export function JobDetailClient({ id }: { id: string }) {
     }
   };
 
-  /** The job moves on only when Next is pressed (QA #9): each complete stage
-   * the job is still in, short of `target`, is advanced on the server. */
-  const ADVANCES: NavStage[] = ["setup", "scheduling", "inspection"];
-  const advanceTo = async (target: NavStage) => {
-    let moved = false;
-    for (const stage of ADVANCES) {
-      if (STAGE_ORDER.indexOf(stage) < STAGE_ORDER.indexOf(jobStage)) continue; // already past it
-      if (STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf(target)) break;
-      await apiFetch(`/api/jobs/${id}/advance/`, { method: "POST", body: JSON.stringify({ stage }) });
-      moved = true;
-    }
-    if (moved) await qc.invalidateQueries({ queryKey: ["jobs", id] });
-  };
-
   const go = (key: string) => {
     const target = pages.find((p) => p.key === key);
-    const forward = Boolean(target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage));
-    if (target && forward) {
+    if (target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage)) {
       const block = blockingStage(target.stage);
       if (block) {
         setNotice({ tone: "red", title: `Complete the ${block.stage} stage before moving on`, lines: block.missing });
@@ -247,16 +225,7 @@ export function JobDetailClient({ id }: { id: string }) {
         setReportStep(key);
         return;
       }
-      if (!isLocked) {
-        void advanceTo(target.stage)
-          .then(() => open(key, target))
-          .catch((err) => setNotice({ tone: "red", title: err instanceof ApiError ? err.message : "Couldn't move the lead on. Try again." }));
-        return;
-      }
     }
-    open(key, target);
-  };
-  const open = (key: string, target: (typeof pages)[number] | undefined) => {
     if (target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage)) {
       setNotice({ tone: "green", title: `On to ${stageLabel(target.stage)}` });
     }
@@ -300,7 +269,6 @@ export function JobDetailClient({ id }: { id: string }) {
         />
       );
     }
-    if (page.key === "documents-received") return <MediaTab jobId={id} kind="documents" readOnly />;
     if (!page.tab || !job.tabs[page.key]) return null;
     return (
       <>

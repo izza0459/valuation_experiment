@@ -103,7 +103,6 @@ ASSIGNMENT_ROLES = {Role.ADMIN, Role.VALUER}
 # half-up to the nearest unit, and thousands separators are accepted.
 INSPECTOR_LABEL = "Inspector (assign on the Check List)"
 BOOKED_LABEL = "Inspection booked"
-EVIDENCE_LABEL = "A comparable ticked for the report"
 # Statuses past Scheduling: its tab counts as done there.
 PAST_SCHEDULING = {
     "inspection_scheduled", "inspected", "valuation_in_progress", "peer_review", "approved_signed", "issued",
@@ -113,7 +112,7 @@ PAST_SCHEDULING = {
 COI_CONSENT_DOC = "coi_consent"
 COI_CONSENT_LABEL = "Consent received (proof)"
 
-ROUND_TO_COLUMN_PRECISION = {"latitude", "longitude", "bua_sqm", "plot_area_sqm"}
+ROUND_TO_COLUMN_PRECISION = {"latitude", "longitude", "bua_sqm"}
 
 # Decimals are non-negative unless listed here; bounded ones are checked
 # against their range. A negative market value would otherwise reach the
@@ -131,7 +130,7 @@ DECIMAL_RANGES = {
     # Plausible ranges, so a slip of the keyboard isn't saved (QA #8).
     "ground_elevation": (Decimal(-50), Decimal(500)),
     "bua_sqm": (Decimal("1"), Decimal(100_000)),
-    "plot_area_sqm": (Decimal("1"), Decimal(1_000_000)),
+    "plot_area_sqft": (Decimal("1"), Decimal(10_000_000)),
 }
 NUMBER_RANGES = {
     "no_of_bedrooms": (0, 20),
@@ -262,6 +261,8 @@ def tab_computed(job, tab_key: str) -> dict:
     if tab_key == "valuation":
         # Not a form field, but printed beside the figure on the signed report.
         computed["market_value_in_words"] = targets["tab"].market_value_in_words
+        # System-generated: the issue date once issued, today until then.
+        computed["report_date"] = targets["tab"].report_date or timezone.localdate()
     return computed
 
 
@@ -301,8 +302,6 @@ def visibility_context(job) -> dict:
     # Uploads a form field depends on: a Yes on the COI check needs the consent.
     context["uploads"] = {"coi_consent": job.documents.filter(doc_type=COI_CONSENT_DOC).exists()}
     context["job"] = {"status": job.status}
-    # The Evidence tab is complete once a comparable is ticked for the report (QA #17).
-    context["comparables"] = {"selected": job.job_comparables.filter(selected=True).exists()}
     bank = job.bank
     context["bank"] = {"name": job.organisation_name, "rules": (bank.rules if bank else None) or {}}
     return context
@@ -331,10 +330,6 @@ def tab_completion(tab_key: str, context: dict) -> dict:
         required.append(INSPECTOR_LABEL)
         if not context.get("checklist", {}).get("inspected_by"):
             missing.append(INSPECTOR_LABEL)
-    if tab_key == "evidence":
-        required.append(EVIDENCE_LABEL)
-        if not context.get("comparables", {}).get("selected"):
-            missing.append(EVIDENCE_LABEL)
     if tab_key == "scheduling":
         status = context.get("job", {}).get("status")
         if status in PAST_SCHEDULING:
@@ -1058,7 +1053,7 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
 
     return {
         "tab": tab_key,
-        # The first edit starts Setup (transitions.sync_stage); Next moves it on.
+        # Completing a stage's tabs can move the job on (transitions.sync_stage).
         "status": job.status,
         "values": state[tab_key]["values"],
         "version": state[tab_key]["version"],

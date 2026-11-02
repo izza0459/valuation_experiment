@@ -38,8 +38,8 @@ class JobStatus:
 
 # Allowed forward/back transitions (CLAUDE.md §3). Peer review can bounce
 # the job back to valuation_in_progress with comments.
-# Stages before review: the job moves through these when Next is pressed on a
-# complete stage (transitions.advance_stage), and can be sent for review from any of them —
+# Stages before review: the job moves through these as their tabs are filled in
+# (transitions.sync_stage), and can be sent for review from any of them —
 # nothing is locked by stage.
 PRE_REVIEW_STATUSES = [
     JobStatus.INSTRUCTION_RECEIVED,

@@ -20,7 +20,7 @@ class ChecklistDataSerializer(serializers.ModelSerializer):
 
 class SummaryDataSerializer(serializers.ModelSerializer):
     bua_sqft = serializers.ReadOnlyField()
-    plot_area_sqft = serializers.ReadOnlyField()  # follows plot_area_sqm
+    plot_area_sqft = serializers.ReadOnlyField()
 
     class Meta:
         model = SummaryData

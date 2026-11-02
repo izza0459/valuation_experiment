@@ -81,13 +81,6 @@ def fill_everything(job):
         username="media-admin", defaults={"email": "media-admin@example.com", "roles": [Role.ADMIN]}
     )
     attach_media(job, uploader)
-    # And a comparable ticked for the report (QA #17).
-    from decimal import Decimal
-
-    from apps.evidence.models import Comparable, JobComparable
-
-    comparable = Comparable.objects.create(source="bayut", price_aed=Decimal("700000"), bua_sqft=Decimal("520"))
-    JobComparable.objects.get_or_create(job=job, comparable=comparable)
 
 
 def get_to(job, status):
@@ -354,13 +347,6 @@ class TestStagesFollowTheTabs:
         job.refresh_from_db()
         return job.status
 
-    def next(self, user, job, stage):
-        res = client_for(user).post(f"/api/jobs/{job.pk}/advance/", {"stage": stage}, format="json")
-        if res.status_code != 200:
-            return res
-        job.refresh_from_db()
-        return job.status
-
     def test_any_edit_starts_setup(self, job, dan):
         assert self.patch(dan, job, "summary", {"makani_number": "1"}) == S.SETUP
 
@@ -373,15 +359,11 @@ class TestStagesFollowTheTabs:
         summary = {"interest_valued": "international_freehold", "property_category": "apartment",
                    "bua_sqm": "48.22", "disclosure": "No conflicts."}
         assert self.patch(dan, job, "summary", summary) == S.SETUP
-        # A complete stage waits for Next (QA #9).
-        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.SETUP
-        assert self.next(dan, job, "setup") == S.SCHEDULING
-        assert self.next(dan, job, "scheduling").status_code == 409  # not booked yet
+        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.SCHEDULING
+        # Booking the inspection on Scheduling moves it on (CRM feedback SC-04).
         assert self.patch(dan, job, "scheduling", {"call_status": "answered_scheduled",
                                                    "inspection_booked_at": "2026-08-27T10:00:00+04:00"}) == \
-            S.SCHEDULING
-        assert self.next(dan, job, "scheduling") == S.INSPECTION_SCHEDULED
-        assert self.next(dan, job, "setup") == S.INSPECTION_SCHEDULED  # never back
+            S.INSPECTION_SCHEDULED
         moves = list(JobTransition.objects.filter(job=job).order_by("id").values_list("to_status", flat=True))
         assert moves == [S.SETUP, S.SCHEDULING, S.INSPECTION_SCHEDULED]
 

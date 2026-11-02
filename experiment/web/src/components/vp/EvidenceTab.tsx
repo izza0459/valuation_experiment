@@ -28,7 +28,6 @@ type Comparable = {
   floor: string;
   view: string;
   bua_sqft: string | null;
-  plot_area_sqft?: string | null;
   price_aed: string | null;
   aed_per_sqft: string | null;
   transaction_date: string | null;
@@ -62,7 +61,7 @@ type AvmRun = {
 };
 
 type Choice = { value: string; label: string };
-type EvidenceState = { comparables: Comparable[]; avm: AvmRun | null; sources: Choice[]; statuses?: Choice[]; plot_bearing?: boolean };
+type EvidenceState = { comparables: Comparable[]; avm: AvmRun | null; sources: Choice[]; statuses?: Choice[] };
 
 /** Until the API sends its list (an older server): the two original statuses. */
 const STATUSES: Choice[] = [
@@ -81,7 +80,6 @@ const BLANK = {
   floor: "",
   view: "",
   bua_sqft: "",
-  plot_area_sqft: "",
   price_aed: "",
   transaction_date: "",
   status: "sold",
@@ -183,7 +181,6 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
           <AddForm
             key={prefill ? "prefilled" : "blank"}
             jobId={jobId}
-            plotBearing={Boolean(data.plot_bearing)}
             sources={data.sources}
             statuses={data.statuses ?? STATUSES}
             initial={prefill?.values}
@@ -216,7 +213,6 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
                     <th style={{ padding: 8 }}>Building / community</th>
                     <th style={{ padding: 8 }}>Type · floor · view</th>
                     <th style={{ padding: 8, textAlign: "right" }}>BUA (sqft)</th>
-                    {data.plot_bearing && <th style={{ padding: 8, textAlign: "right" }}>Plot (sqft)</th>}
                     <th style={{ padding: 8, textAlign: "right" }}>Price (AED)</th>
                     <th style={{ padding: 8, textAlign: "right" }}>AED / sqft</th>
                     <th style={{ padding: 8 }}>Date · source</th>
@@ -241,7 +237,6 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
                       </td>
                       <td style={{ padding: 8 }}>{describe(c)}</td>
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.bua_sqft)}</td>
-                      {data.plot_bearing && <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.plot_area_sqft ?? null)}</td>}
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.price_aed)}</td>
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.aed_per_sqft)}</td>
                       <td style={{ padding: 8 }}>
@@ -424,13 +419,10 @@ function AddForm({
   found,
   onDone,
   onCancel,
-  plotBearing = false,
 }: {
   jobId: string;
   sources: Choice[];
   statuses: Choice[];
-  /** Villas, custom villas, townhouses: comparables take a plot area too (QA #18). */
-  plotBearing?: boolean;
   initial?: Record<string, string>;
   found?: string[];
   onDone: () => void;
@@ -493,7 +485,6 @@ function AddForm({
         {field("floor", "Floor", <Input value={form.floor} onChange={set("floor")} />)}
         {field("view", "View", <Input value={form.view} onChange={set("view")} />)}
         {field("bua_sqft", "BUA (sqft) *", <Input inputMode="decimal" value={form.bua_sqft} onChange={set("bua_sqft")} />)}
-        {plotBearing && field("plot_area_sqft", "Plot area (sqft)", <Input inputMode="decimal" value={form.plot_area_sqft} onChange={set("plot_area_sqft")} />)}
         {field("price_aed", "Price (AED) *", <Input inputMode="decimal" value={form.price_aed} onChange={set("price_aed")} />)}
         {field(
           "rate",

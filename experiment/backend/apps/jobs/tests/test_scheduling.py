@@ -45,10 +45,7 @@ class TestCalls:
         })
         assert res.status_code == 200, res.json()
         job.refresh_from_db()
-        assert job.status == S.SCHEDULING  # booked, but it moves on only with Next (QA #9)
-        assert client_for(dan).post(f"/api/jobs/{job.pk}/advance/", {"stage": "scheduling"},
-                                    format="json").json()["status"] == S.INSPECTION_SCHEDULED
-        job.refresh_from_db()
+        assert job.status == S.INSPECTION_SCHEDULED
         assert job.inspection.inspection_date == datetime.date(2026, 10, 23)
         assert job.inspection_booked_at is not None
         assert res.json()["computed"]["inspection"]["inspection_booked_at"]
@@ -130,6 +127,5 @@ class TestSaveCall:
         job = at_scheduling(job)
         res = self.call(dan, job, call_status="answered_scheduled", inspection_booked_at="2026-10-23T10:30:00+04:00")
         assert res.status_code == 201, res.json()
-        client_for(dan).post(f"/api/jobs/{job.pk}/advance/", {"stage": "scheduling"}, format="json")
         job.refresh_from_db()
         assert job.status == S.INSPECTION_SCHEDULED

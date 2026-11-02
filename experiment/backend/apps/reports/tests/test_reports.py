@@ -102,11 +102,10 @@ class TestContent:
     def test_plot_area_is_not_applicable_for_an_apartment_and_shown_for_a_villa(self, job):
         assert rows(build_context(job), "property_details")["Plot area"] == "Not Applicable"
         job.summary.property_category = "villa"
-        job.summary.plot_area_sqm = "418"
+        job.summary.plot_area_sqft = "3229"
         job.summary.save()
         job.refresh_from_db()
-        # sqm first, like BUA (QA #21).
-        assert rows(build_context(job), "property_details")["Plot area"] == "418 sqm (4,499 sqft)"
+        assert rows(build_context(job), "property_details")["Plot area"].startswith("3,229 sqft")
 
     def test_a_villa_without_a_plot_area_shows_a_dash_not_not_applicable(self, job):
         job.summary.property_category = "custom_villa"
@@ -161,7 +160,7 @@ class TestContent:
         assert details["Total no. of floors"] == "G + 10 Floors"
         assert details["Elevation above sea level"] == "Approximately 35 m"
         assert details["Type of property"] == "1 Bedroom apartment"
-        assert details["Age of the property"] == "7 years, 5 months"  # 1 Mar 2019 to 26 Aug 2026, as in Axia
+        assert details["Age of the property"] == "07.05"  # 1 Mar 2019 to 26 Aug 2026
         assert summary["Market Rent"] == "AED 60,000 per annum"
 
     def test_tenancy_and_reinstatement_wording(self, job):
@@ -174,7 +173,7 @@ class TestContent:
         job.valuation.reinstatement_note = "Custom wording."
         job.valuation.save()
         ctx = build_context(Job.objects.get(pk=job.pk))
-        assert ctx["tenancy"] == "The property is tenanted at the time of inspection."  # no rent (QA #22)
+        assert ctx["tenancy"] == "The property is let at AED 90,000 per annum."  # no tenant name or expiry
         assert ctx["tenanted"] is True
         assert ctx["reinstatement"] == "Custom wording."
 
@@ -550,11 +549,8 @@ class TestFieldDictionaryChanges:
         assert "market_value" not in REPORT_OPTIONAL["valuation"]
         assert "applicant_name" not in REPORT_OPTIONAL["address"]
 
-    def test_the_report_date_is_the_one_picked(self, job):
-        """Picked by the valuer, never calculated (QA #15)."""
+    def test_the_report_date_is_today_until_issued(self, job):
         job.valuation.report_date = None
         job.valuation.save()
-        assert build_context(Job.objects.get(pk=job.pk))["dates"]["report"] == ""
-        job.valuation.report_date = datetime.date(2026, 9, 3)
-        job.valuation.save()
-        assert build_context(Job.objects.get(pk=job.pk))["dates"]["report"] == "03 Sep 2026"
+        ctx = build_context(Job.objects.get(pk=job.pk))
+        assert ctx["dates"]["report"] == datetime.date.today().strftime("%d %b %Y")

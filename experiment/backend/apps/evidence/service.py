@@ -16,7 +16,6 @@ from django.core.validators import URLValidator
 from django.db import transaction
 
 from apps.audit.middleware import acting_as
-from apps.jobs.constants import PLOT_BEARING_CATEGORIES
 from apps.jobs.models import Job
 from apps.jobs.tabs import TabError, ValidationFailed, edit_denial
 
@@ -24,8 +23,7 @@ from . import avm
 from .models import AVMRun, Comparable, JobComparable
 
 TEXT_FIELDS = {"building_name": 255, "community_name": 255, "property_type": 60, "floor": 50, "view": 100}
-EDITABLE = {*TEXT_FIELDS, "source", "link", "beds", "bua_sqft", "plot_area_sqft", "price_aed", "transaction_date",
-            "status", "notes"}
+EDITABLE = {*TEXT_FIELDS, "source", "link", "beds", "bua_sqft", "price_aed", "transaction_date", "status", "notes"}
 
 
 class NotFound(TabError):
@@ -52,7 +50,6 @@ def describe(link: JobComparable) -> dict:
         "floor": c.floor,
         "view": c.view,
         "bua_sqft": str(c.bua_sqft) if c.bua_sqft is not None else None,
-        "plot_area_sqft": str(c.plot_area_sqft) if c.plot_area_sqft is not None else None,
         "price_aed": str(c.price_aed) if c.price_aed is not None else None,
         "aed_per_sqft": str(rate.quantize(Decimal("0.01"))) if rate else None,
         "transaction_date": c.transaction_date,
@@ -86,8 +83,6 @@ def evidence_state(job) -> dict:
         "sources": [{"value": v, "label": label} for v, label in Comparable.SOURCE_CHOICES
                     if v in Comparable.ENTRY_SOURCES],
         "statuses": [{"value": v, "label": label} for v, label in Comparable.STATUS_CHOICES],
-        # The subject sits on its own plot: comparables take a plot area too.
-        "plot_bearing": getattr(getattr(job, "summary", None), "property_category", "") in PLOT_BEARING_CATEGORIES,
     }
 
 
@@ -153,7 +148,7 @@ def _clean_one(key, raw):
         if isinstance(raw, bool) or not str(raw).isdigit() or int(raw) > 50:
             raise ValueError("Must be a whole number.")
         return int(raw)
-    if key in ("bua_sqft", "plot_area_sqft", "price_aed"):
+    if key in ("bua_sqft", "price_aed"):
         if raw in (None, ""):
             return None
         try:

@@ -35,15 +35,14 @@ const STOREYS: [string, string][] = [
   ["third", "Third floor"], ["fourth", "Fourth floor"], ["fifth", "Fifth floor"],
 ];
 
-/** The ground floor and `floors` above it (G+1 is 1; backend storeys_for). */
 export function storeysFor(floors: unknown, basement: unknown): [string, string][] {
-  const above = Math.max(0, Math.min(Number(floors) || 0, 5));
-  const storeys = STOREYS.filter(([k]) => k !== "basement").slice(0, above + 1);
-  return [...(basement === true ? [STOREYS[0]] : []), ...storeys];
+  const n = Math.max(1, Math.min(Number(floors) || 1, 6));
+  const above = STOREYS.filter(([k]) => k !== "basement").slice(0, n);
+  return [...(basement === true ? [STOREYS[0]] : []), ...above];
 }
 
 /** Coordinates keep their decimals; every other figure is a whole number. */
-const KEEPS_DECIMALS = new Set(["latitude", "longitude", "bua_sqm", "plot_area_sqm"]);
+const KEEPS_DECIMALS = new Set(["latitude", "longitude", "bua_sqm"]);
 /** Years read as "2015", never "2,015". */
 const NO_SEPARATORS = new Set(["built_about"]);
 
@@ -153,8 +152,6 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
           custom={Boolean(field.custom)}
           invalid={invalid}
           onChange={onChange}
-          // The room lists by storey are long: searchable, A to Z (QA #13).
-          searchable={field.key.startsWith("accommodation_by_storey.")}
         />
       );
 
@@ -318,18 +315,14 @@ export function MultiDropdown({
   custom,
   invalid,
   onChange,
-  searchable = false,
 }: {
   value: string[];
   options: Option[];
   custom: boolean;
   invalid?: boolean;
   onChange: (v: unknown) => void;
-  /** A search box at the top, and the list in A to Z order. */
-  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -343,11 +336,6 @@ export function MultiDropdown({
   const extra = value.filter((v) => !listed.has(v));
   const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
   const summary = value.map((v) => labelFor(options, v)).join(", ");
-  let rows = [...options.map((o) => [String(o.value), o.label] as const), ...extra.map((v) => [v, v] as const)];
-  if (searchable) {
-    const q = query.trim().toLowerCase();
-    rows = rows.filter(([, label]) => !q || label.toLowerCase().includes(q)).sort((a, b) => a[1].localeCompare(b[1]));
-  }
   return (
     <div ref={ref} className="multi-dd">
       <button type="button" className={"multi-dd-box" + (invalid ? " invalid" : "")} aria-expanded={open}
@@ -358,15 +346,8 @@ export function MultiDropdown({
       </button>
       {open && (
         <div className="multi-dd-list" role="listbox" aria-multiselectable>
-          {searchable && (
-            <div style={{ padding: "6px 8px" }}>
-              <Input autoFocus placeholder="Search rooms" value={query} onChange={(e) => setQuery(e.target.value)}
-                style={{ height: 34, fontSize: 14 }} />
-            </div>
-          )}
           {options.length === 0 && !custom && <div className="multi-dd-empty">No options set up yet.</div>}
-          {searchable && query && rows.length === 0 && <div className="multi-dd-empty">No room matches.</div>}
-          {rows.map(
+          {[...options.map((o) => [String(o.value), o.label] as const), ...extra.map((v) => [v, v] as const)].map(
             ([v, label]) => (
               <label key={v} className="multi-dd-item">
                 <input type="checkbox" checked={value.includes(v)} onChange={() => toggle(v)} />

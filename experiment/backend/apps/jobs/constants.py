@@ -16,15 +16,15 @@ STOREYS = [
     ("basement", "Basement"), ("ground", "Ground floor"), ("first", "First floor"), ("second", "Second floor"),
     ("third", "Third floor"), ("fourth", "Fourth floor"), ("fifth", "Fifth floor"),
 ]
-MAX_FLOORS_ABOVE_GROUND = 5
+MAX_FLOORS_ABOVE_GROUND = 6
 
 
 def storeys_for(floors_above_ground, has_basement) -> list[tuple[str, str]]:
-    """The storeys a property has: the ground floor and `floors_above_ground`
-    above it (G+1 is 1; QA #12)."""
-    above = max(0, min(int(floors_above_ground or 0), MAX_FLOORS_ABOVE_GROUND))
-    storeys = [s for s in STOREYS if s[0] != "basement"][:above + 1]
-    return ([STOREYS[0]] if has_basement else []) + storeys
+    """The storeys a property has: `floors_above_ground` counts the ground
+    floor (G+1 is 2)."""
+    floors = max(1, min(int(floors_above_ground or 1), MAX_FLOORS_ABOVE_GROUND))
+    above = [s for s in STOREYS if s[0] != "basement"][:floors]
+    return ([STOREYS[0]] if has_basement else []) + above
 
 
 # Parking that the report counts as present.

@@ -91,7 +91,7 @@ def review_ready(job) -> list[str]:
 
     context = visibility_context(job)
     for tab in TABS:
-        if not tab["fields"] and tab["key"] != "evidence":
+        if not tab["fields"]:
             continue
         missing = tab_completion(tab["key"], context)["missing"]
         if missing:
@@ -235,43 +235,25 @@ def _stage_complete(job, stage, context) -> bool:
     return True
 
 
-def _move_to(job, user, target: str) -> None:
-    """Steps forward one status at a time, logging each like a manual move."""
+def sync_stage(job, user) -> None:
+    """Moves a job forward through the stages before review as their tabs are
+    filled in: any edit starts setup, a complete Setup stage schedules the
+    inspection, a complete Inspection stage starts the valuation. It only ever
+    moves forward, and only before review; nothing is locked by stage (a job
+    can be sent for review from any of them). Each step is logged like a
+    manual one."""
+    if job.status not in PRE_REVIEW_STATUSES:
+        return
     order = PRE_REVIEW_STATUSES
-    while order.index(job.status) < order.index(target):
+    target = max(order.index(job.status), order.index(JobStatus.SETUP))
+    context = visibility_context(job)
+    for stage, status in STAGE_REACHES:
+        if _stage_complete(job, stage, context):
+            target = max(target, order.index(status))
+    while order.index(job.status) < target:
         from_status = job.status
         job.transition_to(order[order.index(from_status) + 1])
         JobTransition.objects.create(job=job, from_status=from_status, to_status=job.status, by=user)
-
-
-def sync_stage(job, user) -> None:
-    """The first edit starts Setup. Later stages move on only when someone
-    presses Next (advance_stage), never by themselves (QA #9)."""
-    if job.status == JobStatus.INSTRUCTION_RECEIVED:
-        _move_to(job, user, JobStatus.SETUP)
-
-
-def advance_stage(job_id: int, user, stage: str) -> Job:
-    """Next on a complete stage: moves the job to the following stage. Refused
-    while anything on the stage is missing. Pressing Next on a stage the job
-    has already passed changes nothing."""
-    reaches = dict(STAGE_REACHES)
-    if stage not in reaches:
-        raise TabError(f"No such stage: {stage}.")
-    with acting_as(user), transaction.atomic():
-        job = Job.objects.select_for_update().get(pk=job_id)
-        if job.status not in PRE_REVIEW_STATUSES:
-            return job
-        sync_stage(job, user)
-        if not _stage_complete(job, stage, visibility_context(job)):
-            raise StageIncomplete("Complete this stage before moving on.")
-        _move_to(job, user, reaches[stage])
-        return job
-
-
-class StageIncomplete(TabError):
-    status = 409
-    code = "stage_incomplete"
 
 
 # --- doing -----------------------------------------------------------------------------

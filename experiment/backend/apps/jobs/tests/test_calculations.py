@@ -64,16 +64,16 @@ class TestExactAge:
 
 class TestExactAgeText:
     def test_years_months_and_days_from_the_built_date(self):
-        assert c.age_text(date(2019, 3, 1), None, as_of=date(2026, 10, 15)) == "7 years, 7 months"
+        assert c.age_text(date(2019, 3, 1), None, as_of=date(2026, 10, 15)) == "7 years, 7 months, 14 days"
 
     def test_month_ends_are_clamped(self):
-        assert c.age_text(date(2026, 1, 31), None, as_of=date(2026, 3, 1)) == "0 years, 1 month"
+        assert c.age_text(date(2026, 1, 31), None, as_of=date(2026, 3, 1)) == "0 years, 1 month, 1 day"
 
     def test_the_built_year_gives_whole_years(self):
         assert c.age_text(None, 2015, as_of=date(2026, 10, 15)) == "11 years"
 
     def test_the_built_date_wins_over_the_year(self):
-        assert c.age_text(date(2019, 3, 1), 2015, as_of=date(2026, 3, 1)) == "7 years, 0 months"
+        assert c.age_text(date(2019, 3, 1), 2015, as_of=date(2026, 3, 1)) == "7 years, 0 months, 0 days"
 
     def test_nothing_entered_gives_nothing(self):
         assert c.age_text(None, None) == ""

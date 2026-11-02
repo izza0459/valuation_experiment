@@ -237,9 +237,9 @@
   <h3>Comparable evidence</h3>
   {% if comparables %}
   <table class="grid">
-    <tr><th>Building / district</th><th>Views</th><th>Floor</th><th>BUA (sqft)</th>{% if plot_bearing %}<th>Plot (sqft)</th>{% endif %}<th>Type</th><th>Price (AED)</th><th>AED / sqft</th><th>Date / status</th></tr>
+    <tr><th>Building / district</th><th>Views</th><th>Floor</th><th>BUA (sqft)</th><th>Type</th><th>Price (AED)</th><th>AED / sqft</th><th>Date / status</th></tr>
     {% for c in comparables %}
-    <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.floor }}</td><td>{{ c.bua_sqft }}</td>{% if plot_bearing %}<td>{{ c.plot_sqft }}</td>{% endif %}<td>{{ c.type }}</td><td>{{ c.price }}</td><td>{{ c.rate }}</td><td>{{ c.transaction }}</td></tr>
+    <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.floor }}</td><td>{{ c.bua_sqft }}</td><td>{{ c.type }}</td><td>{{ c.price }}</td><td>{{ c.rate }}</td><td>{{ c.transaction }}</td></tr>
     {% endfor %}
   </table>
   {% else %}

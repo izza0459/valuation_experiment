@@ -44,21 +44,6 @@ def _text(category: str, title: str) -> str | None:
     return item.body if item else None
 
 
-def _tagged_text(category: str, property_category: str) -> str:
-    """The library entry written for this property type; none if no entry is
-    tagged with it (an untagged one isn't specific enough to fill in)."""
-    for item in TextLibraryItem.objects.filter(category=category, active=True).exclude(body=""):
-        if property_category in (item.property_categories or []):
-            return item.body
-    return ""
-
-
-def _is_library_wording(category: str, text: str) -> bool:
-    """True when `text` is one of the library's entries, unedited."""
-    return any(body.strip() == text for body in TextLibraryItem.objects.filter(category=category, active=True)
-               .values_list("body", flat=True))
-
-
 def _bump(job, tab_key: str, saved_tab: str) -> None:
     """Another tab changed under the user: its version moves on so a stale
     screen reloads instead of overwriting it. The tab being saved moves on
@@ -100,28 +85,13 @@ def apply(job, saved_tab: str, cleaned: dict) -> None:
                 location.save()
                 changed.add("location")
     if "property_category" in cleaned and cleaned["property_category"][2]:
-        from apps.reports.context import library_text
-
-        category = cleaned["property_category"][2]
         valuation = job.valuation
         if not (valuation.reinstatement_note or "").strip():
-            if text := library_text("reinstatement", category):
+            from apps.reports.context import library_text
+
+            if text := library_text("reinstatement", cleaned["property_category"][2]):
                 valuation.reinstatement_note = text
                 valuation.save()
                 changed.add("valuation")
-        # The commentary for the property type (QA #16): filled in when the box
-        # is empty, or still holds another type's library wording unedited.
-        boxes = (("valuation", valuation, "valuation_commentary", "valuation_commentary"),
-                 ("summary", job.summary, "market_commentary", "market_commentary"))
-        for tab_key, target, field, library in boxes:
-            current = (getattr(target, field) or "").strip()
-            text = _tagged_text(library, category)
-            if not text or current == text.strip():
-                continue
-            if current and not _is_library_wording(library, current):
-                continue  # written for this job: leave it
-            setattr(target, field, text)
-            target.save()
-            changed.add(tab_key)
     for tab_key in changed:
         _bump(job, tab_key, saved_tab)
