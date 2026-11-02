@@ -1,0 +1,26 @@
+# Behind the Cloudflare Tunnel (cloudflared -> http://localhost:80), which
+# terminates HTTPS; port 80 is bound to localhost only.
+{
+	auto_https off
+}
+:80 {
+	encode gzip
+	# The API goes straight to Django, told the visitor's request was HTTPS.
+	# Everything else, including the app's own /admin page, is the web app;
+	# Django's built-in admin isn't exposed.
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			header_up X-Forwarded-Proto https
+			# A redeploy restarts Django (a few seconds): hold requests until
+			# it's back instead of failing them.
+			lb_try_duration 30s
+			lb_try_interval 500ms
+		}
+	}
+	handle {
+		reverse_proxy web:3000 {
+			lb_try_duration 30s
+			lb_try_interval 500ms
+		}
+	}
+}

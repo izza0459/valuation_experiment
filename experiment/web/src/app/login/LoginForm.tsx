@@ -26,6 +26,8 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [waking, setWaking] = useState(false);
   const [googleId, setGoogleId] = useState<string | null>(null);
+  /** Behind Cloudflare Access: null while checking, else why they're not in. */
+  const [sso, setSso] = useState<{ checking: boolean; message: string | null } | null>(null);
   const googleBox = useRef<HTMLDivElement>(null);
 
   /** Whichever way they signed in, land them where they were going. */
@@ -34,6 +36,17 @@ export function LoginForm() {
     setError(null);
     try {
       const me = await attempt();
+      if (!me.authenticated) {
+        // Only an SSO check comes back signed out without an error.
+        setSso({
+          checking: false,
+          message: me.detail ?? (me.sso_email
+            ? `There's no account for ${me.sso_email}. Ask an admin to add you.`
+            : "Your SSO sign-in didn't reach the app. Reload the page to try again."),
+        });
+        setBusy(false);
+        return;
+      }
       qc.setQueryData(["me"], me);
       await qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "me" });
       router.replace(safeNext(params.get("next")));
@@ -43,11 +56,19 @@ export function LoginForm() {
     }
   }
 
-  // Google sign-in, when the API has a client ID for it.
+  // Google sign-in, when the API has a client ID for it. Behind Cloudflare
+  // Access there's nothing to fill in: SSO has already said who this is.
   useEffect(() => {
-    apiFetch<{ google_client_id: string }>("/api/auth/config/")
-      .then((c) => setGoogleId(c.google_client_id || null))
+    apiFetch<{ google_client_id: string; cloudflare_sso?: boolean }>("/api/auth/config/")
+      .then((c) => {
+        setGoogleId(c.google_client_id || null);
+        if (c.cloudflare_sso) {
+          setSso({ checking: true, message: null });
+          void finish(() => apiFetch<Me>("/api/auth/me/")).catch(() => undefined);
+        }
+      })
       .catch(() => setGoogleId(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once
   }, []);
 
   useEffect(() => {
@@ -114,6 +135,25 @@ export function LoginForm() {
       setWaking(false);
       setBusy(false);
     }
+  }
+
+  if (sso) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+        <div className="card" style={{ width: 380, maxWidth: "100%", padding: 32 }}>
+          <div style={{ fontSize: 24, fontWeight: 500, marginBottom: 4 }}>
+            Bayut <span style={{ color: "var(--brand-red)" }}>valuations</span>
+          </div>
+          {sso.checking && !error ? (
+            <div role="status" style={{ color: "var(--text-muted)", fontSize: 14 }}>Signing you in…</div>
+          ) : (
+            <div role="alert" style={{ color: "var(--text-error)", fontSize: 14, marginTop: 12 }}>
+              {error ?? sso.message}
+            </div>
+          )}
+        </div>
+      </main>
+    );
   }
 
   return (

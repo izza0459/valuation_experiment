@@ -7,9 +7,18 @@ import { apiFetch } from "./api";
  * contract, so nothing that reads `useMe()` changes.
  */
 export type Me =
-  | { authenticated: false }
+  | {
+      authenticated: false;
+      /** Behind Cloudflare Access: who SSO says they are, and why that
+       * isn't enough (no account yet, waiting for an admin, declined). */
+      sso_email?: string;
+      code?: string;
+      detail?: string;
+    }
   | {
       authenticated: true;
+      /** Signed in through Cloudflare Access: sign-out goes through it. */
+      cloudflare_sso?: boolean;
       user: { id: number; name: string; email: string; roles: string[]; is_admin: boolean;
         /** Ops and platform admins take instructions in. */
         can_create_jobs?: boolean;
@@ -40,6 +49,9 @@ export async function signInWithGoogle(credential: string) {
   await signingOut;
   return apiFetch<Me>("/api/auth/google/", { method: "POST", body: JSON.stringify({ credential }) });
 }
+
+/** Cloudflare Access's own sign-out, served on this site by Cloudflare. */
+export const CLOUDFLARE_LOGOUT = "/cdn-cgi/access/logout";
 
 /** Ends the session; retried once. keepalive: the request finishes even
  * though the page moves on straight away. */

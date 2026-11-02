@@ -2,6 +2,8 @@
 
 Email + password is the interim method: Google Workspace SSO (CLAUDE.md §8)
 replaces it, and `me()` is the contract the frontend keeps using either way.
+Behind Cloudflare Access (cloudflare_access.py) there is no password at all:
+the middleware signs people in, and `me()` explains why someone isn't.
 """
 
 import json
@@ -20,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
+from . import cloudflare_access
 from .models import User
 from .permissions import can_create_jobs, is_platform_admin
 
@@ -37,6 +40,30 @@ def describe_user(user) -> dict:
         # A manager sees their team on the dashboard.
         "is_manager": user.direct_reports.filter(is_active=True).exists(),
     }
+
+
+def find_or_request_access(email: str, first_name: str = "", last_name: str = "") -> User:
+    """The user with this SSO email. Someone new is recorded as waiting for
+    access, for an admin to approve (with roles) or decline."""
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None:
+        user = User(username=email, email=email, first_name=first_name[:150], last_name=last_name[:150],
+                    is_active=False, access_request=User.PENDING, access_requested_at=timezone.now())
+        user.set_unusable_password()
+        user.save()
+    return user
+
+
+def access_refusal(user: User) -> dict | None:
+    """Why an SSO-verified person can't sign in yet; None if they can."""
+    if user.is_active:
+        return None
+    if user.access_request == User.DECLINED:
+        return {"code": "no_access", "detail": "You don't have access. Ask an admin."}
+    if not user.access_request:
+        # Deactivated by an admin: not a new request.
+        return {"code": "no_access", "detail": "Your account is deactivated. Ask an admin."}
+    return {"code": "access_requested", "detail": "An admin needs to approve your access. Try again once they have."}
 
 
 class LoginThrottle(AnonRateThrottle):
@@ -58,8 +85,19 @@ class MeView(APIView):
 
     def get(self, request):
         if not request.user.is_authenticated:
+            # Cloudflare vouched for them but the middleware couldn't sign
+            # them in: say why, instead of showing a form they can't use.
+            email = cloudflare_access.verified_email(request)
+            if email:
+                refusal = access_refusal(find_or_request_access(email))
+                return Response({"authenticated": False, "sso_email": email, **(refusal or {})})
             return Response({"authenticated": False})
-        return Response({"authenticated": True, "user": describe_user(request.user)})
+        body = {"authenticated": True, "user": describe_user(request.user)}
+        if cloudflare_access.enabled():
+            # Signing out must end the Cloudflare session too, or the
+            # middleware signs them straight back in.
+            body["cloudflare_sso"] = True
+        return Response(body)
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -72,6 +110,8 @@ class LoginView(APIView):
     throttle_classes = [LoginThrottle]
 
     def post(self, request):
+        if cloudflare_access.enabled():
+            return Response({"code": "sso_only", "detail": "Sign in through your company SSO."}, status=400)
         email = request.data.get("email") if isinstance(request.data, dict) else None
         password = request.data.get("password") if isinstance(request.data, dict) else None
         if not isinstance(email, str) or not isinstance(password, str) or not email or not password:
@@ -101,13 +141,15 @@ class LogoutView(APIView):
 
 
 class AuthConfigView(APIView):
-    """What the sign-in screen offers: the Google button when it's set up."""
+    """What the sign-in screen offers: the Google button when it's set up, or
+    nothing to fill in at all behind Cloudflare Access."""
 
     permission_classes = [AllowAny]
     authentication_classes = []
 
     def get(self, request):
-        return Response({"google_client_id": settings.GOOGLE_OAUTH_CLIENT_ID})
+        return Response({"google_client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
+                         "cloudflare_sso": cloudflare_access.enabled()})
 
 
 def verify_google_token(credential: str) -> dict | None:
@@ -151,23 +193,8 @@ class GoogleLoginView(APIView):
             return Response({"code": "wrong_domain", "detail": "Sign in with your company Google account."},
                             status=403)
 
-        user = User.objects.filter(email__iexact=email).first()
-        if user is None:
-            user = User(username=email, email=email, first_name=info.get("given_name", "")[:150],
-                        last_name=info.get("family_name", "")[:150], is_active=False,
-                        access_request=User.PENDING, access_requested_at=timezone.now())
-            user.set_unusable_password()
-            user.save()
-        if not user.is_active:
-            if user.access_request == User.DECLINED:
-                return Response({"code": "no_access", "detail": "You don't have access. Ask an admin."},
-                                status=403)
-            if not user.access_request:
-                # Deactivated by an admin: not a new request.
-                return Response({"code": "no_access", "detail": "Your account is deactivated. Ask an admin."},
-                                status=403)
-            return Response({"code": "access_requested",
-                             "detail": "An admin needs to approve your access. Try again once they have."},
-                            status=403)
+        user = find_or_request_access(email, info.get("given_name", ""), info.get("family_name", ""))
+        if refusal := access_refusal(user):
+            return Response(refusal, status=403)
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         return Response({"authenticated": True, "user": describe_user(user)})
