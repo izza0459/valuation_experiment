@@ -31,7 +31,8 @@ PRESETS = {
     # Why a lead was lost (admin-editable like any dropdown).
     "lost_reason": [
         o("Client cancelled"), o("Fee not agreed"), o("Went to another valuer"), o("Duplicate instruction"),
-        o("Owner / contact unreachable"), o("Property not accessible"), o("Conflict of interest"), o("Other"),
+        o("Owner / contact unreachable"), o("Property not accessible"), o("Conflict of interest"), o("Test lead"),
+        o("Other"),
     ],
     "call_status": [
         o("Not Called", "not_called"), o("Answered – Not Scheduled", "answered_not_scheduled"),

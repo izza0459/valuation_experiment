@@ -723,11 +723,52 @@ def _coerce_amount_or_range(raw) -> str:
     return f"{low:,}–{high:,}"
 
 
+# Phone numbers: UAE unless another country code is typed.
+PHONE_FIELDS = {"contact_number"}
+UAE_CODE = "971"
+
+
+def _coerce_phone(raw) -> str:
+    """'050 123 4567', '501234567', '00971501234567' -> '+971 50 123 4567'.
+    A number with another country code keeps it ('+44 20…' -> '+442…')."""
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        raise _Invalid("Must be a phone number.")
+    text = raw.strip()
+    if re.search(r"[^\d\s+().-]", text) or "+" in text[1:]:
+        raise _Invalid("Enter a phone number: digits, spaces and a leading +.")
+    digits = re.sub(r"\D", "", text)
+    if text.startswith("+") or digits.startswith("00"):
+        digits = digits[2:] if digits.startswith("00") else digits
+        if not digits.startswith(UAE_CODE):
+            if not 7 <= len(digits) <= 15:
+                raise _Invalid("Enter a full phone number.")
+            return f"+{digits}"
+        national = digits[len(UAE_CODE):]
+    elif digits.startswith(UAE_CODE) and len(digits) > 10:
+        national = digits[len(UAE_CODE):]
+    else:
+        national = digits
+    national = national.lstrip("0")
+    if not national:
+        return ""  # just the +971 prefix: nothing entered yet
+    if not 7 <= len(national) <= 9:
+        raise _Invalid("Enter a UAE number, e.g. 050 123 4567.")
+    if len(national) == 9:  # mobile: 5X XXX XXXX
+        return f"+971 {national[:2]} {national[2:5]} {national[5:]}"
+    if len(national) == 8:  # landline: X XXX XXXX
+        return f"+971 {national[:1]} {national[1:4]} {national[4:]}"
+    return f"+971 {national}"
+
+
 def coerce(field: dict, mf, raw, current):
     """One submitted value -> the Python value to store, or raises _Invalid."""
     kind = field["type"]
     if field["key"] in AMOUNT_RANGE_FIELDS:
         return _coerce_amount_or_range(raw)
+    if field["key"] in PHONE_FIELDS:
+        return _coerce_phone(raw)
     try:
         if kind == "text":
             return _coerce_text(raw, mf, multiline=False)

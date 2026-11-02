@@ -76,6 +76,14 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
 
   switch (field.type) {
     case "text":
+      // The contact's phone starts with the UAE code; the server tidies the
+      // rest (050 123 4567 -> +971 50 123 4567).
+      if (field.key === "contact_number") {
+        return (
+          <Input type="tel" inputMode="tel" placeholder="+971 50 123 4567" value={str(value)} invalid={invalid}
+            onFocus={() => !str(value) && onChange("+971 ")} onChange={(e) => onChange(e.target.value)} />
+        );
+      }
       return <Input value={str(value)} invalid={invalid} onChange={(e) => onChange(e.target.value)} />;
 
     case "textarea":

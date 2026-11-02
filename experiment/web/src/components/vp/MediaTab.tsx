@@ -318,7 +318,7 @@ const iconButton = {
   padding: 0,
 } as const;
 
-function PhotoCard({ item, index, count, canEdit, onMove, onChange, onRemove, summaryNumber }: RowProps & { summaryNumber: number | null }) {
+function PhotoCard({ item, index, canEdit, onChange, onRemove, summaryNumber }: RowProps & { summaryNumber: number | null }) {
   const [caption, setCaption] = useDraft(item);
   const saveCaption = () => {
     if (caption.trim() !== item.caption) void onChange({ caption });
@@ -375,12 +375,6 @@ function PhotoCard({ item, index, count, canEdit, onMove, onChange, onRemove, su
           </span>
           {canEdit && (
             <div className="row" style={{ gap: 6 }}>
-              <button type="button" aria-label="Move earlier" title="Move earlier" disabled={index === 0} onClick={() => onMove(-1)} style={{ ...iconButton, opacity: index === 0 ? 0.4 : 1 }}>
-                <Icon name="arrow-left" size={16} />
-              </button>
-              <button type="button" aria-label="Move later" title="Move later" disabled={index === count - 1} onClick={() => onMove(1)} style={{ ...iconButton, opacity: index === count - 1 ? 0.4 : 1 }}>
-                <Icon name="arrow-right" size={16} />
-              </button>
               <button type="button" aria-label="Remove" title="Remove" onClick={onRemove} style={iconButton}>
                 <Icon name="trash-2" size={16} color="var(--text-error)" />
               </button>

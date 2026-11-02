@@ -80,6 +80,23 @@ class TestReassign:
                                    format="json")
         assert res.status_code == 400 and "person" in res.json()["errors"]
 
+    def test_valuers_and_peer_reviewers_can_take_either_role(self, job, dan):
+        from apps.jobs.assign import candidates
+
+        reviewer = get_user_model().objects.create_user("rev", "rev@example.test", roles=["peer_reviewer"])
+        valuer = get_user_model().objects.create_user("val", "val@example.test", roles=["valuer"])
+        people = candidates()
+        for role in ("valuer", "peer_reviewer"):
+            assert {reviewer.pk, valuer.pk} <= {p["id"] for p in people[role]}
+        res = client_for(dan).post(f"/api/jobs/{job.pk}/assign/", {"role": "valuer", "person": reviewer.pk},
+                                   format="json")
+        assert res.status_code == 200, res.json()
+        res = client_for(dan).post(f"/api/jobs/{job.pk}/assign/", {"role": "peer_reviewer", "person": valuer.pk},
+                                   format="json")
+        assert res.status_code == 200, res.json()
+        job.refresh_from_db()
+        assert (job.valuer, job.peer_reviewer) == (reviewer, valuer)
+
     def test_not_by_an_outsider_or_on_a_closed_lead(self, job, dan, other):
         outsider = get_user_model().objects.create_user("out", "out@example.test", roles=["valuer"])
         body = {"role": "valuer", "person": other.pk}
