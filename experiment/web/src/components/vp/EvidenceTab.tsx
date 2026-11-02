@@ -483,11 +483,11 @@ function AddForm({
             : `Read from the listing: ${found.map((k) => FOUND_LABELS[k] ?? k).join(", ")}. Check everything before adding.`}
         </Banner>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
         {field("source", "Source *", <Select value={form.source} onChange={set("source")} placeholder="Choose…" options={sources} />)}
-        {field("link", "Link", <Input value={form.link} onChange={set("link")} placeholder="https://www.bayut.com/…" />, 3)}
-        {field("building_name", "Building / development", <Input value={form.building_name} onChange={set("building_name")} />, 2)}
-        {field("community_name", "Community", <Input value={form.community_name} onChange={set("community_name")} />, 2)}
+        {field("link", "Link", <Input value={form.link} onChange={set("link")} placeholder="https://www.bayut.com/…" />)}
+        {field("building_name", "Building / development", <Input value={form.building_name} onChange={set("building_name")} />)}
+        {field("community_name", "Community", <Input value={form.community_name} onChange={set("community_name")} />)}
         {field("property_type", "Type", <Input value={form.property_type} onChange={set("property_type")} placeholder="Apartment" />)}
         {field("beds", "Bedrooms", <Input inputMode="numeric" value={form.beds} onChange={set("beds")} />)}
         {field("floor", "Floor", <Input value={form.floor} onChange={set("floor")} />)}
@@ -508,7 +508,7 @@ function AddForm({
           <Select value={form.status} onChange={set("status")} options={statuses} />,
         )}
         {field("transaction_date", "Date", <Input type="date" value={form.transaction_date} onChange={set("transaction_date")} />)}
-        {field("notes", "Notes", <Textarea rows={2} value={form.notes} onChange={set("notes")} placeholder="Agent feedback, condition, anything that affects the value" />, 3)}
+        {field("notes", "Notes", <Textarea rows={2} value={form.notes} onChange={set("notes")} placeholder="Agent feedback, condition, anything that affects the value" />, 2)}
       </div>
       {message && Object.keys(errors).length === 0 && <div style={{ color: "var(--text-error)", fontSize: 13 }}>{message}</div>}
       <div className="row" style={{ gap: 10, justifyContent: "flex-end" }}>

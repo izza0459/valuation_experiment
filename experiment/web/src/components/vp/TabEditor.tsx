@@ -189,7 +189,7 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
         </Banner>
       )}
 
-      <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "14px 20px" }}>
+      <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "14px 20px" }}>
         {visible.map((field) => {
           // Built Year follows a Built Date, so it's only typed when there's no date (QA #14).
           const followsDate = field.key === "built_about" && Boolean(merged.built_date);
