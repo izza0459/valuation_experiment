@@ -28,8 +28,7 @@ const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
   {
     title: "Client",
     sub: "Mortgage work is for a bank (its code and billing address come from the bank master); audit and internal work names the client.",
-    // One date: the instruction's. When the request arrived is on the Instructions tab if it differs.
-    keys: ["purpose", "bank", "bank_reference_no", "client_name", "date_of_instruction"],
+    keys: ["purpose", "bank", "bank_reference_no", "client_name", "date_time_request_received", "date_of_instruction"],
   },
   {
     title: "Property",

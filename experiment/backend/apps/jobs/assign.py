@@ -20,11 +20,8 @@ ROLE_LABELS = {
     Role.ADMIN: "Admin", Role.INSPECTOR: "Inspector", Role.VALUER: "Valuer",
     Role.PEER_REVIEWER: "Peer reviewer", Role.COUNTER_SIGNATORY: "Counter-signatory",
 }
-# Who can take each role: ops take instructions in as well as admins, and a
-# peer reviewer is a second valuer, so valuers and peer reviewers can each be
-# assigned either role.
-VALUERS = {Role.VALUER, Role.PEER_REVIEWER}
-ELIGIBLE = {Role.ADMIN: {Role.ADMIN, Role.OPS}, Role.VALUER: VALUERS, Role.PEER_REVIEWER: VALUERS}
+# Who can take each role: ops take instructions in as well as admins.
+ELIGIBLE = {Role.ADMIN: {Role.ADMIN, Role.OPS}}
 
 
 def _closed(job) -> bool:

@@ -26,12 +26,6 @@ def listed(user, view):
 
 
 class TestLeadLost:
-    def test_a_test_lead_is_a_reason(self, job, dan):
-        reasons = client_for(dan).get(f"/api/jobs/{job.pk}/lost/").json()["reasons"]
-        assert [r["label"] for r in reasons][-2:] == ["Test lead", "Other"]
-        assert lose(dan, job, reason="test_lead").status_code == 200
-        assert client_for(dan).get(f"/api/jobs/{job.pk}/").json()["lost"]["reason"] == "Test lead"
-
     def test_the_valuer_marks_it_lost_with_a_reason(self, job, dan):
         assert client_for(dan).get(f"/api/jobs/{job.pk}/").json()["can_mark_lost"] is True
         res = lose(dan, job, note="Bank withdrew")

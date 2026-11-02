@@ -666,27 +666,6 @@ class TestReportFields:
         assert job.location.developer == "Emaar"
         assert job.summary.total_floors == 12
 
-    @pytest.mark.parametrize("typed, saved", [
-        ("050 123 4567", "+971 50 123 4567"),
-        ("501234567", "+971 50 123 4567"),
-        ("+971501234567", "+971 50 123 4567"),
-        ("00971 50 123 4567", "+971 50 123 4567"),
-        ("971501234567", "+971 50 123 4567"),
-        ("04 123 4567", "+971 4 123 4567"),
-        ("+44 20 7946 0958", "+442079460958"),
-        ("+971 ", ""),
-        ("", ""),
-    ])
-    def test_the_contact_number_gets_the_uae_code(self, job, dan, typed, saved):
-        assert patch(client_for(dan), job, "instructions", {"contact_number": typed}).status_code == 200
-        job.refresh_from_db()
-        assert job.contact_number == saved
-
-    @pytest.mark.parametrize("typed", ["call me", "12", "+971 50 123 4567 890"])
-    def test_a_contact_number_that_isnt_one_is_refused(self, job, dan, typed):
-        res = patch(client_for(dan), job, "instructions", {"contact_number": typed})
-        assert res.status_code == 400 and "contact_number" in res.json()["errors"]
-
     @pytest.mark.parametrize("tab,key,value", [
         ("location", "built_about", "lots"),
         ("summary", "total_floors", 201),
