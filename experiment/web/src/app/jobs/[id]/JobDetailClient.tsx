@@ -107,7 +107,7 @@ export function JobDetailClient({ id }: { id: string }) {
   const [reassigning, setReassigning] = useState(false);
   // The stage's open sections; null until the user opens or closes one, when
   // the section the stage opened on is the open one.
-  const [expanded, setExpanded] = useState<string[] | null>(null);
+  const [openStages, setOpenStages] = useState<NavStage[]>([]);
 
   if (jobLoading || tabsLoading) {
     return (
@@ -176,16 +176,16 @@ export function JobDetailClient({ id }: { id: string }) {
     navPages[0];
   const current = navPages.find((p) => p.key === active && (!opsView || OPS_STAGES.includes(p.stage))) ?? defaultPage;
   // Previous / Next move between stages; a stage's sections are all on its page.
-  const stageIndex = NAV.findIndex((s) => s.key === current.stage);
-  const firstOf = (stage?: NavStage) => (stage ? navPages.find((p) => p.stage === stage) ?? null : null);
-  const prev = firstOf(NAV[stageIndex - 1]?.key);
-  const nextPage = firstOf(NAV[stageIndex + 1]?.key);
-  // For ops the walk ends with Setup: the next stage is the valuer's.
-  const next = opsView && nextPage && !OPS_STAGES.includes(nextPage.stage) ? null : nextPage;
+  // Previous / Next walk the sub-stages one at a time; past the last one of a
+  // stage, Next moves on to the next stage (and asks the server to, QA #9).
+  // For ops the walk ends with Scheduling: the stages after are the valuer's.
+  const flow = opsView ? navPages.filter((p) => OPS_STAGES.includes(p.stage)) : navPages;
+  const at = flow.findIndex((p) => p.key === current.key);
+  const prev = at > 0 ? flow[at - 1] : null;
+  const next = at >= 0 && at < flow.length - 1 ? flow[at + 1] : null;
   const setupDone = (pages.filter((p) => p.stage === "setup" && p.tab)).every((p) => (job.tabs[p.key]?.completion.pct ?? 0) === 100);
   const valuerName = (job.assignees as { name: string; roles: string[] }[] | undefined)?.find((a) => a.roles.includes("valuer"))?.name;
   const stageLabel = (key: NavStage) => NAV.find((s) => s.key === key)?.label ?? key;
-  const stagePages = navPages.filter((p) => p.stage === current.stage);
 
   const STAGE_ORDER: NavStage[] = ["setup", "scheduling", "inspection", "valuation", "review", "send"];
   /** What is still missing in a data-entry stage, as "Section: field, field". */
@@ -261,13 +261,6 @@ export function JobDetailClient({ id }: { id: string }) {
       setNotice({ tone: "green", title: `On to ${stageLabel(target.stage)}` });
     }
     setActive(key);
-    if (target && target.stage === current.stage) {
-      // Same stage: open that section and bring it into view.
-      setExpanded((open) => [...new Set([...(open ?? [current.key]), key])]);
-      window.setTimeout(() => document.getElementById(`section-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-      return;
-    }
-    setExpanded(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const goStage = (stage: NavStage) => {
@@ -280,12 +273,19 @@ export function JobDetailClient({ id }: { id: string }) {
   const ownerOf = (role: string) => assignees.find((a) => a.roles.includes(role))?.name;
   const isLocked = job.is_locked;
 
-  const nextLabel = (p: Page) => `Next: ${stageLabel(p.stage)}`;
-  const prevLabel = (p: Page) => stageLabel(p.stage);
-  const openKeys = expanded ?? [current.key];
-  const toggle = (key: string) =>
-    setExpanded(openKeys.includes(key) ? openKeys.filter((k) => k !== key) : [...openKeys, key]);
-  const allOpen = stagePages.every((p) => openKeys.includes(p.key));
+  // Within a stage the buttons name the sub-stage; across stages, the stage.
+  const nameOf = (p: Page) => (p.stage === current.stage ? p.label : stageLabel(p.stage));
+  const nextLabel = (p: Page) => `Next: ${nameOf(p)}`;
+  const prevLabel = (p: Page) => nameOf(p);
+  const shownStages = new Set<NavStage>([...openStages, current.stage]);
+  const toggleStage = (stage: NavStage) =>
+    setOpenStages((open) => (shownStages.has(stage) ? open.filter((s) => s !== stage) : [...open, stage]));
+  /** A stage's progress: the average of its sub-stages with a form. */
+  const stagePct = (stage: NavStage) => {
+    const tabbed = navPages.filter((p) => p.stage === stage && p.tab);
+    if (!tabbed.length) return stageDone(stage, job, pages) ? 100 : 0;
+    return Math.round(tabbed.reduce((n, p) => n + completionOf(p.key).pct, 0) / tabbed.length);
+  };
   // The lead card shows beside every stage but Send to bank, which needs the width.
   const showPanel = current.stage !== "send";
 
@@ -394,92 +394,6 @@ export function JobDetailClient({ id }: { id: string }) {
 
       </div>
 
-      {/* --- the stages and their sections, kept in view while scrolling --- */}
-      <div className="card stickybar" style={{ padding: "0 22px", marginBottom: 16 }}>
-        <div className="show-app stagelab">
-          Stage {STAGE_ORDER.indexOf(current.stage) + 1} of {NAV.length} ·{" "}
-          <b style={{ color: "var(--text-accent)" }}>{stageLabel(current.stage)}</b>
-        </div>
-        <nav aria-label="Stages" className="stagenav" style={{ display: "flex" }}>
-          {NAV.map((stage, i) => {
-            const done = stageDone(stage.key, job, pages);
-            const selected = stage.key === current.stage;
-            const now = stage.key === statusStage && !done;
-            const owner = ownerOf(stage.role);
-            const greyed = opsView && !OPS_STAGES.includes(stage.key);
-            return (
-              <button
-                key={stage.key}
-                type="button"
-                disabled={greyed}
-                title={greyed ? "The valuer's stage" : undefined}
-                onClick={() => goStage(stage.key)}
-                aria-current={selected ? "step" : undefined}
-                style={{
-                  opacity: greyed ? 0.4 : 1,
-                  cursor: greyed ? "not-allowed" : "pointer",
-                  flex: 1,
-                  minWidth: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "14px 10px 12px",
-                  border: 0,
-                  borderBottom: `3px solid ${selected ? `var(--stage-${stage.key})` : "transparent"}`,
-                  background: "none",
-                  textAlign: "left",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    flexShrink: 0,
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 13,
-                    background: done ? "var(--green-600)" : now || selected ? `var(--stage-${stage.key})` : "var(--gray-150)",
-                    color: done || now || selected ? "#fff" : "var(--text-secondary)",
-                  }}
-                >
-                  {done ? <Icon name="check" size={14} color="#fff" /> : i + 1}
-                </span>
-                <span style={{ minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: selected ? 700 : 400,
-                      color: selected ? `var(--stage-${stage.key})` : "var(--text-primary)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    <FitText min={11}>{stage.label}</FitText>
-                  </span>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: 12,
-                      color: "var(--text-muted)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                    title={owner ? `${stage.roleLabel}: ${owner}` : undefined}
-                  >
-                    {owner ?? `${stage.roleLabel} not assigned`}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
       {notice && (
         <div
           role="status"
@@ -530,6 +444,58 @@ export function JobDetailClient({ id }: { id: string }) {
 
       {/* --- body + right panel -------------------------------------- */}
       <div className="jobcols" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        {/* --- the stages down the left, each opening onto its sub-stages --- */}
+        <nav aria-label="Stages" className="card stagecol">
+          {NAV.map((stage, i) => {
+            const done = stageDone(stage.key, job, pages);
+            const selected = stage.key === current.stage;
+            const now = stage.key === statusStage && !done;
+            const owner = ownerOf(stage.role);
+            const greyed = opsView && !OPS_STAGES.includes(stage.key);
+            const subs = navPages.filter((p) => p.stage === stage.key);
+            const open = subs.length > 1 && shownStages.has(stage.key);
+            const pct = stagePct(stage.key);
+            return (
+              <div key={stage.key} className={"sc-stage" + (selected ? " on" : "")}
+                style={{ ["--sc" as string]: `var(--stage-${stage.key})` }}>
+                <button type="button" className="sc-head" disabled={greyed} aria-expanded={subs.length > 1 ? open : undefined}
+                  aria-current={selected ? "step" : undefined} title={greyed ? "The valuer's stage" : undefined}
+                  onClick={() => (subs.length > 1 ? toggleStage(stage.key) : goStage(stage.key))}>
+                  <span className={"sc-dot" + (done ? " done" : now || selected ? " now" : "")}>
+                    {done ? <Icon name="check" size={13} color="#fff" /> : i + 1}
+                  </span>
+                  <span className="sc-text">
+                    <span className="sc-label">{stage.label}</span>
+                    <span className="sc-owner" title={owner ? `${stage.roleLabel}: ${owner}` : undefined}>
+                      {owner ?? `${stage.roleLabel} not assigned`}
+                    </span>
+                    {/* Review and Send to bank aren't filled in, so they have no bar. */}
+                    {stage.key !== "review" && stage.key !== "send" && subs.some((p) => p.tab) && (
+                      <span className="sc-bar"><span style={{ width: `${pct}%` }} className={pct === 100 ? "done" : ""} /></span>
+                    )}
+                  </span>
+                  {subs.length > 1 && <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />}
+                </button>
+                {open && (
+                  <div className="sc-subs">
+                    {subs.map((p) => {
+                      const c = completionOf(p.key);
+                      return (
+                        <button key={p.key} type="button" className={"sc-sub" + (p.key === current.key ? " on" : "")}
+                          aria-current={p.key === current.key ? "page" : undefined} disabled={greyed} onClick={() => go(p.key)}
+                          title={c.missing.length ? `Missing: ${c.missing.join(", ")}` : undefined}>
+                          <span className="sc-sub-label">{p.label}</span>
+                          {p.tab && <span className={"sc-pct num" + (c.pct === 100 ? " done" : "")}>{c.pct}%</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="card">
 
@@ -539,52 +505,26 @@ export function JobDetailClient({ id }: { id: string }) {
               <SendPanel job={job} jobId={id} />
             ) : (
               <>
-                <div className="row" style={{ justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-                  <div style={{ fontSize: 15 }}>
-                    <b style={{ fontWeight: 700 }}>{stageLabel(current.stage)}</b>
-                    <span style={{ color: "var(--text-muted)" }}>
-                      {" "}· {stagePages.length} section{stagePages.length === 1 ? "" : "s"}
-                    </span>
+                {/* One sub-stage at a time: the one picked on the left. */}
+                <div className="row" style={{ justifyContent: "space-between", gap: 10, marginBottom: 16 }}>
+                  <div style={{ fontSize: 15, minWidth: 0 }}>
+                    <span style={{ color: "var(--text-muted)" }}>{stageLabel(current.stage)} › </span>
+                    <b style={{ fontWeight: 700 }}>{current.label}</b>
                   </div>
-                  {stagePages.length > 1 && (
-                    <button type="button" className="linkbtn"
-                      onClick={() => setExpanded(allOpen ? [] : stagePages.map((p) => p.key))}>
-                      {allOpen ? "Collapse all" : "Expand all"}
-                    </button>
-                  )}
-                </div>
-                <div className="acc">
-                  {stagePages.map((page, i) => {
-                    const { pct, missing } = completionOf(page.key);
-                    const open = openKeys.includes(page.key);
-                    const done = page.tab ? pct === 100 : false;
+                  {current.tab && (() => {
+                    const { pct, missing } = completionOf(current.key);
                     return (
-                      <section key={page.key} id={`section-${page.key}`} className={"acc-item" + (open ? " open" : "")}>
-                        <button type="button" className="acc-head" aria-expanded={open} onClick={() => toggle(page.key)}>
-                          <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />
-                          <span className={"acc-num" + (done ? " done" : "")}>
-                            {done ? <Icon name="check" size={13} color="#fff" /> : i + 1}
-                          </span>
-                          <span className="acc-title">{page.label}</span>
-                          <span className="acc-meta">
-                            {missing.length > 0 && (
-                              <span className="acc-req" title={`Missing: ${missing.join(", ")}`}>
-                                {missing.length} required
-                              </span>
-                            )}
-                            {page.tab && (
-                              <>
-                                <span className="acc-bar"><span style={{ width: `${pct}%` }} className={done ? "done" : ""} /></span>
-                                <span className="acc-pct num">{pct}%</span>
-                              </>
-                            )}
-                          </span>
-                        </button>
-                        {open && <div className="acc-body">{sectionBody(page)}</div>}
-                      </section>
+                      <span className="acc-meta">
+                        {missing.length > 0 && (
+                          <span className="acc-req" title={`Missing: ${missing.join(", ")}`}>{missing.length} required</span>
+                        )}
+                        <span className="acc-bar"><span style={{ width: `${pct}%` }} className={pct === 100 ? "done" : ""} /></span>
+                        <span className="acc-pct num">{pct}%</span>
+                      </span>
                     );
-                  })}
+                  })()}
                 </div>
+                <section id={`section-${current.key}`}>{sectionBody(current)}</section>
               </>
             )}
 

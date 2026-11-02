@@ -1067,3 +1067,39 @@
 .tl-assign .tl-dot { background: var(--accent); }
 .tl-suggest .tl-dot { background: var(--purple-600); }
 @media (max-width: 640px) { .preview { width: 100vw; } }
+
+/* --- Lead page: the stages down the left, each opening onto its sub-stages.
+   Picking a sub-stage shows just that one in the main card. --- */
+.stagecol { width: 240px; flex-shrink: 0; padding: 8px !important; display: grid; gap: 2px; align-self: flex-start;
+  position: sticky; top: 70px; max-height: calc(100vh - 90px); overflow-y: auto; }
+.sc-stage { border-radius: 8px; }
+.sc-stage.on { background: var(--surface-subtle, #f7f7f7); }
+.sc-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 8px; border: 0; background: none;
+  text-align: left; font: inherit; cursor: pointer; border-radius: 8px; }
+.sc-head:hover:not(:disabled) { background: var(--accent-tint, #e5eff0); }
+.sc-head:disabled { opacity: 0.4; cursor: not-allowed; }
+.sc-dot { width: 26px; height: 26px; border-radius: 13px; flex-shrink: 0; display: grid; place-items: center; font-size: 13px;
+  background: var(--gray-150); color: var(--text-secondary); }
+.sc-dot.now { background: var(--sc); color: #fff; }
+.sc-dot.done { background: var(--green-600); color: #fff; }
+.sc-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.sc-label { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.sc-stage.on .sc-label { color: var(--sc); font-weight: 700; }
+.sc-owner { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-bar { display: block; height: 4px; border-radius: 2px; background: var(--gray-150); overflow: hidden; margin-top: 5px; }
+.sc-bar > span { display: block; height: 100%; background: var(--amber-600); border-radius: 2px; }
+.sc-bar > span.done { background: var(--green-600); }
+.sc-subs { display: grid; gap: 2px; padding: 2px 6px 8px 44px; }
+.sc-sub { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px;
+  background: none; font: inherit; font-size: 13.5px; color: var(--text-secondary); text-align: left; cursor: pointer;
+  border-left: 3px solid transparent; }
+.sc-sub:hover:not(:disabled) { background: var(--accent-tint, #e5eff0); color: var(--text-primary); }
+.sc-sub.on { background: var(--surface-card, #fff); color: var(--text-primary); font-weight: 600; border-left-color: var(--sc); }
+.sc-sub:disabled { opacity: 0.5; cursor: not-allowed; }
+.sc-sub-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-pct { font-size: 12px; color: var(--text-muted); }
+.sc-pct.done { color: var(--green-600); }
+/* Narrower screens: the stages sit above the form, full width. */
+@media (max-width: 1100px) {
+  .stagecol { position: static; width: 100% !important; max-height: none; }
+}
