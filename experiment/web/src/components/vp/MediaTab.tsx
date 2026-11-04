@@ -51,6 +51,9 @@ export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kin
 
   const input = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // The photo being dragged, and the one it is over.
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overId, setOverId] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [rejected, setRejected] = useState<Rejected[]>([]);
@@ -116,6 +119,17 @@ export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kin
     const to = from + delta;
     if (to < 0 || to >= ids.length) return;
     [ids[from], ids[to]] = [ids[to], ids[from]];
+    outcome(await actions.reorder(ids));
+  }
+
+  /** Drops the dragged photo where `target` is; the rest close up around it. */
+  async function dropOn(target: MediaItem) {
+    const from = dragId;
+    setDragId(null);
+    setOverId(null);
+    if (from === null || from === target.id) return;
+    const ids = items.map((i) => i.id).filter((id) => id !== from);
+    ids.splice(ids.indexOf(target.id) + (items.findIndex((i) => i.id === from) < items.findIndex((i) => i.id === target.id) ? 1 : 0), 0, from);
     outcome(await actions.reorder(ids));
   }
 
@@ -244,11 +258,50 @@ export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kin
       {items.length === 0 ? (
         <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 15 }}>{copy.empty}</p>
       ) : kind === "photos" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(230px,1fr))", gap: 16 }}>
-          {items.map((item, index) => (
-            <PhotoCard key={item.id} {...itemProps(item, index)} summaryNumber={summaryNumber(item, items, summaryIds)} />
-          ))}
-        </div>
+        <>
+          {canEdit && items.length > 1 && (
+            <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--text-muted)" }}>
+              Drag a photo to change the order. The first general photos are the report&apos;s summary photos.
+            </p>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(230px,1fr))", gap: 16 }}>
+            {items.map((item, index) => (
+              // Drag and drop to reorder (in place of the arrow buttons).
+              <div
+                key={item.id}
+                draggable={canEdit}
+                onDragStart={(e) => {
+                  setDragId(item.id);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onDragOver={(e) => {
+                  if (dragId === null || dragId === item.id) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setOverId(item.id);
+                }}
+                onDragLeave={() => setOverId((id) => (id === item.id ? null : id))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  void dropOn(item);
+                }}
+                onDragEnd={() => {
+                  setDragId(null);
+                  setOverId(null);
+                }}
+                style={{
+                  borderRadius: 10,
+                  cursor: canEdit ? "grab" : undefined,
+                  opacity: dragId === item.id ? 0.4 : 1,
+                  outline: overId === item.id ? "2px dashed var(--action-primary)" : undefined,
+                  outlineOffset: 3,
+                }}
+              >
+                <PhotoCard {...itemProps(item, index)} summaryNumber={summaryNumber(item, items, summaryIds)} />
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {items.map((item, index) => (
