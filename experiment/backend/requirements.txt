@@ -4,6 +4,7 @@ django-cors-headers==4.4.0
 django-environ==0.11.2
 psycopg[binary]==3.2.3
 celery==5.4.0
+kombu==5.5.4  # celery leaves it open; 5.7 needs redis-py 6.1+, which redis==5.1.1 below is not
 redis==5.1.1
 Pillow==13.0.0
 pillow-heif==1.3.0  # HEIC (iPhone) uploads
