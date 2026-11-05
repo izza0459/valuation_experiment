@@ -211,7 +211,7 @@ export function NewInstruction() {
 
       <form onSubmit={submit} style={{ display: "grid", gap: 16, maxWidth: 880 }}>
         {formError && (
-          <Banner tone="red" icon="alert-circle">
+          <Banner tone="red" icon="circle-alert">
             {formError}
           </Banner>
         )}

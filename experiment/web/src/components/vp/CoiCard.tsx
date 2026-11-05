@@ -17,7 +17,7 @@ export function CoiCard({ jobId }: { jobId: string }) {
   const coi = job?.coi;
   if (!coi) return null;
   const found = coi.matches.length;
-  const tone = found ? ["var(--amber-50)", "var(--amber-600)", "alert-triangle"] : ["var(--green-50)", "var(--green-600)", "shield-check"];
+  const tone = found ? ["var(--amber-50)", "var(--amber-600)", "triangle-alert"] : ["var(--green-50)", "var(--green-600)", "shield-check"];
   return (
     <div className="coi-card" style={{ background: tone[0], borderColor: `${tone[1]}55` }}>
       <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>

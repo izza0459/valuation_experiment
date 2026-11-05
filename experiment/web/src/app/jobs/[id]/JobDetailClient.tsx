@@ -453,7 +453,7 @@ export function JobDetailClient({ id }: { id: string }) {
       )}
 
       {!isLocked && !job.issue_in_progress && job.issue_error && (
-        <Banner tone="red" icon="alert-circle">
+        <Banner tone="red" icon="circle-alert">
           <b style={{ fontWeight: 500 }}>The final report couldn&apos;t be produced.</b> {job.issue_error}
         </Banner>
       )}

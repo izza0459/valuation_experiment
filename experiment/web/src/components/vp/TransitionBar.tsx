@@ -101,7 +101,7 @@ export function TransitionBar({ job, jobId }: { job: JobDetail; jobId: string })
     <>
       {failure && !pending && !confirming && (
         <div style={{ marginTop: 12 }}>
-          <Banner tone="red" icon="alert-circle">
+          <Banner tone="red" icon="circle-alert">
             {failure.message}
             {failure.blockers.length > 0 && (
               <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
@@ -165,7 +165,7 @@ export function TransitionBar({ job, jobId }: { job: JobDetail; jobId: string })
         }
       >
         {failure && (
-          <Banner tone="red" icon="alert-circle">
+          <Banner tone="red" icon="circle-alert">
             {failure.message}
             {failure.blockers.length > 0 && (
               <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
@@ -235,7 +235,7 @@ function IssuedActions({ job, jobId }: { job: JobDetail; jobId: string }) {
     <>
       {error && (
         <div style={{ marginRight: "auto", fontSize: 13, color: "var(--text-error)", maxWidth: "55%" }}>
-          <Icon name="alert-circle" size={14} /> {error}
+          <Icon name="circle-alert" size={14} /> {error}
         </div>
       )}
       {job.issued_report && (

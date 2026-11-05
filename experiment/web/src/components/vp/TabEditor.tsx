@@ -172,7 +172,7 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
       )}
 
       {save.status === "blocked" && save.notice && (
-        <Banner tone="red" icon="alert-circle">
+        <Banner tone="red" icon="circle-alert">
           {save.notice} Your latest changes were not saved.
         </Banner>
       )}
@@ -189,7 +189,7 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
       )}
 
       {optionsFailed && (
-        <Banner tone="amber" icon="alert-triangle">
+        <Banner tone="amber" icon="triangle-alert">
           Couldn&apos;t load the dropdown options, so selects may appear empty. Reload to try again.
         </Banner>
       )}
@@ -376,7 +376,7 @@ function SaveIndicator({ status, dirty, onRetry }: { status: SaveStatus; dirty: 
   if (status === "error") {
     return (
       <span style={{ ...base, color: "var(--text-error)" }}>
-        <Icon name="alert-circle" size={14} /> Couldn&apos;t save
+        <Icon name="circle-alert" size={14} /> Couldn&apos;t save
         <button
           type="button"
           onClick={onRetry}

@@ -46,7 +46,7 @@ export function FormDialog({
     >
       <div style={{ maxHeight: "62vh", overflowY: "auto", padding: 2 }}>
         {error && (
-          <Banner tone="red" icon="alert-circle">
+          <Banner tone="red" icon="circle-alert">
             {error}
           </Banner>
         )}

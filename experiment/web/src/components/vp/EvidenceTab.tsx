@@ -147,7 +147,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
         </Banner>
       )}
       {error && (
-        <Banner tone="red" icon="alert-circle">
+        <Banner tone="red" icon="circle-alert">
           {error}
         </Banner>
       )}
@@ -483,7 +483,7 @@ function AddForm({
   return (
     <div className="card" style={{ padding: 18, marginBottom: 14, display: "grid", gap: 14 }}>
       {found && (
-        <Banner tone={found.length >= 3 ? "green" : "amber"} icon={found.length >= 3 ? "check" : "alert-triangle"}>
+        <Banner tone={found.length >= 3 ? "green" : "amber"} icon={found.length >= 3 ? "check" : "triangle-alert"}>
           {found.length === 0
             ? "Couldn't read anything from that text. Fill the details in below."
             : `Read from the listing: ${found.map((k) => FOUND_LABELS[k] ?? k).join(", ")}. Check everything before adding.`}

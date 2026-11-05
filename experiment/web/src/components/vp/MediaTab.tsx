@@ -65,7 +65,7 @@ export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kin
   if (isLoading) return <p style={{ margin: 0, color: "var(--text-muted)" }}>Loading…</p>;
   if (isError || !data) {
     return (
-      <Banner tone="red" icon="alert-circle">
+      <Banner tone="red" icon="circle-alert">
         Couldn&apos;t load the {kind}. Reload to try again.
       </Banner>
     );
@@ -167,7 +167,7 @@ export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kin
             {data.needs.map((need) => (
               <li key={need.label} className="row" style={{ gap: 8, fontSize: 14, alignItems: "flex-start" }}>
                 <Icon
-                  name={need.met ? "check" : "alert-circle"}
+                  name={need.met ? "check" : "circle-alert"}
                   size={16}
                   color={need.met ? "var(--green-600)" : "var(--amber-600)"}
                   style={{ marginTop: 3 }}
@@ -180,13 +180,13 @@ export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kin
       )}
 
       {notice && (
-        <Banner tone={notice.tone} icon={notice.tone === "green" ? "check" : "alert-circle"}>
+        <Banner tone={notice.tone} icon={notice.tone === "green" ? "check" : "circle-alert"}>
           {notice.text}
         </Banner>
       )}
 
       {rejected.length > 0 && (
-        <Banner tone="amber" icon="alert-triangle">
+        <Banner tone="amber" icon="triangle-alert">
           <b style={{ fontWeight: 500 }}>
             {rejected.length === 1 ? "1 file wasn't added:" : `${rejected.length} files weren't added:`}
           </b>
