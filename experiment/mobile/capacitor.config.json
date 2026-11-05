@@ -1,15 +1,11 @@
 {
   "appId": "ae.bayut.valuations",
-  "appName": "Bayut Axia",
+  "appName": "Bayut Valuations",
   "webDir": "www",
   "server": {
-    "url": "https://app.bayutaxia.com",
+    "url": "https://valuation-web-dq3z.onrender.com",
     "androidScheme": "https",
-    "cleartext": false,
-    "allowNavigation": [
-      "app.bayutaxia.com",
-      "*.cloudflareaccess.com"
-    ]
+    "cleartext": false
   },
   "android": {
     "backgroundColor": "#f4f5f6"
