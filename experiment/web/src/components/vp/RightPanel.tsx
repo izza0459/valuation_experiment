@@ -40,7 +40,7 @@ export function RightPanel({ jobId }: { jobId: string }) {
   return (
     <aside className="rightpanel" style={{ width: 340, flexShrink: 0, alignSelf: "flex-start" }}>
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <Tabs size="sm" items={["Overview", "Activity"]} active={sub} onChange={setSub} style={{ gap: 22, padding: "0 18px" }} />
+        <Tabs size="sm" items={["Overview", "Activity"]} active={sub} onChange={setSub} style={{ gap: 22, padding: "0 18px", overflowY: "hidden", scrollbarWidth: "none" }} />
         <div style={{ padding: 18 }}>
           {sub === "Overview" ? <Overview jobId={jobId} /> : <Activity jobId={jobId} />}
         </div>
