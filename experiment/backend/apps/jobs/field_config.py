@@ -85,7 +85,7 @@ TABS = [
             field("contact_number", "Contact number", "text"),
             # Conflict of interest (CRM feedback LG-01).
             field("coi_suggestion", "COI suggestion", "text", calculated=True,
-                  help_text="From instructions in the last 12 months for this property or applicant."),
+                  help_text="From instructions in the last 12 months for this property."),
             field("coi_check", "COI Check", "select", required=True, options_key="coi_check",
                   help_text="Yes needs the client's consent (proof) uploaded before Setup can finish."),
             field("coi_confirmed", "COI confirmed", "text", calculated=True),

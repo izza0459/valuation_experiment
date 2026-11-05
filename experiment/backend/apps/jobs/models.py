@@ -408,9 +408,9 @@ class Job(SoftDeleteModel):
         return self
 
     def coi_matches(self) -> list[tuple["Job", str]]:
-        """Instructions in the last 12 months for the same property or
-        applicant (CRM feedback LG-01), with what matched. This job's own
-        versions don't count."""
+        """Instructions in the last 12 months for the same property (CRM
+        feedback LG-01), with what matched. The same applicant on another
+        property is not a conflict. This job's own versions don't count."""
         from datetime import timedelta
 
         from django.db.models import Q
@@ -426,9 +426,6 @@ class Job(SoftDeleteModel):
         if plot and number:
             rules.append(("same plot and property number",
                           Q(property__title_doc_plot_no__iexact=plot, property__title_doc_property_no__iexact=number)))
-        for name in prop.applicant_names:
-            if len(name.strip()) >= 3:
-                rules.append((f"same applicant ({name.strip()})", Q(property__applicant_name__icontains=name.strip())))
         if not rules:
             return []
         root = self.reference_root
@@ -451,7 +448,7 @@ class Job(SoftDeleteModel):
         """What the COI check should probably say, for the person confirming it."""
         matches = self.coi_matches()
         if not matches:
-            return "Suggested: No. No instruction for this property or applicant in the last 12 months."
+            return "Suggested: No. No instruction for this property in the last 12 months."
         listed = "; ".join(
             f"{job.bayut_internal_reference_no} ({why}, {job.created_at:%d %b %Y})" for job, why in matches
         )

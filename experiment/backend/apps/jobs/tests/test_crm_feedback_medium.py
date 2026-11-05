@@ -123,11 +123,11 @@ class TestCoiCheck:
         suggestion = Job.objects.get(pk=job.pk).coi_suggestion
         assert suggestion.startswith("Suggested: Yes.") and earlier.bayut_internal_reference_no in suggestion
 
-    def test_the_same_applicant_suggests_yes(self, job, bank):
+    def test_the_same_applicant_on_another_property_is_no_clash(self, job, bank):
         job.property.applicant_name = "Fatima Al Mansoori"
         job.property.save()
-        self.other_job(bank, applicant_name="Fatima Al Mansoori")
-        assert "same applicant" in Job.objects.get(pk=job.pk).coi_suggestion
+        self.other_job(bank, applicant_name="Fatima Al Mansoori", unit_number="88", building_name="Elsewhere")
+        assert Job.objects.get(pk=job.pk).coi_suggestion.startswith("Suggested: No.")
 
     def test_older_than_twelve_months_doesnt_count(self, job, bank):
         job.property.unit_number = "1203"

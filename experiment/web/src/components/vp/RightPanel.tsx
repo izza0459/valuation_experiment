@@ -116,7 +116,8 @@ function Overview({ jobId }: { jobId: string }) {
         <LocationPath parts={job.location_path} />
       </div>
 
-      <CheckBadges checks={job.checks} all />
+      {/* The DLD location and title deed checks stay on the lead's header. */}
+      <CheckBadges checks={job.checks?.filter((c) => c.key !== "dld" && c.key !== "title")} all />
 
       <div className="ov-group">
         <Row label="Received" tip="When the bank's request arrived.">

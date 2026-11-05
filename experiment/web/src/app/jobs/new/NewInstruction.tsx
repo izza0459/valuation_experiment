@@ -252,16 +252,11 @@ export function NewInstruction() {
           </Section>
         ))}
 
-        <Section title="Documents received" sub="What came with the instruction: the bank's request, a title deed, an SPA… (PDF or image). Optional. The inspector sees them on the lead.">
-          <input ref={fileInput} type="file" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/*"
+        <Section title="Document received" sub="The one document that came with the instruction: the bank's request, a title deed, an SPA… (PDF or image). Optional. The inspector sees it on the lead.">
+          <input ref={fileInput} type="file" hidden accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/*"
             onChange={(e) => {
               const picked = Array.from(e.target.files ?? []);
-              setBankDocs((docs) => [
-                ...docs,
-                ...picked
-                  .filter((f) => !docs.some((d) => d.file.name === f.name && d.file.size === f.size))
-                  .map((file) => ({ file, docType: "bank_instruction", caption: "" })),
-              ]);
+              if (picked[0]) setBankDocs([{ file: picked[0], docType: "bank_instruction", caption: "" }]);
               e.target.value = "";
             }} />
           <div style={{ display: "grid", gap: 8 }}>
@@ -287,10 +282,11 @@ export function NewInstruction() {
                 </div>
               </div>
             ))}
-            {!createdId && (
+            {/* One document comes with an instruction; more go on the lead's Documents. */}
+            {!createdId && bankDocs.length === 0 && (
               <div>
                 <Button type="button" variant="outline" icon={<Icon name="upload" size={16} />} onClick={() => fileInput.current?.click()}>
-                  {bankDocs.length ? "Add more" : "Add documents"}
+                  Add document
                 </Button>
               </div>
             )}
