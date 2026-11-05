@@ -14,7 +14,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button, Icon } from "@/design-system";
+import { Button, Icon, Input, Select } from "@/design-system";
 import { FieldInput } from "@/components/vp/FieldInput";
 import { Banner, F, PageHead, Section, Shell } from "@/components/vp/ui";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -38,7 +38,7 @@ const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
   {
     title: "Parties",
     sub: "Add every owner and applicant named on the request.",
-    keys: ["applicant_name", "ownership_name", "contact_name", "contact_number"],
+    keys: ["applicant_name", "ownership_name", "contact_name", "contact_role", "contact_number"],
   },
   {
     title: "Team",
@@ -48,6 +48,17 @@ const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
 ];
 
 const WIDE = new Set<string>([]);
+
+/** What a document received with the instruction can be (document_type presets). */
+const DOC_TYPES = [
+  { value: "bank_instruction", label: "Bank instruction" },
+  { value: "title_deed", label: "Title Deed" },
+  { value: "spa", label: "SPA" },
+  { value: "initial_contract_of_sale", label: "Initial Contract of Sale" },
+  { value: "site_plan", label: "Site Plan" },
+  { value: "other", label: "Other" },
+];
+type InstructionDoc = { file: File; docType: string; caption: string };
 
 
 export function NewInstruction() {
@@ -61,9 +72,12 @@ export function NewInstruction() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // The bank's own documents (instruction / validation request), uploaded as
-  // "Bank instruction" documents once the lead exists.
-  const [bankDocs, setBankDocs] = useState<File[]>([]);
+  // Documents that came with the instruction (the bank's request, a title
+  // deed, an SPA...), each with its type and a caption. Uploaded once the lead
+  // exists; the inspector sees them under Documents received.
+  const [bankDocs, setBankDocs] = useState<InstructionDoc[]>([]);
+  const setDoc = (doc: InstructionDoc, change: Partial<InstructionDoc>) =>
+    setBankDocs((docs) => docs.map((d) => (d === doc ? { ...d, ...change } : d)));
   const [createdId, setCreatedId] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -150,22 +164,28 @@ export function NewInstruction() {
     }
   }
 
+  /** One upload per document, so each keeps its own type and caption. */
   async function uploadBankDocs(jobId: number): Promise<string | null> {
-    const form = new FormData();
-    bankDocs.forEach((f) => form.append("files", f));
-    form.append("doc_type", "bank_instruction");
-    try {
-      const res = await apiFetch<{ rejected: { name: string; reason: string }[] }>(`/api/jobs/${jobId}/documents/`, {
-        method: "POST",
-        body: form,
-      });
-      return res.rejected?.length ? res.rejected.map((r) => `${r.name}: ${r.reason}`).join("; ") : null;
-    } catch (err) {
-      const rejected = err instanceof ApiError && Array.isArray(err.body?.rejected)
-        ? (err.body.rejected as { name: string; reason: string }[]).map((r) => `${r.name}: ${r.reason}`).join("; ")
-        : "";
-      return rejected || (err instanceof ApiError ? err.message : "Couldn't reach the server.");
+    const problems: string[] = [];
+    for (const doc of bankDocs) {
+      const form = new FormData();
+      form.append("files", doc.file);
+      form.append("doc_type", doc.docType);
+      if (doc.caption.trim()) form.append("caption", doc.caption.trim());
+      try {
+        const res = await apiFetch<{ rejected: { name: string; reason: string }[] }>(`/api/jobs/${jobId}/documents/`, {
+          method: "POST",
+          body: form,
+        });
+        res.rejected?.forEach((r) => problems.push(`${r.name}: ${r.reason}`));
+      } catch (err) {
+        const rejected = err instanceof ApiError && Array.isArray(err.body?.rejected)
+          ? (err.body.rejected as { name: string; reason: string }[]).map((r) => `${r.name}: ${r.reason}`)
+          : [];
+        problems.push(...(rejected.length ? rejected : [`${doc.file.name}: ${err instanceof ApiError ? err.message : "Couldn't reach the server."}`]));
+      }
     }
+    return problems.length ? problems.join("; ") : null;
   }
 
   if (me && !canCreate) {
@@ -232,25 +252,39 @@ export function NewInstruction() {
           </Section>
         ))}
 
-        <Section title="Bank documents" sub="The instruction or validation request the bank sent (PDF or image). Optional; it's kept with the lead under Documents.">
+        <Section title="Documents received" sub="What came with the instruction: the bank's request, a title deed, an SPA… (PDF or image). Optional. The inspector sees them on the lead.">
           <input ref={fileInput} type="file" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/*"
             onChange={(e) => {
               const picked = Array.from(e.target.files ?? []);
-              setBankDocs((docs) => [...docs, ...picked.filter((f) => !docs.some((d) => d.name === f.name && d.size === f.size))]);
+              setBankDocs((docs) => [
+                ...docs,
+                ...picked
+                  .filter((f) => !docs.some((d) => d.file.name === f.name && d.file.size === f.size))
+                  .map((file) => ({ file, docType: "bank_instruction", caption: "" })),
+              ]);
               e.target.value = "";
             }} />
           <div style={{ display: "grid", gap: 8 }}>
-            {bankDocs.map((f) => (
-              <div key={`${f.name}-${f.size}`} className="row" style={{ gap: 10, fontSize: 14 }}>
-                <Icon name="file-text" size={16} color="var(--text-muted)" />
-                <span className="one-line" style={{ flex: 1, minWidth: 0 }} title={f.name}>{f.name}</span>
-                <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{(f.size / 1024 / 1024).toFixed(1)} MB</span>
-                {!createdId && (
-                  <button type="button" className="linkbtn" aria-label={`Remove ${f.name}`}
-                    onClick={() => setBankDocs((docs) => docs.filter((d) => d !== f))}>
-                    Remove
-                  </button>
-                )}
+            {bankDocs.map((doc) => (
+              <div key={`${doc.file.name}-${doc.file.size}`} style={{ display: "grid", gap: 8, padding: 12, borderRadius: 8,
+                border: "1px solid var(--border-subtle)" }}>
+                <div className="row" style={{ gap: 10, fontSize: 14 }}>
+                  <Icon name="file-text" size={16} color="var(--text-muted)" />
+                  <span className="one-line" style={{ flex: 1, minWidth: 0 }} title={doc.file.name}>{doc.file.name}</span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{(doc.file.size / 1024 / 1024).toFixed(1)} MB</span>
+                  {!createdId && (
+                    <button type="button" className="linkbtn" aria-label={`Remove ${doc.file.name}`}
+                      onClick={() => setBankDocs((docs) => docs.filter((d) => d !== doc))}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
+                  <Select aria-label="Document type" value={doc.docType} options={DOC_TYPES} disabled={Boolean(createdId)}
+                    onChange={(e) => setDoc(doc, { docType: e.target.value })} />
+                  <Input placeholder="Caption (optional)" maxLength={255} value={doc.caption} disabled={Boolean(createdId)}
+                    onChange={(e) => setDoc(doc, { caption: e.target.value })} />
+                </div>
               </div>
             ))}
             {!createdId && (

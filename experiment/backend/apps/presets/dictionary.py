@@ -34,6 +34,8 @@ PRESETS = {
         o("Owner / contact unreachable"), o("Property not accessible"), o("Conflict of interest"), o("Test lead"),
         o("Other"),
     ],
+    # Who the contact for access is (Instructions, New instruction).
+    "contact_role": [o("Owner"), o("Applicant"), o("Agent / Broker", "agent"), o("Tenant"), o("Other")],
     "call_status": [
         o("Not Called", "not_called"), o("Answered – Not Scheduled", "answered_not_scheduled"),
         o("Answered – Scheduled", "answered_scheduled"), o("UTC (Unable to contact)", "utc"),

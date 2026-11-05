@@ -58,6 +58,35 @@ class TestBankDocuments:
         assert res.status_code == 201, res.json()
         assert list(Document.objects.filter(job_id=job_id).values_list("doc_type", flat=True)) == ["bank_instruction"]
 
+    def test_each_document_keeps_its_type_and_caption(self, bank, tmp_path, settings):
+        from apps.media_files.models import Document
+        from apps.media_files.tests.helpers import pdf_bytes, upload_file
+
+        settings.MEDIA_ROOT = tmp_path
+        user = make_user("taker", roles=[Role.ADMIN])
+        job_id = create(user, {"bank": bank.pk, "applicant_name": "A. Applicant"}).json()["id"]
+        client = APIClient()
+        client.force_authenticate(user)
+        res = client.post(f"/api/jobs/{job_id}/documents/",
+                          {"files": [upload_file("deed.pdf", pdf_bytes())], "doc_type": "title_deed",
+                           "caption": "Title deed from the bank's email"}, format="multipart")
+        assert res.status_code == 201, res.json()
+        assert Document.objects.values_list("doc_type", "caption").get() == (
+            "title_deed", "Title deed from the bank's email")
+
+
+class TestContactRole:
+    def test_who_the_contact_is_reaches_scheduling(self, admin, bank):
+        res = create(admin, {"bank": bank.pk, "applicant_name": "A. Applicant", "contact_name": "R. Owner",
+                             "contact_role": "owner", "contact_number": "0501234567"})
+        assert res.status_code == 201, res.json()
+        job = Job.objects.get(pk=res.json()["id"])
+        assert (job.contact_role, job.contact_role_label, job.contact_number) == ("owner", "Owner", "+971 50 123 4567")
+
+    def test_an_unknown_role_is_refused(self, admin, bank):
+        res = create(admin, {"bank": bank.pk, "applicant_name": "A. Applicant", "contact_role": "cousin"})
+        assert res.status_code == 400 and "contact_role" in res.json()["errors"]
+
 
 class TestCreate:
     def test_the_bank_reference_starts_as_the_banks_code(self, admin, bank):

@@ -22,7 +22,7 @@ from .tabs import TabError, ValidationFailed, patch_tab
 INTAKE_FIELDS = {
     "instructions": {
         "bank", "bank_reference_no", "client_name", "purpose", "date_time_request_received",
-        "date_of_instruction", "contact_name", "contact_number",
+        "date_of_instruction", "contact_name", "contact_role", "contact_number",
     },
     "address": {
         "unit_number", "building_name", "community_name", "latitude", "longitude",

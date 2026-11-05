@@ -119,6 +119,7 @@ class MediaListView(_MediaView):
             result = service.upload(
                 job.pk, request.user, kind, files,
                 slot=request.data.get("slot") or None, doc_type=request.data.get("doc_type") or None,
+                caption=str(request.data.get("caption") or ""),
             )
         except TabError as exc:
             return self._fail(exc, job)

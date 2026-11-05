@@ -80,6 +80,8 @@ TABS = [
             field("date_time_request_received", "Date/Time request received", "datetime"),
             field("date_of_instruction", "Date of Instruction", "date", required=True),
             field("contact_name", "Contact name", "text", help_text="Who to call for access."),
+            field("contact_role", "Contact is", "select", options_key="contact_role",
+                  help_text="Whether the contact is the owner, the applicant or someone else."),
             field("contact_number", "Contact number", "text"),
             # Conflict of interest (CRM feedback LG-01).
             field("coi_suggestion", "COI suggestion", "text", calculated=True,
@@ -130,6 +132,7 @@ TABS = [
             # Carried over from Setup, read-only.
             field("organisation_name", "Bank", "text", calculated=True),
             field("contact_name", "POC name", "text", calculated=True),
+            field("contact_role_label", "POC is", "text", calculated=True, help_text="From Setup."),
             field("contact_number", "POC phone", "text", calculated=True),
             field("map_link", "Map link", "text", calculated=True,
                   help_text="From the coordinates on Property Address."),

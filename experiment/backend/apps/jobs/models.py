@@ -210,6 +210,8 @@ class Job(SoftDeleteModel):
     contact_for_access = models.CharField(max_length=255, blank=True)
     contact_name = models.CharField(max_length=255, blank=True)
     contact_number = models.CharField(max_length=50, blank=True)
+    # Who the contact is: owner, applicant, agent, tenant or other (`contact_role` presets).
+    contact_role = models.CharField(max_length=30, blank=True)
 
     # Conflict of interest (CRM feedback LG-01): "yes" / "no", confirmed by
     # someone on Setup. Yes needs the consent (proof) uploaded as a document.
@@ -502,6 +504,16 @@ class Job(SoftDeleteModel):
         if self.bank_id:
             return self.bank.name
         return self.client_name
+
+    @builtins.property
+    def contact_role_label(self) -> str:
+        """Who the contact is, as the dropdown names it (Owner, Applicant…)."""
+        if not self.contact_role:
+            return ""
+        from apps.presets.models import PresetOption
+
+        row = PresetOption.objects.filter(field_key="contact_role", value=self.contact_role).first()
+        return row.label if row else self.contact_role
 
     @builtins.property
     def bank_code(self) -> str:

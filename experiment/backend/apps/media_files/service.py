@@ -118,11 +118,16 @@ def _write(job, kind: Kind, prepared: dict) -> tuple[str, str]:
 
 
 def upload(
-    job_id: int, user, kind: Kind, files, *, slot: str | None = None, doc_type: str | None = None
+    job_id: int, user, kind: Kind, files, *, slot: str | None = None, doc_type: str | None = None,
+    caption: str = "",
 ) -> UploadResult:
     """Adds every acceptable file; the rest come back with a reason each, so
-    one bad scan doesn't lose a dozen good photographs."""
+    one bad scan doesn't lose a dozen good photographs. `caption` is given to
+    each file added (New instruction captions each document as it goes)."""
     result = UploadResult()
+    caption = (caption or "").strip()
+    if len(caption) > CAPTION_MAX:
+        raise ValidationFailed({"caption": f"Up to {CAPTION_MAX} characters."})
     if slot is not None and slot not in Photo.Slot.values:
         raise ValidationFailed({"slot": "Unknown photograph type."})
     if doc_type is not None and not valid_doc_type(doc_type):
@@ -178,7 +183,7 @@ def upload(
                 fields = dict(
                     job=job, s3_key=key, thumb_key=thumb_key, original_name=item["original_name"],
                     content_type=item["content_type"], size_bytes=item["size"], sha256=item["sha256"],
-                    order=next_order, uploaded_by=user,
+                    order=next_order, uploaded_by=user, caption=caption,
                 )
                 if kind is PHOTOS:
                     fields.update(
