@@ -17,7 +17,8 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, view
 export const metadata: Metadata = {
   title: "Bayut Valuations",
   appleWebApp: { capable: true, title: "Bayut Valuations", statusBarStyle: "default" },
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
+  // The tab icon: the Bayut mark (the full logo is unreadable at 16px).
+  icons: { icon: { url: "/bayut-icon.svg", type: "image/svg+xml" }, apple: "/icons/icon-192.png" },
   description: "In-house real estate valuation platform (Dubizzle Group / Bayut)",
 };
 
