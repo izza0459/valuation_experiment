@@ -76,7 +76,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       /* not JSON — keep the raw text as the message */
     }
     const detail = body && typeof body.detail === "string" ? body.detail : null;
-    throw new ApiError(detail ?? (text || res.statusText), res.status, body);
+    // An error page from a proxy in front of the API (Cloudflare's 502, say)
+    // is HTML: never show its markup to the user.
+    const fallback = /^\s*</.test(text) || !text
+      ? res.status >= 500
+        ? `The server didn't respond (error ${res.status}). Try again in a moment.`
+        : res.statusText || `Request failed (error ${res.status}).`
+      : text;
+    throw new ApiError(detail ?? fallback, res.status, body);
   }
 
   if (res.status === 204) {

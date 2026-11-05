@@ -1,0 +1,8 @@
+[Unit]
+Description=Deploy app.bayutaxia.com from GitHub main when it changes
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/axia/autodeploy.sh

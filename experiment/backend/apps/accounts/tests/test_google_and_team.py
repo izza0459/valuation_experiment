@@ -68,7 +68,7 @@ class TestGoogleSignIn:
         assert not User.objects.filter(email__startswith="x@").exists()
 
     def test_the_sign_in_screen_learns_the_client_id(self):
-        assert APIClient().get("/api/auth/config/").json() == {"google_client_id": "client-1"}
+        assert APIClient().get("/api/auth/config/").json() == {"google_client_id": "client-1", "cloudflare_sso": False}
 
 
 class TestReportingLine:

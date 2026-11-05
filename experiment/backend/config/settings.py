@@ -66,6 +66,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.accounts.cloudflare_access.CloudflareAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.audit.middleware.CurrentUserMiddleware",
@@ -243,6 +244,12 @@ DEMO_MODE = env.bool("DEMO_MODE", default=True)
 # client ID: the Google button isn't offered.
 GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
 GOOGLE_ALLOWED_DOMAINS = [d.strip().lower() for d in env.list("GOOGLE_ALLOWED_DOMAINS", default=[]) if d.strip()]
+# Cloudflare Access in front of the app (apps/accounts/cloudflare_access.py):
+# the team domain (e.g. myteam.cloudflareaccess.com) and the Access
+# application's AUD tag. Both set: people are signed in as the user with the
+# email Cloudflare vouches for, and the password form is turned off.
+CF_ACCESS_TEAM_DOMAIN = env("CF_ACCESS_TEAM_DOMAIN", default="").strip().lower()
+CF_ACCESS_AUD = env("CF_ACCESS_AUD", default="").strip()
 # The registered legal name the signatory confirms the report is authorised
 # by. Left empty, the report shows a placeholder and cannot be issued.
 # TODO: the firm name stands in until the registered legal name is confirmed

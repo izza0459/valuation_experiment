@@ -1,0 +1,60 @@
+# Production stack on the EC2: Caddy (HTTPS) -> Next.js web + Django API.
+name: axia
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: valuation
+      POSTGRES_USER: valuation
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U valuation"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    build: ./app/backend
+    restart: unless-stopped
+    env_file: backend.env
+    command: sh /deploy/backend-start.sh
+    volumes:
+      - ./backend-start.sh:/deploy/backend-start.sh:ro
+      - media:/app/media
+      - static:/app/staticfiles
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_started}
+
+  celery:
+    build: ./app/backend
+    restart: unless-stopped
+    env_file: backend.env
+    command: celery -A config worker -l info --concurrency 2
+    volumes: [media:/app/media]
+    depends_on: [backend]
+
+  web:
+    build:
+      context: ./app/web
+      dockerfile: ../../web.Dockerfile
+      args: {API_PROXY_TARGET: "http://backend:8000"}
+    restart: unless-stopped
+    depends_on: [backend]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["127.0.0.1:80:80"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - static:/srv/static:ro
+      - caddy_data:/data
+    depends_on: [web, backend]
+
+volumes: {postgres_data: {}, media: {}, static: {}, caddy_data: {}}
