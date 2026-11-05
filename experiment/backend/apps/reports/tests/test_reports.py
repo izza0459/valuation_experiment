@@ -108,11 +108,11 @@ class TestContent:
         # sqm first, like BUA (QA #21).
         assert rows(build_context(job), "property_details")["Plot area"] == "418 sqm (4,499 sqft)"
 
-    def test_a_villa_without_a_plot_area_shows_a_dash_not_not_applicable(self, job):
+    def test_a_villa_without_a_plot_area_leaves_the_row_out(self, job):
         job.summary.property_category = "custom_villa"
         job.summary.save()
         job.refresh_from_db()
-        assert rows(build_context(job), "property_details")["Plot area"] == "—"
+        assert "Plot area" not in rows(build_context(job), "property_details")
 
     def test_lease_expiry_appears_only_for_a_long_leasehold(self, job):
         assert "Lease expiry" not in rows(build_context(job), "property_details")
@@ -207,8 +207,7 @@ class TestContent:
         assert "assumed to be correct" in build_context(job)["bua_assumed_note"]
 
     def test_upgrades_are_not_called_no_before_the_inspection_is_recorded(self, job):
-        assert "Upgrades / modifications" in rows(build_context(job), "property_details")
-        assert rows(build_context(job), "property_details")["Upgrades / modifications"] == "—"
+        assert "Upgrades / modifications" not in rows(build_context(job), "property_details")
         job.inspection.inspection_type = "full"
         job.inspection.save()
         job.refresh_from_db()
@@ -225,8 +224,10 @@ class TestContent:
         job.save()
         assert build_context(job)["counter_signatory"]["rera_no"] == ""
 
-    def test_missing_values_show_a_dash_so_a_draft_makes_the_gap_obvious(self, job):
-        assert rows(build_context(job), "property_details")["Developer"] == "—"
+    def test_a_field_that_isnt_filled_in_is_left_out(self, job):
+        details = rows(build_context(job), "property_details")
+        assert "Developer" not in details and all(v not in ("", "—") for v in details.values())
+        assert details["Plot area"] == "Not Applicable"  # a value, not a gap
 
     def test_a_draft_lists_what_is_still_outstanding(self, job):
         meta = build_context(job)["meta"]

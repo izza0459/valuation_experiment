@@ -421,11 +421,7 @@ function PhotoCard({ item, index, canEdit, onChange, onRemove, summaryNumber }: 
           />
           Include in report
         </label>
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }} title={item.original_name}>
-            {sizeText(item.size_bytes)}
-            {item.width && item.height ? ` · ${item.width}×${item.height}` : ""}
-          </span>
+        <div className="row" style={{ justifyContent: "flex-end" }}>
           {canEdit && (
             <div className="row" style={{ gap: 6 }}>
               <button type="button" aria-label="Remove" title="Remove" onClick={onRemove} style={iconButton}>

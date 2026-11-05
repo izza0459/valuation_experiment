@@ -131,10 +131,11 @@ class Labels:
         return [self(tab_key, field_key, v) for v in (values or []) if v]
 
 
-def _row(label, value, *, always=True):
-    """A table row. With `always=False` it is dropped when there is no value;
-    otherwise a missing value shows as a dash so a draft makes the gap obvious."""
-    text = value if value not in (None, "") else ""
+def _row(label, value, *, always=False):
+    """A table row, left out when the field isn't filled in (a dash counts as
+    empty). "Not Applicable" is a value and stays. `always=True` keeps the row
+    with a dash, for the few rows a report can't do without."""
+    text = value if value not in (None, "", EMPTY) else ""
     if not text and not always:
         return None
     return {"label": label, "value": text or EMPTY}
@@ -317,7 +318,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     # Fields the valuer left out of the report (include-in-report step).
     excluded = set(job.report_exclusions or [])
 
-    def row(label, value, key=None, *, always=True):
+    def row(label, value, key=None, *, always=False):
         return None if key in excluded else _row(label, value, always=always)
 
     def keep(key, value):

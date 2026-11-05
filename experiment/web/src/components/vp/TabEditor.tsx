@@ -245,14 +245,6 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
               <div className="sugg-tag"><Icon name="sparkles" size={12} /> Suggested · saved value: {String(state.values[field.key] ?? "(empty)")}</div>
             )}
             </div>
-            {/* The title document is uploaded right where its type is chosen,
-                above the details read from it. */}
-            {field.key === "title_doc_type" && (
-              <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
-                <ChecklistUploads jobId={jobId} mode="title" canEdit={editable} inline
-                  lockedReason={state.read_only_reason} />
-              </div>
-            )}
             {/* A conflict of interest needs the client's consent, uploaded here. */}
             {field.key === "coi_check" && merged.coi_check === "yes" && (
               <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>

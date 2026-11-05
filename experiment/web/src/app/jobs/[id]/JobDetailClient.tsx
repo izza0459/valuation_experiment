@@ -234,6 +234,14 @@ export function JobDetailClient({ id }: { id: string }) {
 
   const go = (key: string) => {
     const target = pages.find((p) => p.key === key);
+    // Moving on from a section with required fields still empty isn't allowed
+    // for whoever fills it in; going back always is.
+    const ahead = flow.findIndex((p) => p.key === key) > flow.findIndex((p) => p.key === current.key);
+    const here = completionOf(current.key);
+    if (ahead && current.tab && job.tabs[current.key]?.can_edit && here.missing.length && !isLocked) {
+      setNotice({ tone: "red", title: `Fill in the required fields on ${current.label} first`, lines: here.missing });
+      return;
+    }
     const forward = Boolean(target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage));
     if (target && forward) {
       const block = blockingStage(target.stage);
