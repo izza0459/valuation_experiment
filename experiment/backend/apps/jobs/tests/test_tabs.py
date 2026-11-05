@@ -759,10 +759,10 @@ class TestCrmFeedbackSmallItems:
         """QA #16: the per-type boxes are gone; the one box takes the type's wording."""
         from apps.presets.models import TextLibraryItem
 
-        villa = TextLibraryItem.objects.create(category="valuation_commentary", title="Villa test",
-                                               body="Villas here trade on plot.", property_categories=["villa"])
-        office = TextLibraryItem.objects.create(category="valuation_commentary", title="Office test",
-                                                body="Grade A stock is limited.", property_categories=["fitted_office"])
+        # The templates from the valuation team (Nov 2026).
+        villa = TextLibraryItem.objects.get(category="valuation_commentary", title="Villas/Townhouses")
+        office = TextLibraryItem.objects.get(category="valuation_commentary", title="Shell and Core/Fitted Offices")
+        assert villa.body.startswith("Comparable xxxxx-bedroom [villas/townhouses]")
         assert patch(client_for(dan), job, "valuation", {"commentary_offices": "x"}).status_code == 400
         client = client_for(dan)
         assert patch(client, job, "summary", {"property_category": "villa"}).status_code == 200

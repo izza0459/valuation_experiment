@@ -357,5 +357,64 @@ SPECIFICATIONS = [
      "since that date."),
 ]
 
+# Valuation Commentary templates (Nov 2026), one per property type; the
+# valuer fills in the xxxxx and [bracketed] parts for the job.
+_BROKERS = (
+    "This broker information is anecdotal, has not been independently verified, and has been considered alongside "
+)
+VALUATION_COMMENTARY = [
+    ("Apartments",
+     "Comparable xxxxx-bedroom apartments in [Development] are listed from AED xxxxx to AED xxxxx, varying with "
+     "layout, floor level and view, while DLD-registered transactions indicate AED xxxxx to AED xxxxx (AED xxxxx "
+     "to AED xxxxx per sq ft). RERA-registered brokers advise that listings above AED xxxxx have attracted "
+     "limited interest and report recent sales and offers of around AED xxxxx for similar units. "
+     + _BROKERS + "the transactional evidence. Having regard to this evidence, adjusted for the subject’s "
+     "attributes (xxxxx-bedroom, xxxxx sq ft, xxxxx floor, [view]), we are of the opinion that its Market Value "
+     "as at [valuation date] is AED xxxxx (AED xxxxx)."),
+    ("Villas/Townhouses",
+     "Comparable xxxxx-bedroom [villas/townhouses] in [Community] are listed from AED xxxxx to AED xxxxx, varying "
+     "with plot size, built-up area, layout, position and upgrades, while DLD-registered transactions indicate "
+     "AED xxxxx to AED xxxxx (AED xxxxx to AED xxxxx per sq ft). RERA-registered brokers advise that listings "
+     "above AED xxxxx have attracted limited interest and report recent sales and offers of around AED xxxxx for "
+     "similar units. " + _BROKERS + "the transactional evidence. Having regard to this evidence, adjusted for "
+     "the subject’s attributes (xxxxx-bedroom, xxxxx sq ft BUA, xxxxx sq ft plot, [position/view], "
+     "[condition/upgrades]), we are of the opinion that its Market Value as at [valuation date] is AED xxxxx "
+     "(AED xxxxx)."),
+    ("Shell and Core/Fitted Offices",
+     "Comparable [shell and core/fitted] office units in [Building/Area] are listed from AED xxxxx to AED xxxxx "
+     "per sq ft, varying with size, floor level, view and specification, while DLD-registered transactions "
+     "indicate AED xxxxx to AED xxxxx per sq ft. Rental evidence indicates AED xxxxx to AED xxxxx per sq ft per "
+     "annum, supporting a net initial yield of xxxxx%. RERA-registered brokers advise that listings above AED "
+     "xxxxx per sq ft have attracted limited interest and report recent sales and offers of around AED xxxxx per "
+     "sq ft for similar units. " + _BROKERS + "the transactional and rental evidence. Having regard to this "
+     "evidence, adjusted for the subject’s attributes (xxxxx sq ft, xxxxx floor, [shell and core/fitted], xxxxx "
+     "parking spaces, [vacant/tenanted]), we are of the opinion that its Market Value as at [valuation date] is "
+     "AED xxxxx (AED xxxxx per sq ft)."),
+    ("Shell and Core/Fitted Retail",
+     "Comparable [shell and core/fitted] retail units in [Building/Area] are listed from AED xxxxx to AED xxxxx "
+     "per sq ft, varying with size, frontage, visibility, footfall and permitted use, while DLD-registered "
+     "transactions indicate AED xxxxx to AED xxxxx per sq ft. Rental evidence indicates AED xxxxx to AED xxxxx "
+     "per sq ft per annum, supporting a net initial yield of xxxxx%. RERA-registered brokers advise that listings "
+     "above AED xxxxx per sq ft have attracted limited interest and report recent sales and offers of around AED "
+     "xxxxx per sq ft for similar units. " + _BROKERS + "the transactional and rental evidence. Having regard to "
+     "this evidence, adjusted for the subject’s attributes (xxxxx sq ft, [ground/podium level], "
+     "[frontage/visibility], [shell and core/fitted], [vacant/tenanted]), we are of the opinion that its Market "
+     "Value as at [valuation date] is AED xxxxx (AED xxxxx per sq ft)."),
+    ("Rare Property",
+     "Owing to the subject’s [size/design/specification/location], there is very limited directly comparable "
+     "transactional evidence. We have therefore relied on the best available indirect evidence: DLD-registered "
+     "transactions of [premium apartments/villas/penthouses] in [Development/Community/comparable prime "
+     "locations] at AED xxxxx to AED xxxxx (AED xxxxx to AED xxxxx per sq ft), adjusted for size, configuration, "
+     "specification, views, privacy and exclusivity. Comparable prime properties are listed from AED xxxxx to "
+     "AED xxxxx, and RERA-registered brokers specialising in prime property report market interest at around "
+     "AED xxxxx for a property of this nature. " + _BROKERS + "the transactional evidence. [As a cross-check, we "
+     "have also adopted the cost approach, comprising land value of AED xxxxx plus depreciated replacement cost "
+     "of AED xxxxx.] Given the limited evidence, this valuation involves a greater degree of valuation judgement "
+     "than would normally apply, and the price achieved on sale may differ from our opinion of value. Having "
+     "regard to this evidence, adjusted for the subject’s attributes (xxxxx-bedroom, xxxxx sq ft BUA, [xxxxx sq "
+     "ft plot/terrace], xxxxx floor, [view], [specification/upgrades]), we are of the opinion that its Market "
+     "Value as at [valuation date] is AED xxxxx (AED xxxxx per sq ft)."),
+]
+
 # Picking this gives an empty box to write the paragraph in.
 CUSTOM = ("Custom", "")

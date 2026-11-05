@@ -180,6 +180,15 @@ FITTED = ["fitted_office", "fitted_retail"]
 COMMERCIAL = [*FITTED, *SHELL_AND_CORE]
 HOMES = [*APARTMENTS, *VILLAS]
 
+# The property types each valuation commentary template is written for.
+VALUATION_COMMENTARY_FOR = {
+    "Apartments": ["apartment"],
+    "Villas/Townhouses": ["villa", "townhouse"],
+    "Shell and Core/Fitted Offices": ["fitted_office", "shell_core_office"],
+    "Shell and Core/Fitted Retail": ["fitted_retail", "shell_core_retail"],
+    "Rare Property": ["duplex", "custom_villa", "penthouse"],
+}
+
 # Which property types each report-text option is offered for; anything not
 # listed is offered for all of them (the valuer can still search for it).
 OFFERED_FOR = {
@@ -212,9 +221,14 @@ LIBRARY = {
                       for t, b in [*report_text.SPECIFICATIONS, report_text.CUSTOM]],
     "condition": [(t, [], OFFERED_FOR.get(("condition", t), []), b)
                   for t, b in [*report_text.CONDITIONS, report_text.CUSTOM]],
-    # No approved commentary wording yet: the valuer writes it per job.
+    # No approved market commentary wording yet: the valuer writes it per job.
     "market_commentary": [(*report_text.CUSTOM[:1], [], [], report_text.CUSTOM[1])],
-    "valuation_commentary": [(*report_text.CUSTOM[:1], [], [], report_text.CUSTOM[1])],
+    # Valuation commentary (Nov 2026): one template per property type, filled
+    # in when the type is picked (jobs.suggest). Rare Property covers the
+    # duplexes, custom villas and penthouses.
+    "valuation_commentary": [
+        (title, [], VALUATION_COMMENTARY_FOR[title], body) for title, body in report_text.VALUATION_COMMENTARY
+    ] + [(*report_text.CUSTOM[:1], [], [], report_text.CUSTOM[1])],
     "reinstatement": [
         ("Apartment / Office / Retail", [], UNITS, REINSTATEMENT_UNIT),
         ("Villa / Townhouse", [], VILLAS, REINSTATEMENT_VILLA),
