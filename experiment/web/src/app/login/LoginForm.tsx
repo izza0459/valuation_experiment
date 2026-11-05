@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "@/design-system";
 import { ApiError, apiFetch, apiUrl } from "@/lib/api";
-import { safeNext, signIn, signInWithGoogle, type Me } from "@/lib/auth";
+import { safeNext, signIn, signInWithGoogle, useMe, type Me } from "@/lib/auth";
 
 type GoogleId = {
   accounts: {
@@ -27,6 +27,14 @@ export function LoginForm() {
   const [waking, setWaking] = useState(false);
   const [googleId, setGoogleId] = useState<string | null>(null);
   const googleBox = useRef<HTMLDivElement>(null);
+  // Signed in (Google said yes, or a session is already open): the sign-in
+  // screen goes and the app opens.
+  const [leaving, setLeaving] = useState(false);
+  const { data: me } = useMe();
+  const signedIn = Boolean(me?.authenticated);
+  useEffect(() => {
+    if (signedIn) router.replace(safeNext(params.get("next")));
+  }, [signedIn, router, params]);
 
   /** Whichever way they signed in, land them where they were going. */
   async function finish(attempt: () => Promise<Me>) {
@@ -34,8 +42,10 @@ export function LoginForm() {
     setError(null);
     try {
       const me = await attempt();
+      setLeaving(true);
       qc.setQueryData(["me"], me);
-      await qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+      // Anything fetched while signed out is stale; it reloads on the next page.
+      void qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "me" });
       router.replace(safeNext(params.get("next")));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't reach the server. Try again.");
@@ -114,6 +124,11 @@ export function LoginForm() {
       setWaking(false);
       setBusy(false);
     }
+  }
+
+  if (leaving || signedIn) {
+    // Nothing to sign in to: just a quiet page while the app opens.
+    return <main aria-busy="true" style={{ minHeight: "100vh" }} />;
   }
 
   return (

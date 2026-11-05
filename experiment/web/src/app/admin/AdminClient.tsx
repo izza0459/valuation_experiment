@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Icon, Select } from "@/design-system";
+import { Button, Icon, Select } from "@/design-system";
 import { BanksPanel } from "@/components/admin/BanksPanel";
 import { EmailTemplatesPanel } from "@/components/admin/EmailTemplatesPanel";
 import { LibraryPanel } from "@/components/admin/LibraryPanel";
@@ -13,7 +13,7 @@ import { PresetsPanel } from "@/components/admin/PresetsPanel";
 import { TemplatesPanel } from "@/components/admin/TemplatesPanel";
 import { UsersPanel } from "@/components/admin/UsersPanel";
 import { PageHead, Shell } from "@/components/vp/ui";
-import { useAdminList } from "@/lib/admin";
+import { useAdminList, useAdminSave } from "@/lib/admin";
 import { useMe } from "@/lib/auth";
 
 const SECTIONS = [
@@ -30,8 +30,11 @@ type SectionKey = (typeof SECTIONS)[number]["key"];
 export function AdminClient() {
   const { data: me } = useMe();
   const [key, setKey] = useState<SectionKey>("users");
-  const { data: users } = useAdminList<{ access_request: string }>("users/");
-  const waiting = (users ?? []).filter((u) => u.access_request === "pending").length;
+  const { data: users } = useAdminList<Waiting>("users/", { refetchInterval: 30_000 });
+  const waitingUsers = (users ?? []).filter((u) => u.access_request === "pending");
+  const waiting = waitingUsers.length;
+  // Someone picked on the access pop-up: Users & team opens their approval form.
+  const [approve, setApprove] = useState<number | null>(null);
 
   if (me?.authenticated && !me.user.is_admin) {
     return (
@@ -78,9 +81,51 @@ export function AdminClient() {
           />
         </div>
         <div style={{ minWidth: 0 }}>
-          <Panel />
+          {section.key === "users" ? <UsersPanel approve={approve} onApproveOpened={() => setApprove(null)} /> : <Panel />}
         </div>
       </div>
+      {/* Stays on every Admin section until each request is approved or declined. */}
+      {waiting > 0 && (
+        <AccessRequests users={waitingUsers} onApprove={(id) => { setKey("users"); setApprove(id); }} />
+      )}
     </Shell>
+  );
+}
+
+type Waiting = { id: number; name: string; email: string; access_request: string; access_requested_at: string | null };
+
+/** People who signed in with Google and are waiting for access. It can't be
+ * closed: it goes once each request is approved or declined. */
+function AccessRequests({ users, onApprove }: { users: Waiting[]; onApprove: (id: number) => void }) {
+  const save = useAdminSave("users/");
+  const [busy, setBusy] = useState<number | null>(null);
+  async function decline(id: number) {
+    setBusy(id);
+    await save.mutateAsync({ id, body: { access_request: "declined" } }).catch(() => undefined);
+    setBusy(null);
+  }
+  return (
+    <div className="access-pop" role="alertdialog" aria-labelledby="access-pop-title">
+      <div className="access-pop-head">
+        <Icon name="user-plus" size={18} />
+        <b id="access-pop-title">
+          {users.length === 1 ? "1 person is" : `${users.length} people are`} waiting for access
+        </b>
+      </div>
+      <div className="access-pop-list">
+        {users.map((u) => (
+          <div key={u.id} className="access-pop-row">
+            <div style={{ minWidth: 0 }}>
+              <div className="one-line">{u.name || u.email}</div>
+              <div className="one-line access-pop-email">{u.email}</div>
+            </div>
+            <div className="row" style={{ gap: 6, flexShrink: 0 }}>
+              <Button size="sm" variant="outline" disabled={busy === u.id} onClick={() => void decline(u.id)}>Decline</Button>
+              <Button size="sm" onClick={() => onApprove(u.id)}>Approve</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

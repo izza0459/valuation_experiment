@@ -3,10 +3,11 @@ import { ApiError, apiFetch } from "./api";
 
 /** Data hooks for the Admin screens (backend/config/admin_api.py). */
 
-export function useAdminList<T>(path: string) {
+export function useAdminList<T>(path: string, options: { refetchInterval?: number } = {}) {
   return useQuery({
     queryKey: ["admin", path],
     queryFn: () => apiFetch<T[]>(`/api/admin/${path}`),
+    ...options,
   });
 }
 

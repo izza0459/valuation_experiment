@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Icon, Input, Select, Table, Tag } from "@/design-system";
 import { MultiDropdown } from "@/components/vp/FieldInput";
 import { F, Tip, Toggle } from "@/components/vp/ui";
@@ -48,7 +48,8 @@ export function licenceTag(l: Licence) {
   return <span style={muted}>Not set</span>;
 }
 
-export function UsersPanel() {
+/** `approve`: someone to open the approval form for (from the access pop-up). */
+export function UsersPanel({ approve, onApproveOpened }: { approve?: number | null; onApproveOpened?: () => void } = {}) {
   const { data: users, isLoading } = useAdminList<User>("users/");
   const save = useAdminSave("users");
   const [editing, setEditing] = useState<User | "new" | null>(null);
@@ -89,6 +90,17 @@ export function UsersPanel() {
       setErrors(flattenErrors(err));
     }
   }
+
+  // The access pop-up's Approve: open that person's approval form once.
+  useEffect(() => {
+    if (approve == null || !users) return;
+    const person = users.find((u) => u.id === approve);
+    // Opened from outside (the pop-up), so it has to follow the prop change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (person) open(person);
+    onApproveOpened?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per request
+  }, [approve, users]);
 
   const waiting = (users ?? []).filter((u) => u.access_request === "pending");
   const term = search.trim().toLowerCase();
