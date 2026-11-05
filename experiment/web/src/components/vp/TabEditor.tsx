@@ -95,7 +95,12 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
   const empty = (v: unknown) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
   // Required fields still to fill in, shown on the field and listed at the top,
   // to everyone who opens the tab (QA #9).
-  const missing = visible.filter((f) => f.required && !f.calculated && empty(merged[f.key]));
+  // A field the server requires because of another answer (the Reinstatement
+  // Value once the wording has a [●]) is flagged the same way.
+  const serverMissing = new Set(state.completion?.missing ?? []);
+  const missing = visible.filter(
+    (f) => (f.required || serverMissing.has(f.label)) && !f.calculated && empty(merged[f.key]),
+  );
   // What else the server counts as missing (COI consent, the inspector, the
   // booking): items that aren't a field on this form.
   const fieldLabels = new Set(visible.map((f) => f.label));

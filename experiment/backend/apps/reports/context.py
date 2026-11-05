@@ -145,6 +145,15 @@ def _rows(*rows):
     return [r for r in rows if r is not None]
 
 
+def reinstatement_wording(note: str, property_category: str) -> str:
+    """The reinstatement paragraph the report prints: the valuer's wording,
+    else the library's for this property type, else the built-in one."""
+    if (note or "").strip():
+        return note
+    return library_text("reinstatement", property_category) or (
+        REINSTATEMENT_VILLA if property_category in PLOT_BEARING_CATEGORIES else REINSTATEMENT_UNIT)
+
+
 def library_text(category: str, property_category: str) -> str:
     """The active library entry of `category` offered for this property type
     (or, failing that, one offered for every type)."""
@@ -393,13 +402,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         tenancy = "We have assumed that the property is vacant."
 
     # The valuer's wording, else the property type's (CRM feedback VL-06);
-    # [●] takes the Reinstatement Value, and blocks issue while it has none.
-    if valuation.reinstatement_note:
-        reinstatement = valuation.reinstatement_note
-    else:
-        # The library's wording for this property type, as an admin last edited it.
-        reinstatement = library_text("reinstatement", summary.property_category) or (
-            REINSTATEMENT_VILLA if plot_bearing else REINSTATEMENT_UNIT)
+    # [●] takes the Reinstatement Value, which the Valuation tab then requires.
+    reinstatement = reinstatement_wording(valuation.reinstatement_note, summary.property_category)
     if FIGURE_BLANK in reinstatement and valuation.reinstatement_value:
         reinstatement = reinstatement.replace(FIGURE_BLANK, fmt_number(valuation.reinstatement_value))
 

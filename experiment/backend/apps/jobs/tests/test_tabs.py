@@ -831,3 +831,30 @@ class TestAddressTab:
         )
         res = patch(client, job, "address", {"title_doc_community_name": "Trade Center 1"}, base_version=1).json()
         assert "One Central, Trade Center 1, Dubai" in res["computed"]["address"]["address_as_per_document"]
+
+
+class TestReinstatementValue:
+    """The villa wording has a [●] for the figure: the Reinstatement Value is
+    then required on the Valuation tab, not first found missing at review."""
+
+    def test_required_when_the_wording_needs_a_figure(self, job, dan):
+        from apps.jobs.tabs import tab_completion, visibility_context
+
+        patch(client_for(dan), job, "summary", {"property_category": "villa"})
+        job.valuation.reinstatement_note = "Reinstatement cost is estimated at AED [●]."
+        job.valuation.save()
+        job.refresh_from_db()
+        assert "Reinstatement Value (AED)" in tab_completion("valuation", visibility_context(job))["missing"]
+        job.valuation.reinstatement_value = 1500000
+        job.valuation.save()
+        job.refresh_from_db()
+        assert "Reinstatement Value (AED)" not in tab_completion("valuation", visibility_context(job))["missing"]
+
+    def test_not_required_when_the_wording_has_no_figure(self, job, dan):
+        from apps.jobs.tabs import tab_completion, visibility_context
+
+        patch(client_for(dan), job, "summary", {"property_category": "villa"})
+        job.valuation.reinstatement_note = "Reinstatement is not required for this property."
+        job.valuation.save()
+        job.refresh_from_db()
+        assert "Reinstatement Value (AED)" not in tab_completion("valuation", visibility_context(job))["missing"]

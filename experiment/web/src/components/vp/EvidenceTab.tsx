@@ -221,6 +221,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
                     <th style={{ padding: 8 }}>Type · floor · view</th>
                     <th style={{ padding: 8, textAlign: "right" }}>BUA (sqm)</th>
                     {data.plot_bearing && <th style={{ padding: 8, textAlign: "right" }}>Plot (sqm)</th>}
+                    {data.plot_bearing && <th style={{ padding: 8, textAlign: "right" }}>Plot (sqft)</th>}
                     <th style={{ padding: 8, textAlign: "right" }}>Price (AED)</th>
                     <th style={{ padding: 8, textAlign: "right" }}>AED / sqft</th>
                     <th style={{ padding: 8 }}>Date · source</th>
@@ -246,6 +247,7 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
                       <td style={{ padding: 8 }}>{describe(c)}</td>
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.bua_sqm ?? null)}</td>
                       {data.plot_bearing && <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.plot_area_sqm ?? null)}</td>}
+                      {data.plot_bearing && <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.plot_area_sqft ?? null)}</td>}
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.price_aed)}</td>
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.aed_per_sqft)}</td>
                       <td style={{ padding: 8 }}>

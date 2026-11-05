@@ -37,6 +37,7 @@ from apps.banks.models import Bank
 from apps.presets.options import options_for
 from apps.reports.models import ReportTemplate
 
+from .constants import FIGURE_BLANK
 from .field_config import TABS, get_tab
 from .models import (
     CallAttempt,
@@ -333,6 +334,20 @@ def tab_completion(tab_key: str, context: dict) -> dict:
         required.append(INSPECTOR_LABEL)
         if not context.get("checklist", {}).get("inspected_by"):
             missing.append(INSPECTOR_LABEL)
+    # The reinstatement wording has a [●] for the figure: the Reinstatement Value
+    # is then required here, not first found missing at peer review.
+    if tab_key == "valuation":
+        reinstatement = get_tab("valuation")["fields"]
+        value_field = next(f for f in reinstatement if f["key"] == "reinstatement_value")
+        if is_field_visible(value_field, context):
+            from apps.reports.context import reinstatement_wording  # the reports app depends on this one
+
+            wording = reinstatement_wording(values.get("reinstatement_note"),
+                                            context.get("summary", {}).get("property_category"))
+            if FIGURE_BLANK in wording:
+                required.append(value_field["label"])
+                if _is_empty(values.get("reinstatement_value")):
+                    missing.append(value_field["label"])
     if tab_key == "evidence":
         required.append(EVIDENCE_LABEL)
         ticked = context.get("comparables", {}).get("selected") or 0
