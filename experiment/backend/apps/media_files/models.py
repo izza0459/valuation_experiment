@@ -72,7 +72,7 @@ class FileCopy(models.Model):
     the most recent job's files are kept: see apps.media_files.storage."""
 
     name = models.CharField(max_length=512, unique=True)
-    # The job's reference without a revision suffix ("BYT-2026-00006").
+    # The job's reference without a revision suffix ("00006").
     job_ref = models.CharField(max_length=64, db_index=True)
     data = models.BinaryField()
     saved_at = models.DateTimeField(auto_now=True)

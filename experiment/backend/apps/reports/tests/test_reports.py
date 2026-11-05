@@ -249,7 +249,7 @@ class TestRendering:
 
     def test_it_renders_the_job(self, job):
         html = self.html(job)
-        assert "AED 725,000" in html and "Rukan Residences" in html and "BYT-" in html
+        assert "AED 725,000" in html and "Rukan Residences" in html and job.bayut_internal_reference_no in html
 
     def test_all_the_sections_of_the_spec_are_there(self, job):
         html = self.html(job)

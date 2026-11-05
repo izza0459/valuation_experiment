@@ -132,8 +132,14 @@ class Property(SoftDeleteModel):
         )
 
 
+# The ReferenceCounter row shared by every year.
+ALL_YEARS = 0
+
+
 class ReferenceCounter(models.Model):
-    """Monotonic per-year allocator for Bayut reference numbers.
+    """Monotonic allocator for job reference numbers (00001, 00002…). One
+    counter for every year, held on the `year=0` row: with no year in the
+    reference, a yearly restart would hand a number out twice.
 
     Deriving the next number from existing Job rows (a count or a max)
     reuses a reference once a job is deleted — and a reference that has
@@ -145,6 +151,10 @@ class ReferenceCounter(models.Model):
 
     def __str__(self):
         return f"ReferenceCounter<{self.year}:{self.last_value}>"
+
+    @classmethod
+    def next_number(cls) -> int:
+        return cls.next_for_year(ALL_YEARS)
 
     @classmethod
     def next_for_year(cls, year: int) -> int:
@@ -432,7 +442,7 @@ class Job(SoftDeleteModel):
         recent = (
             Job.objects.filter(created_at__gte=timezone.now() - timedelta(days=365))
             .exclude(pk=self.pk)
-            .exclude(bayut_internal_reference_no__startswith=root)
+            .exclude(Q(bayut_internal_reference_no=root) | Q(bayut_internal_reference_no__startswith=f"{root}-v"))
             .exclude(property_id=self.property_id)
             .select_related("property")
             .order_by("-created_at")
@@ -490,7 +500,7 @@ class Job(SoftDeleteModel):
     @builtins.property
     def file_stem(self) -> str:
         """Base name for this version's stored and downloaded files. Revisions
-        already carry their version in the reference (`BYT-2026-00012-v2`)."""
+        already carry their version in the reference (`00012-v2`)."""
         ref = self.bayut_internal_reference_no
         return ref if self.version > 1 else f"{ref}-v{self.version}"
 
@@ -585,8 +595,7 @@ class Job(SoftDeleteModel):
         return revision
 
     def _generate_reference_no(self) -> str:
-        year = timezone.now().year
-        return f"BYT-{year}-{ReferenceCounter.next_for_year(year):05d}"
+        return f"{ReferenceCounter.next_number():05d}"
 
 
 class JobTransition(models.Model):

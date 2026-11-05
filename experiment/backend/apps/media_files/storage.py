@@ -12,6 +12,7 @@ copies of the previous one. Real hosting uses S3 instead (CLAUDE.md §8).
 from __future__ import annotations
 
 import logging
+import re
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
@@ -23,14 +24,15 @@ JOB_FOLDERS = ("jobs/", "reports/")
 
 
 def job_ref(name: str) -> str | None:
-    """`jobs/BYT-2026-00006-v2/photos/x.jpg` -> `BYT-2026-00006` (a revision
-    belongs with its job)."""
+    """`jobs/00006-v2/photos/x.jpg` -> `00006` (a revision belongs with its
+    job). Folders named before references lost their prefix still read:
+    `jobs/BYT-2026-00006-v2/…` -> `BYT-2026-00006`."""
     if not name.startswith(JOB_FOLDERS):
         return None
     parts = name.split("/")
     if len(parts) < 3 or not parts[1]:
         return None
-    return "-".join(parts[1].split("-")[:3])
+    return re.sub(r"-v\d+$", "", parts[1])
 
 
 class LatestJobCopyStorage(FileSystemStorage):

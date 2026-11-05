@@ -51,6 +51,9 @@ def test_files_outside_a_job_are_not_copied(storage):
 
 
 def test_a_revision_belongs_with_its_job():
+    assert job_ref("jobs/00006-v2/photos/x.jpg") == "00006"
+    assert job_ref("reports/00006/00006-v2-issued.pdf") == "00006"
+    # Folders named before references lost their prefix.
     assert job_ref("jobs/BYT-2026-00006-v2/photos/x.jpg") == "BYT-2026-00006"
     assert job_ref("reports/BYT-2026-00006/x.pdf") == "BYT-2026-00006"
     assert job_ref("jobs/") is None

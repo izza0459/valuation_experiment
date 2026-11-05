@@ -228,3 +228,11 @@ class TestRefusals:
         client.force_authenticate(admin)
         assert client.post("/api/jobs/", {"values": ["x"]}, format="json").status_code == 400
         assert client.post("/api/jobs/", {}, format="json").status_code == 400
+
+
+class TestReferenceNumbers:
+    def test_references_are_plain_numbers_counting_up(self, admin, bank):
+        refs = [Job.objects.get(pk=create(admin, {"bank": bank.pk, "applicant_name": "A"}).json()["id"])
+                .bayut_internal_reference_no for _ in range(2)]
+        assert all(len(r) == 5 and r.isdigit() for r in refs)
+        assert int(refs[1]) == int(refs[0]) + 1
