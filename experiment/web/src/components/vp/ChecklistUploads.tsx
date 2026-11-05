@@ -236,7 +236,7 @@ export function ChecklistUploads({
 function Need({ label, done, detail }: { label: string; done: boolean; detail?: string }) {
   return (
     <div className="row" style={{ gap: 8 }}>
-      <Icon name={done ? "check-circle" : "circle"} size={16} color={done ? "var(--green-600)" : "var(--gray-500)"} />
+      <Icon name={done ? "circle-check" : "circle"} size={16} color={done ? "var(--green-600)" : "var(--gray-500)"} />
       <span>{label}</span>
       <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{done ? detail || "uploaded" : "not uploaded yet"}</span>
     </div>

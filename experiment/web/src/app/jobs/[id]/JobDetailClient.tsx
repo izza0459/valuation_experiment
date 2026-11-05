@@ -27,8 +27,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "@/lib/api";
 import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Avatar, Button, Icon } from "@/design-system";
-import { Banner, CheckBadges, LocationPath, Shell, StatusChip } from "@/components/vp/ui";
+import { Banner, CheckBadges, LocationPath, Shell } from "@/components/vp/ui";
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
@@ -346,40 +347,20 @@ export function JobDetailClient({ id }: { id: string }) {
   return (
     <Shell>
       {/* --- header: the job, then its stages ------------------------- */}
-      <div className="card" style={{ marginBottom: 12, padding: "18px 22px" }}>
-        <div className="row jobtop" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
-          <div style={{ minWidth: 0 }}>
-            <Link href="/jobs" className="show-app backlink">
-              ‹ Jobs
-            </Link>
-            <div className="hide-app" style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>
-              <Link href="/jobs" style={{ textDecoration: "none" }}>
-                Jobs
-              </Link>{" "}
-              › {job.bayut_internal_reference_no}
-            </div>
-            <div className="row" style={{ gap: 10 }}>
-              <h1 className="page-title" style={{ margin: 0 }}>{job.property_label}</h1>
-              {isLocked && <Icon name="lock" size={18} color="var(--text-muted)" />}
-            </div>
-            <LocationPath parts={job.location_path} />
-            <div className="row wrap" style={{ gap: "4px 14px", marginTop: 6, fontSize: 14, color: "var(--text-secondary)" }}>
-              <span>
-                Bayut ref <span className="num">{job.bayut_internal_reference_no}</span>
-              </span>
-              {job.bank_reference_no ? (
-                <span>
-                  Bank ref <span className="num">{job.bank_reference_no}</span>
-                </span>
-              ) : null}
-              <span>{job.bank_name}</span>
-            </div>
-            <div style={{ marginTop: 8 }}><CheckBadges checks={job.checks} /></div>
+      <div className="card jobhead">
+        {/* Breadcrumb on the left; status, report preview and the team on the right. */}
+        <div className="row jobtop" style={{ justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <Link href="/jobs" className="show-app backlink">
+            ‹ Jobs
+          </Link>
+          <div className="jh-crumb hide-app">
+            <Link href="/jobs">Jobs</Link>
+            <span>/</span>
+            <span className="jh-ref num">{job.bayut_internal_reference_no}</span>
           </div>
-
           <div className="row jobmeta" style={{ gap: 12, flexShrink: 0 }}>
             {!isLocked && current.stage !== "review" && current.stage !== "send" && <ReportActions jobId={id} />}
-            <StatusChip s={job.status_label as string} />
+            <span className="jh-status"><span />{job.status_label as string}</span>
             {job.can_mark_lost && !showPanel && (
               <button type="button" className="lost-btn sm" onClick={() => setLosing(true)} aria-label="Mark as lost">
                 <Icon name="circle-x" size={16} />
@@ -391,7 +372,7 @@ export function JobDetailClient({ id }: { id: string }) {
                 <span
                   key={person.id}
                   title={`${person.name} · ${person.roles.map((r) => r.replace(/_/g, " ")).join(", ")}`}
-                  style={{ marginLeft: i ? -8 : 0, boxShadow: "0 0 0 2px #fff", borderRadius: "50%" }}
+                  style={{ marginLeft: i ? -6 : 0, boxShadow: "0 0 0 2px #fff", borderRadius: "50%" }}
                 >
                   <Avatar name={person.name} size={32} />
                 </span>
@@ -400,6 +381,33 @@ export function JobDetailClient({ id }: { id: string }) {
           </div>
         </div>
 
+        {/* Title and its references; the checks that have passed on the right. */}
+        <div className="row jh-main">
+          <div style={{ minWidth: 0 }}>
+            <div className="row" style={{ gap: 10 }}>
+              <h1 className="page-title" style={{ margin: 0 }}>{job.property_label}</h1>
+              {isLocked && <span title="Issued and locked"><Icon name="lock" size={18} color="var(--text-muted)" /></span>}
+            </div>
+            <div className="jh-meta">
+              {(job.location_path ?? []).length > 0 && (
+                <>
+                  <LocationPath parts={job.location_path} />
+                  <span className="jh-sep">•</span>
+                </>
+              )}
+              <span>Bayut ref <b className="num">{job.bayut_internal_reference_no}</b></span>
+              {job.bank_reference_no ? (
+                <>
+                  <span className="jh-sep">•</span>
+                  <span>Bank ref <b className="num">{job.bank_reference_no}</b></span>
+                </>
+              ) : null}
+              <span className="jh-sep">•</span>
+              <span className="jh-bank">{job.bank_name}</span>
+            </div>
+          </div>
+          <CheckBadges checks={job.checks} />
+        </div>
       </div>
 
       {notice && (
@@ -454,86 +462,124 @@ export function JobDetailClient({ id }: { id: string }) {
       <div className="jobcols" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* --- the stages down the left, each opening onto its sub-stages --- */}
         <nav aria-label="Stages" className="card stagecol">
-          {NAV.map((stage, i) => {
-            const done = stageDone(stage.key, job, pages);
-            const selected = stage.key === current.stage;
-            const now = stage.key === statusStage && !done;
-            const owner = ownerOf(stage.role);
-            const greyed = opsView && !OPS_STAGES.includes(stage.key);
-            const subs = navPages.filter((p) => p.stage === stage.key);
-            const open = subs.length > 1 && shownStages.has(stage.key);
-            const pct = stagePct(stage.key);
+          {/* Overall progress: how many of the stages are finished. */}
+          {(() => {
+            const finished = NAV.filter((s) => stageDone(s.key, job, pages)).length;
+            const overall = Math.round((finished / NAV.length) * 100);
             return (
-              <div key={stage.key} className={"sc-stage" + (selected ? " on" : "")}
-                style={{ ["--sc" as string]: `var(--stage-${stage.key})` }}>
-                <button type="button" className="sc-head" disabled={greyed} aria-expanded={subs.length > 1 ? open : undefined}
-                  aria-current={selected ? "step" : undefined} title={greyed ? "The valuer's stage" : undefined}
-                  onClick={() => (subs.length > 1 ? toggleStage(stage.key) : goStage(stage.key))}>
-                  <span className={"sc-dot" + (done ? " done" : now || selected ? " now" : "")}>
-                    {done ? <Icon name="check" size={13} color="#fff" /> : i + 1}
-                  </span>
-                  <span className="sc-text">
-                    <span className="sc-label">{stage.label}</span>
-                    <span className="sc-owner" title={owner ? `${stage.roleLabel}: ${owner}` : undefined}>
-                      {owner ?? `${stage.roleLabel} not assigned`}
-                    </span>
-                    {/* Review and Send to bank aren't filled in, so they have no bar. */}
-                    {stage.key !== "review" && stage.key !== "send" && subs.some((p) => p.tab) && (
-                      <span className="sc-bar"><span style={{ width: `${pct}%` }} className={pct === 100 ? "done" : ""} /></span>
-                    )}
-                  </span>
-                  {subs.length > 1 && <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />}
-                </button>
-                {open && (
-                  <div className="sc-subs">
-                    {subs.map((p) => {
-                      const c = completionOf(p.key);
-                      return (
-                        <button key={p.key} type="button" className={"sc-sub" + (p.key === current.key ? " on" : "")}
-                          aria-current={p.key === current.key ? "page" : undefined} disabled={greyed} onClick={() => go(p.key)}
-                          title={c.missing.length ? `Missing: ${c.missing.join(", ")}` : undefined}>
-                          <span className="sc-sub-label">{p.label}</span>
-                          {p.tab && <span className={"sc-pct num" + (c.pct === 100 ? " done" : "")}>{c.pct}%</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+              <div className="sc-overall">
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <span className="sc-eyebrow">Workflow progress</span>
+                  <b>{overall}% done</b>
+                </div>
+                <div className="sc-overall-sub">{finished} of {NAV.length} stages finalised</div>
+                <span className="sc-bar"><span style={{ width: `${overall}%` }} /></span>
               </div>
             );
-          })}
+          })()}
+          <div className="sc-line-wrap">
+            {NAV.map((stage, i) => {
+              const done = stageDone(stage.key, job, pages);
+              const selected = stage.key === current.stage;
+              const now = stage.key === statusStage && !done;
+              const owner = ownerOf(stage.role);
+              const greyed = opsView && !OPS_STAGES.includes(stage.key);
+              const subs = navPages.filter((p) => p.stage === stage.key);
+              const open = subs.length > 1 && shownStages.has(stage.key);
+              const pct = stagePct(stage.key);
+              const hasBar = stage.key !== "review" && stage.key !== "send" && subs.some((p) => p.tab);
+              const last = i === NAV.length - 1;
+              return (
+                <div key={stage.key} className={"sc-stage" + (selected ? " on" : "") + (done ? " done" : "")}>
+                  {/* The line down to the next stage: solid once this one is done. */}
+                  {!last && <span className={"sc-line" + (done ? " done" : now ? " now" : "")} />}
+                  <button type="button" className="sc-head" disabled={greyed} aria-expanded={subs.length > 1 ? open : undefined}
+                    aria-current={selected ? "step" : undefined} title={greyed ? "The valuer's stage" : undefined}
+                    onClick={() => (subs.length > 1 ? toggleStage(stage.key) : goStage(stage.key))}>
+                    <span className={"sc-dot" + (done ? " done" : now || selected ? " now" : "")}>
+                      {done ? <Icon name="check" size={15} /> : now || selected ? i + 1 : <span className="sc-pip" />}
+                    </span>
+                    <span className="sc-text">
+                      <span className="row" style={{ justifyContent: "space-between", gap: 6 }}>
+                        <span className="sc-label">{stage.label}</span>
+                        {selected ? (
+                          <span className="sc-pill active">Active</span>
+                        ) : hasBar || done ? (
+                          <span className={"sc-pill num" + (done || pct === 100 ? " done" : "")}>{done ? "100" : pct}%</span>
+                        ) : null}
+                      </span>
+                      <span className="sc-owner" title={owner ? `${stage.roleLabel}: ${owner}` : undefined}>
+                        {owner ?? `${stage.roleLabel} not assigned`}
+                      </span>
+                      {selected && hasBar && (
+                        <span className="sc-bar"><span style={{ width: `${pct}%` }} className={pct === 100 ? "done" : ""} /></span>
+                      )}
+                    </span>
+                    {subs.length > 1 && <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />}
+                  </button>
+                  {open && (
+                    <div className="sc-subs">
+                      {subs.map((p) => {
+                        const c = completionOf(p.key);
+                        return (
+                          <button key={p.key} type="button" className={"sc-sub" + (p.key === current.key ? " on" : "")}
+                            aria-current={p.key === current.key ? "page" : undefined} disabled={greyed} onClick={() => go(p.key)}
+                            title={c.missing.length ? `Missing: ${c.missing.join(", ")}` : undefined}>
+                            <span className={"sc-subdot" + (p.tab && c.pct === 100 ? " done" : p.key === current.key ? " on" : "")} />
+                            <span className="sc-sub-label">{p.label}</span>
+                            {p.tab && (c.pct === 100
+                              ? <span className="sc-pct done">✓</span>
+                              : <span className="sc-pct num">{c.pct}%</span>)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </nav>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="card">
+        <div className="maincol">
+          {/* The stage and sub-stage being worked on, with its progress. */}
+          <div className="card stagehead">
+            <div className="row" style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 0 }}>
+                <div className="sh-eyebrow">{current.stage === statusStage ? "Active stage" : "Viewing stage"}</div>
+                <h2 className="sh-title">
+                  {stageLabel(current.stage)}
+                  {current.label !== stageLabel(current.stage) && (
+                    <>
+                      <span className="sh-sep">›</span>
+                      <span className="sh-sub">{current.label}</span>
+                    </>
+                  )}
+                </h2>
+              </div>
+              {current.tab && (() => {
+                const { pct, missing } = completionOf(current.key);
+                return (
+                  <span className="acc-meta">
+                    {missing.length > 0 && (
+                      <span className="acc-req" title={`Missing: ${missing.join(", ")}`}>{missing.length} required</span>
+                    )}
+                    <span className="acc-bar"><span style={{ width: `${pct}%` }} className={pct === 100 ? "done" : ""} /></span>
+                    <span className={"sh-pct num" + (pct === 100 ? " done" : "")}>{pct}%</span>
+                  </span>
+                );
+              })()}
+            </div>
+            {isLocked && <LockedBanner job={job} jobId={id} />}
+          </div>
 
+          <div className="card">
             {current.key === "review" ? (
               <ReviewPanel job={job} jobId={id} onSend={() => go("send")} />
             ) : current.key === "send" ? (
               <SendPanel job={job} jobId={id} />
             ) : (
-              <>
-                {/* One sub-stage at a time: the one picked on the left. */}
-                <div className="row" style={{ justifyContent: "space-between", gap: 10, marginBottom: 16 }}>
-                  <div style={{ fontSize: 15, minWidth: 0 }}>
-                    <span style={{ color: "var(--text-muted)" }}>{stageLabel(current.stage)} › </span>
-                    <b style={{ fontWeight: 700 }}>{current.label}</b>
-                  </div>
-                  {current.tab && (() => {
-                    const { pct, missing } = completionOf(current.key);
-                    return (
-                      <span className="acc-meta">
-                        {missing.length > 0 && (
-                          <span className="acc-req" title={`Missing: ${missing.join(", ")}`}>{missing.length} required</span>
-                        )}
-                        <span className="acc-bar"><span style={{ width: `${pct}%` }} className={pct === 100 ? "done" : ""} /></span>
-                        <span className="acc-pct num">{pct}%</span>
-                      </span>
-                    );
-                  })()}
-                </div>
-                <section id={`section-${current.key}`}>{sectionBody(current)}</section>
-              </>
+              <section id={`section-${current.key}`}>{sectionBody(current)}</section>
             )}
 
             {/* --- previous / next, across stages (fixed above the tab bar on phones) --- */}
@@ -543,7 +589,7 @@ export function JobDetailClient({ id }: { id: string }) {
             >
               {opsView && OPS_STAGES.includes(current.stage) && !next && (
                 <span className="row" style={{ gap: 8, fontSize: 14, color: setupDone ? "var(--green-600)" : "var(--text-muted)", order: 2 }}>
-                  <Icon name={setupDone ? "check-circle" : "user-check"} size={16} />
+                  <Icon name={setupDone ? "circle-check" : "user-check"} size={16} />
                   {setupDone && STAGE_ORDER.indexOf(jobStage) > STAGE_ORDER.indexOf("scheduling")
                     ? `Inspection booked. Handed off to the valuer${valuerName ? ` (${valuerName})` : ""}.`
                     : "Book the inspection to hand the job off to the valuer."}
@@ -620,26 +666,81 @@ export function JobDetailClient({ id }: { id: string }) {
   );
 }
 
+/** An issued job is locked: say so, and offer the next version to whoever
+ * may start one (admins, once; then a link to it). */
+function LockedBanner({ job, jobId }: { job: JobDetail; jobId: string }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function revise() {
+    setBusy(true);
+    setError(null);
+    try {
+      const revision = await apiFetch<{ id: number }>(`/api/jobs/${jobId}/revise/`, { method: "POST" });
+      await qc.invalidateQueries({ queryKey: ["jobs"] });
+      router.push(`/jobs/${revision.id}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't reach the server. Try again.");
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="lockbar">
+      <span className="lockbar-icon"><Icon name="lock" size={16} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <b>This job has been issued and is locked.</b>
+        <div>Any change needs a new revision of the job.</div>
+        {error && <div style={{ color: "var(--text-error)", marginTop: 4 }}>{error}</div>}
+      </div>
+      {job.revision ? (
+        <Link href={`/jobs/${job.revision.id}`} className="lockbar-btn">
+          Open v{job.revision.version}
+        </Link>
+      ) : job.can_revise ? (
+        <button type="button" className="lockbar-btn" disabled={busy} onClick={() => void revise()}>
+          {busy ? "Creating…" : "Create revision"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /** Every call made to book the inspection, newest first (CRM feedback SC-04). */
 function CallLog({ calls }: { calls: CallAttempt[] }) {
   return (
-    <div style={{ marginTop: 24 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Call log</div>
+    <div className="calllog">
+      <div className="row" style={{ gap: 8, marginBottom: 10 }}>
+        <b style={{ fontSize: 15 }}>Call log</b>
+        <span className="calllog-count">{calls.length} {calls.length === 1 ? "entry" : "entries"}</span>
+      </div>
       {calls.length === 0 ? (
         <div style={{ fontSize: 14, color: "var(--text-muted)" }}>No calls logged yet. Each save above is logged here.</div>
       ) : (
         <div className="stack8">
           {calls.map((c) => (
-            <div key={c.id} style={{ padding: "10px 12px", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 14 }}>
-              <div className="row wrap" style={{ justifyContent: "space-between", gap: 8 }}>
-                <b style={{ fontWeight: 700 }}>{c.status_label}</b>
-                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            <div key={c.id} className="calllog-item">
+              <div className="row wrap calllog-top">
+                <span className="row" style={{ gap: 8 }}>
+                  <span className={"calllog-dot" + (c.booked_for ? " ok" : "")} />
+                  <b>{c.status_label}</b>
+                </span>
+                <span className="calllog-when">
                   {formatDateTime(c.at)}
-                  {c.by ? ` · ${c.by}` : ""}
+                  {c.by ? ` • ${c.by}` : ""}
                 </span>
               </div>
-              {c.booked_for && <div>Booked for {formatDateTime(c.booked_for)}</div>}
-              {c.remark && <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{c.remark}</div>}
+              {(c.booked_for || c.remark) && (
+                <div className="calllog-body">
+                  {c.booked_for && (
+                    <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+                      <span>Booked for <b>{formatDateTime(c.booked_for)}</b></span>
+                      <span className="calllog-ok"><Icon name="check" size={14} /> Booked</span>
+                    </div>
+                  )}
+                  {c.remark && <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{c.remark}</div>}
+                </div>
+              )}
             </div>
           ))}
         </div>

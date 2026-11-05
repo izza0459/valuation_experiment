@@ -8,13 +8,13 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Tabs } from "@/design-system";
+import { Icon, Tabs } from "@/design-system";
 import { apiFetch } from "@/lib/api";
 import { useOptions } from "@/lib/options";
 import { useJob } from "@/lib/jobs";
 import { aed, formatDateTime } from "./format";
 import { LeadCardSuggestions } from "./Suggestions";
-import { CheckBadges, Conf, LocationPath, StatusChip, Tip } from "./ui";
+import { Conf, LocationPath, StatusChip, Tip } from "./ui";
 
 type AvmSummary = {
   suggested_value: string;
@@ -80,9 +80,12 @@ function Overview({ jobId }: { jobId: string }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div>
-        <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+        <div className="ov-status">
+          <div style={{ minWidth: 0 }}>
+            <div className="ov-eyebrow">Report status</div>
+            <div className="ov-status-text">{job.progress?.sub_status || job.status_label}</div>
+          </div>
           <StatusChip s={job.progress?.stage_label ?? job.status_label} />
-          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{job.progress?.sub_status}</span>
         </div>
         {job.lost && (
           <div className="ov-lost">
@@ -117,7 +120,21 @@ function Overview({ jobId }: { jobId: string }) {
       </div>
 
       {/* The DLD location and title deed checks stay on the lead's header. */}
-      <CheckBadges checks={job.checks?.filter((c) => c.key !== "dld" && c.key !== "title")} all />
+      {(() => {
+        const checks = (job.checks ?? []).filter((c) => c.key !== "dld" && c.key !== "title");
+        if (!checks.length) return null;
+        return (
+          <div className="ov-checks">
+            <div className="ov-eyebrow">Checks</div>
+            {checks.map((c) => (
+              <div key={c.key} className={"ov-check" + (c.ok ? " ok" : "")}>
+                <Icon name={c.ok ? "circle-check" : "circle"} size={16} />
+                {c.label}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <div className="ov-group">
         <Row label="Received" tip="When the bank's request arrived.">
