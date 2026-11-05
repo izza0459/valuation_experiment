@@ -216,7 +216,6 @@ export function TabEditor({ jobId, tab, state, allValues, omit, suggestions, can
                   {isMissing && <span className="field-missing">Required</span>}
                 </>
               }
-              badge={field.calculated ? "Calculated" : undefined}
               error={suggesting ? suggest.errors[field.key] : save.errors[field.key]}
               helper={field.help_text || undefined}
             >

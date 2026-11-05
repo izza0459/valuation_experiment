@@ -1068,15 +1068,11 @@ def patch_tab(job_id: int, tab_key: str, user, values: dict, base_version: int, 
 
         suggest.apply(job, tab_key, cleaned)
 
-        from .transitions import sync_stage  # transitions imports this module
-
-        sync_stage(job, user)
-
         state = job_tab_state(Job.objects.get(pk=job_id))
 
     return {
         "tab": tab_key,
-        # The first edit starts Setup (transitions.sync_stage); Next moves it on.
+        # Saving never moves the job: only Next does (transitions.advance_stage).
         "status": job.status,
         "values": state[tab_key]["values"],
         "version": state[tab_key]["version"],

@@ -178,6 +178,10 @@ export function JobDetailClient({ id }: { id: string }) {
     navPages.find((p) => p.stage === statusStage) ??
     navPages[0];
   const current = navPages.find((p) => p.key === active && (!opsView || OPS_STAGES.includes(p.stage))) ?? defaultPage;
+  // The page opens on the first unfinished section, then stays there: finishing
+  // a section (or the job's status changing) never moves the screen on; only
+  // Next, Previous or a click on the left does.
+  if (active === null) setActive(defaultPage.key);
   // Previous / Next move between stages; a stage's sections are all on its page.
   // Previous / Next walk the sub-stages one at a time; past the last one of a
   // stage, Next moves on to the next stage (and asks the server to, QA #9).
@@ -404,11 +408,11 @@ export function JobDetailClient({ id }: { id: string }) {
                   <span className="jh-sep">•</span>
                 </>
               )}
-              <span>Bayut ref <b className="num">{job.bayut_internal_reference_no}</b></span>
+              <span>Bayut ref: <b className="num">{job.bayut_internal_reference_no}</b></span>
               {job.bank_reference_no ? (
                 <>
                   <span className="jh-sep">•</span>
-                  <span>Bank ref <b className="num">{job.bank_reference_no}</b></span>
+                  <span>Bank ref: <b className="num">{job.bank_reference_no}</b></span>
                 </>
               ) : null}
               <span className="jh-sep">•</span>

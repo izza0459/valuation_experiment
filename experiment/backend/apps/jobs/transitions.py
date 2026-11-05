@@ -245,8 +245,9 @@ def _move_to(job, user, target: str) -> None:
 
 
 def sync_stage(job, user) -> None:
-    """The first edit starts Setup. Later stages move on only when someone
-    presses Next (advance_stage), never by themselves (QA #9)."""
+    """Brings a job still at "instruction received" into Setup. Only called
+    from advance_stage: no stage moves unless someone presses Next (QA #9),
+    not on a save or an upload."""
     if job.status == JobStatus.INSTRUCTION_RECEIVED:
         _move_to(job, user, JobStatus.SETUP)
 

@@ -363,8 +363,9 @@ class TestStagesFollowTheTabs:
         job.refresh_from_db()
         return job.status
 
-    def test_any_edit_starts_setup(self, job, dan):
-        assert self.patch(dan, job, "summary", {"makani_number": "1"}) == S.SETUP
+    def test_an_edit_never_moves_the_job(self, job, dan):
+        """Only Next moves a job: not a save, not an upload."""
+        assert self.patch(dan, job, "summary", {"makani_number": "1"}) == S.INSTRUCTION_RECEIVED
 
     def test_a_complete_setup_stage_moves_on_to_inspection(self, job, dan):
         job.date_of_instruction = datetime.date(2026, 8, 26)
@@ -374,9 +375,9 @@ class TestStagesFollowTheTabs:
         # List and Preliminary Check moved into the Inspection stage.
         summary = {"interest_valued": "international_freehold", "property_category": "apartment",
                    "bua_sqm": "48.22", "disclosure": "No conflicts."}
-        assert self.patch(dan, job, "summary", summary) == S.SETUP
+        assert self.patch(dan, job, "summary", summary) == S.INSTRUCTION_RECEIVED
         # A complete stage waits for Next (QA #9).
-        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.SETUP
+        assert self.patch(dan, job, "address", {"applicant_name": "A. Applicant"}) == S.INSTRUCTION_RECEIVED
         assert self.next(dan, job, "setup") == S.SCHEDULING
         assert self.next(dan, job, "scheduling").status_code == 409  # not booked yet
         assert self.patch(dan, job, "scheduling", {"call_status": "answered_scheduled",
