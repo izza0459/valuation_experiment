@@ -10,7 +10,7 @@
 
 import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Icon, Input, Select } from "@/design-system";
+import { Icon, Input } from "@/design-system";
 import { apiFetch } from "@/lib/api";
 
 type JobRef = { id: number; ref: string; property: string; status: string };
@@ -74,57 +74,51 @@ export function PipelineFunnel({ selected, onFilter }: { selected: CardFilter; o
   };
 
   return (
-    <div className="card pipeline" style={{ marginBottom: 16, padding: "14px 18px" }}>
-      <div className="row wrap" style={{ justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>
-          Pipeline{" "}
-          <span style={{ fontSize: 13, fontWeight: 400, color: "var(--text-muted)" }}>· jobs that reached each stage</span>
+    <div className="card pipeline">
+      <div className="pipe-strip">
+        <div className="pipe-title">
+          <b>Pipeline progress</b>
+          <span className="pipe-bar-sep">|</span>
+          <span>Jobs reached by stage</span>
         </div>
-        <div className="row wrap" style={{ gap: 8 }}>
+        {funnel.isError ? (
+          <div style={{ color: "var(--text-error)", fontSize: 13 }}>Couldn&apos;t load the pipeline.</div>
+        ) : (
+          <div className="pipe-steps">
+            {(funnel.data?.stages ?? []).map((s, i) => {
+              const on = open === s.key;
+              const drop = dropText(s.drop);
+              return (
+                <Fragment key={s.key}>
+                  {i > 0 && <Icon name="chevron-right" size={14} color="var(--gray-400)" />}
+                  <button type="button" className={"pipe-step" + (on ? " on" : "")} aria-pressed={on} onClick={() => pickStage(s)}
+                    title={drop ? `${drop} from the stage before` : undefined}>
+                    <span className="pipe-label">{s.label}</span>
+                    <span className="pipe-dot">·</span>
+                    <span className="pipe-count num">{s.count}</span>
+                  </button>
+                </Fragment>
+              );
+            })}
+            {funnel.isLoading && <div className="skel" style={{ height: 26, flex: 1 }} />}
+          </div>
+        )}
+        <div className="row" style={{ gap: 8, flexShrink: 0 }}>
           {range.preset === "custom" && (
             <span className="row" style={{ gap: 6 }}>
-              <Input type="date" value={range.from} onChange={(e) => changeRange({ ...range, from: e.target.value })} style={{ width: 150, height: 36 }} aria-label="From" />
+              <Input type="date" value={range.from} onChange={(e) => changeRange({ ...range, from: e.target.value })} style={{ width: 140, height: 30, fontSize: 12.5 }} aria-label="From" />
               <span style={{ color: "var(--text-muted)" }}>to</span>
-              <Input type="date" value={range.to} onChange={(e) => changeRange({ ...range, to: e.target.value })} style={{ width: 150, height: 36 }} aria-label="To" />
+              <Input type="date" value={range.to} onChange={(e) => changeRange({ ...range, to: e.target.value })} style={{ width: 140, height: 30, fontSize: 12.5 }} aria-label="To" />
             </span>
           )}
-          <div style={{ width: 170 }}>
-            <Select
-              value={range.preset}
-              options={PRESETS}
-              aria-label="Period"
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => changeRange({ ...range, preset: e.target.value })}
-            />
-          </div>
+          <label className="pipe-range">
+            <Icon name="calendar" size={13} />
+            <select value={range.preset} aria-label="Period" onChange={(e) => changeRange({ ...range, preset: e.target.value })}>
+              {PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </label>
         </div>
       </div>
-
-      {funnel.isError ? (
-        <div style={{ color: "var(--text-error)", fontSize: 14 }}>Couldn&apos;t load the pipeline.</div>
-      ) : (
-        <div className="pipe-steps">
-          {(funnel.data?.stages ?? []).map((s, i) => {
-            const on = open === s.key;
-            const drop = dropText(s.drop);
-            return (
-              <Fragment key={s.key}>
-                {i > 0 && <Icon name="chevron-right" size={16} color="var(--gray-400)" />}
-                <button type="button" className={"pipe-step" + (on ? " on" : "")} aria-pressed={on} onClick={() => pickStage(s)}>
-                  <span className="pipe-label">{s.label}</span>
-                  <span className="pipe-count num">{s.count}</span>
-                  {drop && (
-                    <span className="pipe-drop" style={{ color: drop.startsWith("−") ? "var(--text-error)" : "var(--text-muted)" }}
-                      title="Change from the stage before">
-                      {drop}
-                    </span>
-                  )}
-                </button>
-              </Fragment>
-            );
-          })}
-          {funnel.isLoading && <div className="skel" style={{ height: 52, flex: 1 }} />}
-        </div>
-      )}
 
       {/* The open stage: jobs still in it, by the section they are on, each
           with its share of the stage (DB-03). */}

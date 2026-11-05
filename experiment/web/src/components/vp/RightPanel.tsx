@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Icon, Tabs } from "@/design-system";
+import { Tabs } from "@/design-system";
 import { apiFetch } from "@/lib/api";
 import { useOptions } from "@/lib/options";
 import { useJob } from "@/lib/jobs";
@@ -119,22 +119,6 @@ function Overview({ jobId }: { jobId: string }) {
         <LocationPath parts={job.location_path} />
       </div>
 
-      {/* The DLD location and title deed checks stay on the lead's header. */}
-      {(() => {
-        const checks = (job.checks ?? []).filter((c) => c.key !== "dld" && c.key !== "title");
-        if (!checks.length) return null;
-        return (
-          <div className="ov-checks">
-            <div className="ov-eyebrow">Checks</div>
-            {checks.map((c) => (
-              <div key={c.key} className={"ov-check" + (c.ok ? " ok" : "")}>
-                <Icon name={c.ok ? "circle-check" : "circle"} size={16} />
-                {c.label}
-              </div>
-            ))}
-          </div>
-        );
-      })()}
 
       <div className="ov-group">
         <Row label="Received" tip="When the bank's request arrived.">

@@ -29,7 +29,7 @@ import { ReportFieldsDialog } from "@/components/vp/ReportFieldsDialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar, Button, Icon } from "@/design-system";
-import { Banner, CheckBadges, LocationPath, Shell } from "@/components/vp/ui";
+import { Banner, LocationPath, Shell } from "@/components/vp/ui";
 import { EvidenceTab } from "@/components/vp/EvidenceTab";
 import { FitText } from "@/components/vp/FitText";
 import { ReportActions } from "@/components/vp/ReportActions";
@@ -109,6 +109,8 @@ export function JobDetailClient({ id }: { id: string }) {
   // The stage's open sections; null until the user opens or closes one, when
   // the section the stage opened on is the open one.
   const [openStages, setOpenStages] = useState<NavStage[]>([]);
+  // The current stage starts open; these are the ones folded up by hand.
+  const [closedStages, setClosedStages] = useState<NavStage[]>([]);
 
   if (jobLoading || tabsLoading) {
     return (
@@ -269,6 +271,7 @@ export function JobDetailClient({ id }: { id: string }) {
     if (target && target.stage !== current.stage && STAGE_ORDER.indexOf(target.stage) > STAGE_ORDER.indexOf(current.stage)) {
       setNotice({ tone: "green", title: `On to ${stageLabel(target.stage)}` });
     }
+    if (target) setClosedStages((closed) => closed.filter((s) => s !== target.stage));
     setActive(key);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -286,9 +289,15 @@ export function JobDetailClient({ id }: { id: string }) {
   const nameOf = (p: Page) => (p.stage === current.stage ? p.label : stageLabel(p.stage));
   const nextLabel = (p: Page) => `Next: ${nameOf(p)}`;
   const prevLabel = (p: Page) => nameOf(p);
-  const shownStages = new Set<NavStage>([...openStages, current.stage]);
-  const toggleStage = (stage: NavStage) =>
-    setOpenStages((open) => (shownStages.has(stage) ? open.filter((s) => s !== stage) : [...open, stage]));
+  const shownStages = new Set<NavStage>([
+    ...openStages,
+    ...(closedStages.includes(current.stage) ? [] : [current.stage]),
+  ]);
+  const toggleStage = (stage: NavStage) => {
+    const shown = shownStages.has(stage);
+    setOpenStages((open) => (shown ? open.filter((s) => s !== stage) : [...open, stage]));
+    setClosedStages((closed) => (shown ? [...closed, stage] : closed.filter((s) => s !== stage)));
+  };
   /** A stage's progress: the average of its sub-stages with a form. */
   const stagePct = (stage: NavStage) => {
     const tabbed = navPages.filter((p) => p.stage === stage && p.tab);
@@ -406,7 +415,6 @@ export function JobDetailClient({ id }: { id: string }) {
               <span className="jh-bank">{job.bank_name}</span>
             </div>
           </div>
-          <CheckBadges checks={job.checks} />
         </div>
       </div>
 
@@ -511,9 +519,6 @@ export function JobDetailClient({ id }: { id: string }) {
                       <span className="sc-owner" title={owner ? `${stage.roleLabel}: ${owner}` : undefined}>
                         {owner ?? `${stage.roleLabel} not assigned`}
                       </span>
-                      {selected && hasBar && (
-                        <span className="sc-bar"><span style={{ width: `${pct}%` }} className={pct === 100 ? "done" : ""} /></span>
-                      )}
                     </span>
                     {subs.length > 1 && <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />}
                   </button>

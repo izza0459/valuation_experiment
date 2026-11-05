@@ -10,14 +10,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Avatar, Button, Icon, Input, Table, Tabs } from "@/design-system";
+import { Avatar, Button, Icon, Table } from "@/design-system";
 import { LeadPreview } from "@/components/vp/LeadPreview";
-import { PageHead, Shell, StatusChip } from "@/components/vp/ui";
+import { Shell, StatusChip } from "@/components/vp/ui";
 import { PipelineFunnel, type CardFilter } from "@/components/vp/PipelineFunnel";
 import { formatDateTime } from "@/components/vp/format";
 import { useMe } from "@/lib/auth";
 import { useOptions } from "@/lib/options";
-import { useJobKpis, useJobs, type JobFilters, type JobKpis, type JobListItem } from "@/lib/jobs";
+import { useJobs, type JobFilters, type JobListItem } from "@/lib/jobs";
 
 const VIEWS = [
   { key: "all", label: "All" },
@@ -48,7 +48,6 @@ export default function JobsPage() {
   );
   // The true total, whatever the table is filtered to (QA: counts must be accurate).
   const { data: everything } = useJobs({ view: "all" });
-  const { data: kpis } = useJobKpis();
   // The lead shown in the preview panel, if any.
   const [preview, setPreview] = useState<number | null>(null);
   const { data: me } = useMe();
@@ -70,41 +69,28 @@ export default function JobsPage() {
 
   return (
     <Shell>
-      <PageHead title="Jobs" sub={everything ? `${everything.count} total` : undefined}>
-        {/* Ops (and admins) take instructions in; for everyone else the button isn't offered. */}
-        {canCreate && (
-          <Link href="/jobs/new" className="fab-link">
-            <Button icon={<Icon name="plus" size={18} />}>
-              <span className="hide-app">New valuation instruction</span>
-              <span className="show-app">New</span>
-            </Button>
-          </Link>
-        )}
-      </PageHead>
-
-      <KpiLine kpis={kpis} />
-
       {/* Admins: the pipeline by stage (CRM feedback DB-01..03). */}
       {me?.authenticated && me.user.is_admin && <PipelineFunnel selected={card} onFilter={setCard} />}
 
-      <div className="card" style={{ padding: 0 }}>
-        <Tabs
-          items={views.map((v) => (v.key === "all" ? { label: v.label, count: everything?.count } : v.label))}
-          active={views.find((v) => v.key === filters.view)?.label ?? "All"}
-          onChange={(label: string) => set({ view: views.find((v) => v.label === label)?.key ?? "all" })}
-          size="sm"
-          // The underline overhangs by a pixel, which showed a scrollbar.
-          style={{ scrollbarWidth: "none" }}
-        />
-
-        <div className="row wrap" style={{ padding: "14px 24px", gap: 10, borderBottom: "1px solid var(--border-divider)" }}>
-          <div style={{ position: "relative", flex: "1 1 240px", maxWidth: 340 }}>
-            <Icon name="search" size={18} color="var(--gray-500)" style={{ position: "absolute", left: 12, top: 15 }} />
-            <Input
-              placeholder="Search Bayut ref, bank ref, building"
+      {/* One row: the views, the search, and the new-instruction button. */}
+      <div className="card jobs-toolbar">
+        <div className="jt-views" role="tablist">
+          {views.map((v) => (
+            <button key={v.key} type="button" role="tab" aria-selected={filters.view === v.key}
+              className={"jt-view" + (filters.view === v.key ? " on" : "")} onClick={() => set({ view: v.key })}>
+              {v.label}
+              {v.key === "all" && everything ? ` ${everything.count}` : ""}
+            </button>
+          ))}
+        </div>
+        <div className="jt-right">
+          <div className="jt-search">
+            <Icon name="search" size={16} color="var(--gray-500)" />
+            <input
+              placeholder="Search Bayut ref, bank ref, building…"
               value={filters.q ?? ""}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => set({ q: e.target.value })}
-              style={{ paddingLeft: 38, height: 42 }}
+              onChange={(e) => set({ q: e.target.value })}
+              aria-label="Search jobs"
             />
           </div>
           {/* The Pipeline stage or section the table is showing. */}
@@ -117,15 +103,23 @@ export default function JobsPage() {
             </span>
           )}
           {hasFilters && (
-            <button
-              onClick={() => setFilters({ view: filters.view })}
-              style={{ background: "none", border: 0, color: "var(--text-link)", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}
-            >
+            <button type="button" className="jt-clear" onClick={() => setFilters({ view: filters.view })}>
               Clear
             </button>
           )}
+          {/* Ops (and admins) take instructions in; for everyone else the button isn't offered. */}
+          {canCreate && (
+            <Link href="/jobs/new" className="fab-link">
+              <Button size="sm" icon={<Icon name="plus" size={16} />}>
+                <span className="hide-app">New valuation instruction</span>
+                <span className="show-app">New</span>
+              </Button>
+            </Link>
+          )}
         </div>
+      </div>
 
+      <div className="card jobs-list" style={{ padding: 0 }}>
         {isLoading ? (
           <div style={{ padding: 24 }}>
             {[...Array(6)].map((_, i) => (
@@ -179,7 +173,7 @@ export default function JobsPage() {
                 key: "ref",
                 label: "Job ref",
                 render: (j: JobListItem) => (
-                  <Link href={`/jobs/${j.id}`} style={{ textDecoration: "none" }}>
+                  <Link href={`/jobs/${j.id}`} className="jl-ref num">
                     {j.bayut_internal_reference_no}
                     {j.reviewer_changes_to_accept ? (
                       <span className="changes-badge" title="Peer reviewer changes for the valuer to accept">
@@ -192,35 +186,32 @@ export default function JobsPage() {
               {
                 key: "bankref",
                 label: "Bank ref",
-                render: (j: JobListItem) => (
-                  <span className="num" style={{ color: "var(--text-secondary)" }}>{j.bank_reference_no || "—"}</span>
-                ),
+                render: (j: JobListItem) => <span className="jl-mono num">{j.bank_reference_no || "—"}</span>,
               },
-              { key: "bank", label: "Bank", render: (j: JobListItem) => <span title={j.bank_name}>{j.bank_name}</span> },
               {
                 key: "property",
                 label: "Property",
                 render: (j: JobListItem) => (
-                  <button type="button" className="cell-link one-line" style={{ width: "100%" }}
-                    title={`${j.location_line || j.property_label} · click to preview`} onClick={() => setPreview(j.id)}>
-                    {j.location_line || j.property_label}
+                  <button type="button" className="jl-prop" title={`${j.location_line || j.property_label} · click to preview`}
+                    onClick={() => setPreview(j.id)}>
+                    <span className="one-line">{j.location_line || j.property_label}</span>
+                    <span className="one-line jl-sub">{j.bank_name}</span>
                   </button>
                 ),
               },
-              { key: "type", label: "Type", render: (j: JobListItem) => categoryLabel(j.property_type) || "—" },
+              { key: "type", label: "Type", render: (j: JobListItem) => <span className="jl-muted">{categoryLabel(j.property_type) || "—"}</span> },
               {
                 key: "status",
                 label: "Status",
                 render: (j: JobListItem) =>
                   j.progress ? (
-                    <div style={{ display: "grid", gap: 3, justifyItems: "start" }}>
+                    <div style={{ display: "grid", gap: 2, justifyItems: "start" }}>
                       <StatusChip s={j.progress.stage_label} />
-                      <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{j.progress.sub_status}</span>
-                      {j.inspection_booked_at && j.progress.stage === "inspection" && (
-                        <span style={{ fontSize: 12.5, color: "var(--text-accent)" }}>
-                          Booked {formatDateTime(j.inspection_booked_at)}
-                        </span>
-                      )}
+                      <span className="jl-sub">
+                        {j.inspection_booked_at && j.progress.stage === "inspection"
+                          ? `Booked ${formatDateTime(j.inspection_booked_at)}`
+                          : j.progress.sub_status}
+                      </span>
                     </div>
                   ) : (
                     <StatusChip s={j.status_label} />
@@ -228,34 +219,20 @@ export default function JobsPage() {
               },
               {
                 key: "valuer",
-                label: "Valuer",
+                label: "Assignee",
                 render: (j: JobListItem) =>
                   j.valuer_name ? (
                     <span className="row" style={{ gap: 8 }}>
-                      <Avatar name={j.valuer_name} size={26} />
+                      <Avatar name={j.valuer_name} size={24} />
                       <span className="one-line" title={j.valuer_name}>{j.valuer_name}</span>
                     </span>
                   ) : (
-                    <span style={{ color: "var(--text-muted)" }}>Unassigned</span>
+                    <span className="jl-muted">Unassigned</span>
                   ),
               },
               {
-                key: "received",
-                label: "Received",
-                render: (j: JobListItem) => {
-                  // Date over time, so the column stays narrow.
-                  const [day, time] = formatDateTime(j.date_time_request_received ?? j.created_at).split(", ");
-                  return (
-                    <span className="num" style={{ color: "var(--text-secondary)", display: "grid", lineHeight: 1.35 }}>
-                      {day}
-                      <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{time}</span>
-                    </span>
-                  );
-                },
-              },
-              {
                 key: "preview",
-                label: "",
+                label: "Action",
                 render: (j: JobListItem) => (
                   <button type="button" className={"icon-btn" + (preview === j.id ? " on" : "")} aria-label="Preview lead"
                     title="Preview" onClick={() => setPreview(j.id)}>
@@ -271,9 +248,9 @@ export default function JobsPage() {
         )}
 
         {page && rows.length > 0 && (
-          <div className="row" style={{ justifyContent: "space-between", padding: "12px 24px", color: "var(--text-muted)", fontSize: 14 }}>
+          <div className="jl-foot">
             <span>
-              Showing {rows.length} of {page.count}
+              Showing <b>{rows.length ? 1 : 0}</b> to <b>{rows.length}</b> of <b>{page.count}</b> valuation jobs
             </span>
             {/* TODO: page controls once the list grows past one page. */}
           </div>
@@ -281,27 +258,6 @@ export default function JobsPage() {
       </div>
       {preview !== null && <LeadPreview jobId={preview} onClose={() => setPreview(null)} onStep={step} />}
     </Shell>
-  );
-}
-
-/** The four summary figures on one slim line (QA: fewer cards and rows). */
-function KpiLine({ kpis }: { kpis?: JobKpis }) {
-  const items: [string, string, string][] = [
-    ["in progress", "In progress", kpis ? String(kpis.in_progress) : "…"],
-    ["awaiting peer review", "In review", kpis ? String(kpis.awaiting_peer_review) : "…"],
-    ["issued in the last 7 days", "Issued (7d)", kpis ? String(kpis.issued_this_week) : "…"],
-    ["avg turnaround", "Turnaround",
-      kpis ? (kpis.avg_turnaround_hours === null ? "—" : `${Math.round(kpis.avg_turnaround_hours)} h`) : "…"],
-  ];
-  return (
-    <div className="kpi-line">
-      {items.map(([label, short, value]) => (
-        <span key={label}>
-          <b className="num">{value}</b> <span className="hide-app">{label}</span>
-          <span className="show-app">{short}</span>
-        </span>
-      ))}
-    </div>
   );
 }
 
