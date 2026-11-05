@@ -158,11 +158,32 @@ class TestContent:
         ctx = build_context(Job.objects.get(pk=job.pk))
         details, summary = rows(ctx, "property_details"), rows(ctx, "valuation_summary")
         assert "Rukan Residences, Dubailand" in details["Address (as inspected)"]
-        assert details["Total no. of floors"] == "G + 10 Floors"
+        assert details["Total no. of floors"] == "G+9"  # 10 floors, ground included
         assert details["Elevation above sea level"] == "Approximately 35 m"
         assert details["Type of property"] == "1 Bedroom apartment"
         assert details["Age of the property"] == "7 years, 5 months"  # 1 Mar 2019 to 26 Aug 2026, as in Axia
         assert summary["Market Rent"] == "AED 60,000 per annum"
+
+    def test_a_villa_prints_floor_g_and_its_floors_as_g_plus(self, job):
+        job.summary.property_category = "villa"
+        job.summary.save()
+        job.inspection.floors_above_ground = 3  # three floors, ground included
+        job.inspection.save()
+        details = rows(build_context(Job.objects.get(pk=job.pk)), "property_details")
+        assert (details["Floor"], details["Total no. of floors"]) == ("G", "G+2")
+        job.inspection.floors_above_ground = 1
+        job.inspection.save()
+        assert rows(build_context(Job.objects.get(pk=job.pk)), "property_details")["Total no. of floors"] == "G"
+
+    @pytest.mark.parametrize("occupancy, line", [
+        ("tenanted", "The property is tenanted at the time of inspection."),
+        ("owner_occupied", "The property is owner occupied at the time of inspection."),
+        ("vacant", "The property is vacant at the time of inspection."),
+    ])
+    def test_the_tenancy_line_follows_the_occupancy(self, job, occupancy, line):
+        job.inspection.occupancy = occupancy
+        job.inspection.save()
+        assert build_context(Job.objects.get(pk=job.pk))["tenancy"] == line
 
     def test_tenancy_and_reinstatement_wording(self, job):
         ctx = build_context(job)

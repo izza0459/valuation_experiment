@@ -44,6 +44,24 @@ def add(user, job, **overrides):
     return client_for(user).post(f"/api/jobs/{job.pk}/evidence/", body, format="json")
 
 
+class TestSqmInput:
+    def test_areas_are_entered_in_sqm_and_sqft_follows(self, job, dan):
+        res = add(dan, job, bua_sqft="", bua_sqm="92.90", plot_area_sqm="418")
+        assert res.status_code == 201, res.json()
+        c = Comparable.objects.get()
+        assert (str(c.bua_sqm), str(c.bua_sqft), str(c.plot_area_sqft)) == ("92.90", "999.97", "4499.31")
+
+
+class TestEvidenceIsComplete:
+    def test_three_ticked_comparables_complete_it(self, job, dan):
+        from apps.jobs.tabs import tab_completion, visibility_context
+
+        for i in range(3):
+            assert tab_completion("evidence", visibility_context(job))["pct"] == 0
+            add(dan, job, building_name=f"Tower {i}")
+        assert tab_completion("evidence", visibility_context(job)) == {"pct": 100, "missing": []}
+
+
 class TestManualEntry:
     def test_a_comparable_is_added_ticked_with_its_rate(self, job, dan):
         res = add(dan, job)
@@ -56,7 +74,7 @@ class TestManualEntry:
     def test_source_price_and_bua_are_required(self, job, dan):
         res = client_for(dan).post(f"/api/jobs/{job.pk}/evidence/", {"notes": "x"}, format="json")
         assert res.status_code == 400
-        assert {"source", "price_aed", "bua_sqft"} <= set(res.json()["errors"])
+        assert {"source", "price_aed", "bua_sqm"} <= set(res.json()["errors"])
 
     @pytest.mark.parametrize("field,value", [
         ("link", "bayut.com/x"), ("price_aed", "-5"), ("bua_sqft", "abc"), ("source", "zillow"),

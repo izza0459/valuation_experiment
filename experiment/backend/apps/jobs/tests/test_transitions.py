@@ -69,7 +69,7 @@ def fill_everything(job):
         (job.summary, {"interest_valued": "international_freehold", "property_category": "apartment",
                        "bua_sqm": "48.22", "disclosure": "No conflicts."}),
         (job.inspection, {"inspection_date": datetime.date(2026, 8, 26), "inspection_type": "full"}),
-        (job.location, {"property_status": "complete"}),
+        (job.location, {"property_status": "complete", "built_about": 2015}),
         (job.valuation, {"valuation_date": datetime.date(2026, 8, 26), "report_date": datetime.date(2026, 8, 28),
                          "market_value": "725000"}),
     ):
@@ -81,13 +81,15 @@ def fill_everything(job):
         username="media-admin", defaults={"email": "media-admin@example.com", "roles": [Role.ADMIN]}
     )
     attach_media(job, uploader)
-    # And a comparable ticked for the report (QA #17).
+    # And three comparables ticked for the report.
     from decimal import Decimal
 
     from apps.evidence.models import Comparable, JobComparable
 
-    comparable = Comparable.objects.create(source="bayut", price_aed=Decimal("700000"), bua_sqft=Decimal("520"))
-    JobComparable.objects.get_or_create(job=job, comparable=comparable)
+    for i in range(3):
+        comparable = Comparable.objects.create(source="bayut", price_aed=Decimal("700000") + i,
+                                               bua_sqm=Decimal("48.31"))
+        JobComparable.objects.get_or_create(job=job, comparable=comparable, defaults={"order": i})
 
 
 def get_to(job, status):

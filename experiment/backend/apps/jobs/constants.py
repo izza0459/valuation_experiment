@@ -16,15 +16,24 @@ STOREYS = [
     ("basement", "Basement"), ("ground", "Ground floor"), ("first", "First floor"), ("second", "Second floor"),
     ("third", "Third floor"), ("fourth", "Fourth floor"), ("fifth", "Fifth floor"),
 ]
-MAX_FLOORS_ABOVE_GROUND = 5
+# Floors are counted with the ground floor: 1 is the ground floor only, 3 is
+# G+2. The field keeps its old name, floors_above_ground.
+MAX_FLOORS = 6
 
 
-def storeys_for(floors_above_ground, has_basement) -> list[tuple[str, str]]:
-    """The storeys a property has: the ground floor and `floors_above_ground`
-    above it (G+1 is 1; QA #12)."""
-    above = max(0, min(int(floors_above_ground or 0), MAX_FLOORS_ABOVE_GROUND))
-    storeys = [s for s in STOREYS if s[0] != "basement"][:above + 1]
+def storeys_for(floors, has_basement) -> list[tuple[str, str]]:
+    """The storeys a property has: `floors` of them from the ground up
+    (1 is the ground floor only, 3 is G+2), and a basement if there is one."""
+    count = max(1, min(int(floors or 1), MAX_FLOORS))
+    storeys = [s for s in STOREYS if s[0] != "basement"][:count]
     return ([STOREYS[0]] if has_basement else []) + storeys
+
+
+def floors_label(floors) -> str:
+    """How the report writes a floor count: 1 -> 'G', 3 -> 'G+2'."""
+    if not floors:
+        return ""
+    return "G" if int(floors) <= 1 else f"G+{int(floors) - 1}"
 
 
 # Parking that the report counts as present.

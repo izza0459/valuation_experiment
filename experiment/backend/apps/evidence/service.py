@@ -24,8 +24,9 @@ from . import avm
 from .models import AVMRun, Comparable, JobComparable
 
 TEXT_FIELDS = {"building_name": 255, "community_name": 255, "property_type": 60, "floor": 50, "view": 100}
-EDITABLE = {*TEXT_FIELDS, "source", "link", "beds", "bua_sqft", "plot_area_sqft", "price_aed", "transaction_date",
-            "status", "notes"}
+# Areas come in as sqm (the form); sqft is still accepted from older clients.
+EDITABLE = {*TEXT_FIELDS, "source", "link", "beds", "bua_sqm", "bua_sqft", "plot_area_sqm", "plot_area_sqft",
+            "price_aed", "transaction_date", "status", "notes"}
 
 
 class NotFound(TabError):
@@ -51,7 +52,9 @@ def describe(link: JobComparable) -> dict:
         "beds": c.beds,
         "floor": c.floor,
         "view": c.view,
+        "bua_sqm": str(c.bua_sqm) if c.bua_sqm is not None else None,
         "bua_sqft": str(c.bua_sqft) if c.bua_sqft is not None else None,
+        "plot_area_sqm": str(c.plot_area_sqm) if c.plot_area_sqm is not None else None,
         "plot_area_sqft": str(c.plot_area_sqft) if c.plot_area_sqft is not None else None,
         "price_aed": str(c.price_aed) if c.price_aed is not None else None,
         "aed_per_sqft": str(rate.quantize(Decimal("0.01"))) if rate else None,
@@ -109,11 +112,18 @@ def _clean(data: dict, *, partial: bool) -> dict:
         except ValueError as exc:
             errors[key] = str(exc)
     if not partial:
-        for key in ("source", "price_aed", "bua_sqft"):
+        for key in ("source", "price_aed"):
             if cleaned.get(key) in (None, ""):
                 errors.setdefault(key, "Required.")
+        if cleaned.get("bua_sqm") in (None, "") and cleaned.get("bua_sqft") in (None, ""):
+            errors.setdefault("bua_sqm", "Required.")
     if errors:
         raise ValidationFailed(errors)
+    # Whichever unit was sent wins: an area sent in sqft replaces the sqm, so
+    # the sqm is worked out again from it (Comparable.save).
+    for area in ("bua", "plot_area"):
+        if f"{area}_sqft" in cleaned and f"{area}_sqm" not in cleaned:
+            cleaned[f"{area}_sqm"] = None
     return cleaned
 
 
@@ -153,7 +163,7 @@ def _clean_one(key, raw):
         if isinstance(raw, bool) or not str(raw).isdigit() or int(raw) > 50:
             raise ValueError("Must be a whole number.")
         return int(raw)
-    if key in ("bua_sqft", "plot_area_sqft", "price_aed"):
+    if key in ("bua_sqm", "bua_sqft", "plot_area_sqm", "plot_area_sqft", "price_aed"):
         if raw in (None, ""):
             return None
         try:

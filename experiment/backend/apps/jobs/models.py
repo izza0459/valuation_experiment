@@ -14,7 +14,7 @@ from apps.common.models import (
 )
 
 from . import calculations
-from .constants import ECONOMIC_LIFE_YEARS, MAX_FLOORS_ABOVE_GROUND, PLOT_BEARING_CATEGORIES, REPAIRS_DEFAULT
+from .constants import ECONOMIC_LIFE_YEARS, MAX_FLOORS, PLOT_BEARING_CATEGORIES, REPAIRS_DEFAULT
 from .workflow import (
     IssueBlockedError,
     JobLockedError,
@@ -847,7 +847,7 @@ class InspectionData(JobTabData):
     # Villas, townhouses and duplexes, storey by storey (CRM feedback IN-05):
     # {"basement": [...], "ground": [...], "first": [...], ...}.
     floors_above_ground = models.PositiveSmallIntegerField(
-        null=True, blank=True, validators=[MinValueValidator(0), MaxValueValidator(MAX_FLOORS_ABOVE_GROUND)],
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(MAX_FLOORS)],
     )
     has_basement = models.BooleanField(default=False)
     accommodation_by_storey = models.JSONField(default=dict, blank=True)

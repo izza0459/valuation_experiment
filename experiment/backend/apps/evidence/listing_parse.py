@@ -71,13 +71,15 @@ def parse(text: str, link: str = "") -> dict:
             out["price_aed"] = str(value.quantize(Decimal(1)))
             break
 
-    # Size: sqft first, else sqm converted.
-    if m := re.search(r"([\d][\d,]*(?:\.\d+)?)\s*(?:sq\.?\s*ft|sqft|square feet)", one_line, flags=re.I):
-        out["bua_sqft"] = str(_number(m.group(1)))
-    elif m := re.search(r"([\d][\d,]*(?:\.\d+)?)\s*(?:sq\.?\s*m|sqm|square met)", one_line, flags=re.I):
+    # Size: the form takes sqm, so a size in sqft is converted (sqm as listed wins).
+    if m := re.search(r"([\d][\d,]*(?:\.\d+)?)\s*(?:sq\.?\s*m|sqm|square met)", one_line, flags=re.I):
         sqm = _number(m.group(1))
         if sqm:
-            out["bua_sqft"] = str((sqm * SQFT_PER_SQM).quantize(Decimal("0.01")))
+            out["bua_sqm"] = str(sqm.quantize(Decimal("0.01")))
+    elif m := re.search(r"([\d][\d,]*(?:\.\d+)?)\s*(?:sq\.?\s*ft|sqft|square feet)", one_line, flags=re.I):
+        sqft = _number(m.group(1))
+        if sqft:
+            out["bua_sqm"] = str((sqft / SQFT_PER_SQM).quantize(Decimal("0.01")))
 
     # Bedrooms: "Studio", "1 Bed", "2 Beds", "Bedrooms 3", "3 BR".
     if re.search(r"\bstudio\b", one_line, flags=re.I):
@@ -109,6 +111,6 @@ def parse(text: str, link: str = "") -> dict:
         out["view"] = m.group(1).title()
 
     out["transaction_date"] = date.today().isoformat()  # an asking price is as of today
-    out["found"] = [k for k in ("price_aed", "bua_sqft", "beds", "property_type", "building_name", "community_name")
+    out["found"] = [k for k in ("price_aed", "bua_sqm", "beds", "property_type", "building_name", "community_name")
                     if k in out]
     return out

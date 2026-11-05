@@ -85,8 +85,11 @@ class Comparable(models.Model):
     beds = models.PositiveSmallIntegerField(null=True, blank=True)
     floor = models.CharField(max_length=50, blank=True)
     view = models.CharField(max_length=100, blank=True)
+    # Areas are entered in sqm, as on the job; sqft follows (used for the rate).
+    bua_sqm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     bua_sqft = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     # Villas, custom villas and townhouses are compared on their plot too (QA #18).
+    plot_area_sqm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     plot_area_sqft = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     price_aed = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     transaction_date = models.DateField(null=True, blank=True)
@@ -104,6 +107,8 @@ class Comparable(models.Model):
         like its property's address: it can't be edited afterwards."""
         if self.pk:
             _refuse_if_locked(self.job_links.values_list("job_id", flat=True), "This comparable")
+        self.bua_sqm, self.bua_sqft = _pair(self.bua_sqm, self.bua_sqft)
+        self.plot_area_sqm, self.plot_area_sqft = _pair(self.plot_area_sqm, self.plot_area_sqft)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -114,6 +119,24 @@ class Comparable(models.Model):
         if not self.price_aed or not self.bua_sqft:
             return None
         return self.price_aed / self.bua_sqft
+
+
+def _pair(sqm, sqft):
+    """sqm is the input; sqft follows. A connector that only knows sqft (DLD,
+    an old record) gets its sqm worked out instead."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    rate = Decimal(str(settings.SQFT_PER_SQM))
+    if sqm not in (None, ""):
+        sqm = Decimal(sqm)
+        # The sqft it was worked out from stays, so re-saving doesn't drift it.
+        if sqft not in (None, "") and abs(Decimal(sqft) / rate - sqm) < Decimal("0.005"):
+            return sqm, Decimal(sqft)
+        return sqm, (sqm * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if sqft not in (None, ""):
+        sqft = Decimal(sqft)
+        return (sqft / rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), sqft
+    return None, None
 
 
 class JobComparable(JobEvidence):

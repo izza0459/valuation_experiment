@@ -27,6 +27,7 @@ from apps.jobs.constants import (
     PARKING_PRESENT,
     PLOT_BEARING_CATEGORIES,
     TENANTED_OCCUPANCIES,
+    floors_label,
     storeys_for,
 )
 from apps.jobs.field_config import TABS, get_tab, where
@@ -366,20 +367,29 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     # As Axia shows it (QA #20): years and months from the built date, else whole years.
     age = calculations.age_text(location.built_date, location.built_about, as_of=valuation.valuation_date)
 
+    # A villa's floors come from the inspection: G+2 is the ground and two above
+    # (QA #19); other properties print the building's floors.
+    # A count of floors with the ground floor in it: 3 prints as G+2, 1 as G.
+    if summary.property_category in VILLA_FLOOR_G and inspection.floors_above_ground:
+        floors_text = floors_label(inspection.floors_above_ground)
+    else:
+        floors_text = floors_label(summary.total_floors)
+
     beds = summary.no_of_bedrooms
     type_of_property = f"{beds} Bedroom {category.lower()}" if beds and category else category
     if plot_bearing and summary.property_sub_type and type_of_property:
         type_of_property = f"{type_of_property} ({summary.property_sub_type})"
 
+    # One line, from the occupancy picked in Axia (QA #22).
     tenancy = ""
     if tenanted:
-        tenancy = "The property is tenanted at the time of inspection."  # QA #22
-    elif inspection.occupancy == "vacant":
-        tenancy = "The subject property is currently vacant."
-    elif inspection.occupancy == "assumed_vacant":
-        tenancy = "We have assumed that the subject property is vacant."
+        tenancy = "The property is tenanted at the time of inspection."
     elif inspection.occupancy == "owner_occupied":
-        tenancy = "The subject property is owner occupied."
+        tenancy = "The property is owner occupied at the time of inspection."
+    elif inspection.occupancy == "vacant":
+        tenancy = "The property is vacant at the time of inspection."
+    elif inspection.occupancy == "assumed_vacant":
+        tenancy = "We have assumed that the property is vacant."
 
     # The valuer's wording, else the property type's (CRM feedback VL-06);
     # [●] takes the Reinstatement Value, and blocks issue while it has none.
@@ -466,8 +476,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         # A villa is its own building: its floor is the ground (QA #19).
         row("Floor", "G" if summary.property_category in VILLA_FLOOR_G else summary.property_floor_no,
             "summary.property_floor_no"),
-        row("Total no. of floors", f"G + {summary.total_floors} Floors" if summary.total_floors else "",
-            "summary.total_floors"),
+        row("Total no. of floors", floors_text, "summary.total_floors"),
         row("Elevation above sea level",
             f"Approximately {fmt_number(summary.ground_elevation)} m" if summary.ground_elevation is not None else "",
             "summary.ground_elevation"),

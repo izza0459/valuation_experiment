@@ -27,7 +27,9 @@ type Comparable = {
   beds: number | null;
   floor: string;
   view: string;
+  bua_sqm?: string | null;
   bua_sqft: string | null;
+  plot_area_sqm?: string | null;
   plot_area_sqft?: string | null;
   price_aed: string | null;
   aed_per_sqft: string | null;
@@ -80,14 +82,16 @@ const BLANK = {
   beds: "",
   floor: "",
   view: "",
-  bua_sqft: "",
-  plot_area_sqft: "",
+  bua_sqm: "",
+  plot_area_sqm: "",
   price_aed: "",
   transaction_date: "",
   status: "sold",
   notes: "",
 };
 
+/** sq ft per sq m (backend settings.SQFT_PER_SQM). */
+const SQFT_PER_SQM = 10.76391;
 const num = (v: string | null) => (v === null || v === "" ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 }));
 
 function failure(err: unknown): { message: string; errors: Record<string, string> } {
@@ -215,8 +219,8 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
                     <th style={{ padding: 8 }}>In report</th>
                     <th style={{ padding: 8 }}>Building / community</th>
                     <th style={{ padding: 8 }}>Type · floor · view</th>
-                    <th style={{ padding: 8, textAlign: "right" }}>BUA (sqft)</th>
-                    {data.plot_bearing && <th style={{ padding: 8, textAlign: "right" }}>Plot (sqft)</th>}
+                    <th style={{ padding: 8, textAlign: "right" }}>BUA (sqm)</th>
+                    {data.plot_bearing && <th style={{ padding: 8, textAlign: "right" }}>Plot (sqm)</th>}
                     <th style={{ padding: 8, textAlign: "right" }}>Price (AED)</th>
                     <th style={{ padding: 8, textAlign: "right" }}>AED / sqft</th>
                     <th style={{ padding: 8 }}>Date · source</th>
@@ -240,8 +244,8 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
                         {c.notes && <Icon name="message-square" size={13} color="var(--text-muted)" />}
                       </td>
                       <td style={{ padding: 8 }}>{describe(c)}</td>
-                      <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.bua_sqft)}</td>
-                      {data.plot_bearing && <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.plot_area_sqft ?? null)}</td>}
+                      <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.bua_sqm ?? null)}</td>
+                      {data.plot_bearing && <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.plot_area_sqm ?? null)}</td>}
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.price_aed)}</td>
                       <td className="num" style={{ padding: 8, textAlign: "right" }}>{num(c.aed_per_sqft)}</td>
                       <td style={{ padding: 8 }}>
@@ -339,7 +343,7 @@ function CompCard({
         </div>
         <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{describe(c)}</div>
         <div className="num" style={{ fontSize: 14, marginTop: 2 }}>
-          AED {num(c.price_aed)} · {num(c.bua_sqft)} sqft · <b>{num(c.aed_per_sqft)}</b>/sqft
+          AED {num(c.price_aed)} · {num(c.bua_sqm ?? null)} sqm · <b>{num(c.aed_per_sqft)}</b>/sqft
         </div>
         <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
           {statusLabel(c)}
@@ -353,7 +357,7 @@ function CompCard({
 
 const FOUND_LABELS: Record<string, string> = {
   price_aed: "price",
-  bua_sqft: "size",
+  bua_sqm: "size",
   beds: "bedrooms",
   property_type: "type",
   building_name: "building",
@@ -443,8 +447,8 @@ function AddForm({
   const set = (k: string) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
   const rate =
-    Number(form.price_aed.replace(/,/g, "")) > 0 && Number(form.bua_sqft.replace(/,/g, "")) > 0
-      ? Number(form.price_aed.replace(/,/g, "")) / Number(form.bua_sqft.replace(/,/g, ""))
+    Number(form.price_aed.replace(/,/g, "")) > 0 && Number(form.bua_sqm.replace(/,/g, "")) > 0
+      ? Number(form.price_aed.replace(/,/g, "")) / (Number(form.bua_sqm.replace(/,/g, "")) * SQFT_PER_SQM)
       : null;
 
   async function save() {
@@ -492,8 +496,8 @@ function AddForm({
         {field("beds", "Bedrooms", <Input inputMode="numeric" value={form.beds} onChange={set("beds")} />)}
         {field("floor", "Floor", <Input value={form.floor} onChange={set("floor")} />)}
         {field("view", "View", <Input value={form.view} onChange={set("view")} />)}
-        {field("bua_sqft", "BUA (sqft) *", <Input inputMode="decimal" value={form.bua_sqft} onChange={set("bua_sqft")} />)}
-        {plotBearing && field("plot_area_sqft", "Plot area (sqft)", <Input inputMode="decimal" value={form.plot_area_sqft} onChange={set("plot_area_sqft")} />)}
+        {field("bua_sqm", "BUA (sqm) *", <Input inputMode="decimal" value={form.bua_sqm} onChange={set("bua_sqm")} />)}
+        {plotBearing && field("plot_area_sqm", "Plot area (sqm)", <Input inputMode="decimal" value={form.plot_area_sqm} onChange={set("plot_area_sqm")} />)}
         {field("price_aed", "Price (AED) *", <Input inputMode="decimal" value={form.price_aed} onChange={set("price_aed")} />)}
         {field(
           "rate",

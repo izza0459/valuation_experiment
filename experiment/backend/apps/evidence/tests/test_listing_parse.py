@@ -61,17 +61,19 @@ class TestPastedListing:
     def test_reads_a_bayut_listing(self):
         out = listing_parse.parse(BAYUT_TEXT, "https://www.bayut.com/property/details-1.html")
         assert out["source"] == "bayut" and out["status"] == "asking"
-        read = (out["price_aed"], out["bua_sqft"], out["beds"], out["property_type"])
-        assert read == ("1450000", "850", 1, "Apartment")
+        read = (out["price_aed"], out["bua_sqm"], out["beds"], out["property_type"])
+        assert read == ("1450000", "78.97", 1, "Apartment")  # 850 sqft listed, entered as sqm
         assert (out["building_name"], out["community_name"]) == ("Test Tower A", "Dubai Marina")
         assert (out["floor"], out["view"]) == ("23", "Marina")
-        everything = {"price_aed", "bua_sqft", "beds", "property_type", "building_name", "community_name"}
+        everything = {"price_aed", "bua_sqm", "beds", "property_type", "building_name", "community_name"}
         assert set(out["found"]) == everything
 
     def test_reads_a_property_finder_listing(self):
         out = listing_parse.parse(PF_TEXT, "https://www.propertyfinder.ae/en/plp/buy/villa-1.html")
         assert out["source"] == "property_finder"
-        assert (out["price_aed"], out["bua_sqft"], out["beds"], out["property_type"]) == ("2100000", "2400", 3, "Villa")
+        # Listed in both units: the sqm as listed is used.
+        read = (out["price_aed"], out["bua_sqm"], out["beds"], out["property_type"])
+        assert read == ("2100000", "223.00", 3, "Villa")
 
     def test_says_what_it_could_not_find(self):
         out = listing_parse.parse("Nice flat, call now", "")

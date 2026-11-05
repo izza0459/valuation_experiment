@@ -103,7 +103,9 @@ ASSIGNMENT_ROLES = {Role.ADMIN, Role.VALUER}
 # half-up to the nearest unit, and thousands separators are accepted.
 INSPECTOR_LABEL = "Inspector (assign on the Check List)"
 BOOKED_LABEL = "Inspection booked"
-EVIDENCE_LABEL = "A comparable ticked for the report"
+# The report's comparables table needs at least this many (QA, Nov 2026).
+MIN_COMPARABLES = 3
+EVIDENCE_LABEL = f"{MIN_COMPARABLES} comparables ticked for the report"
 # Statuses past Scheduling: its tab counts as done there.
 PAST_SCHEDULING = {
     "inspection_scheduled", "inspected", "valuation_in_progress", "peer_review", "approved_signed", "issued",
@@ -302,7 +304,7 @@ def visibility_context(job) -> dict:
     context["uploads"] = {"coi_consent": job.documents.filter(doc_type=COI_CONSENT_DOC).exists()}
     context["job"] = {"status": job.status}
     # The Evidence tab is complete once a comparable is ticked for the report (QA #17).
-    context["comparables"] = {"selected": job.job_comparables.filter(selected=True).exists()}
+    context["comparables"] = {"selected": job.job_comparables.filter(selected=True).count()}
     bank = job.bank
     context["bank"] = {"name": job.organisation_name, "rules": (bank.rules if bank else None) or {}}
     return context
@@ -333,8 +335,9 @@ def tab_completion(tab_key: str, context: dict) -> dict:
             missing.append(INSPECTOR_LABEL)
     if tab_key == "evidence":
         required.append(EVIDENCE_LABEL)
-        if not context.get("comparables", {}).get("selected"):
-            missing.append(EVIDENCE_LABEL)
+        ticked = context.get("comparables", {}).get("selected") or 0
+        if ticked < MIN_COMPARABLES:
+            missing.append(f"{EVIDENCE_LABEL} ({ticked} so far)")
     if tab_key == "scheduling":
         status = context.get("job", {}).get("status")
         if status in PAST_SCHEDULING:

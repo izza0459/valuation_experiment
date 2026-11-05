@@ -35,10 +35,10 @@ const STOREYS: [string, string][] = [
   ["third", "Third floor"], ["fourth", "Fourth floor"], ["fifth", "Fifth floor"],
 ];
 
-/** The ground floor and `floors` above it (G+1 is 1; backend storeys_for). */
+/** `floors` storeys from the ground up: 1 is the ground floor only, 3 is G+2 (backend storeys_for). */
 export function storeysFor(floors: unknown, basement: unknown): [string, string][] {
-  const above = Math.max(0, Math.min(Number(floors) || 0, 5));
-  const storeys = STOREYS.filter(([k]) => k !== "basement").slice(0, above + 1);
+  const count = Math.max(1, Math.min(Number(floors) || 1, 6));
+  const storeys = STOREYS.filter(([k]) => k !== "basement").slice(0, count);
   return [...(basement === true ? [STOREYS[0]] : []), ...storeys];
 }
 
@@ -181,11 +181,13 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
     }
 
     case "library": {
-      // Entries tagged with property categories (commentary) are offered
-      // only for those; untagged entries are offered for every property.
-      const offered = options.filter(
-        (o) => !o.categories?.length || (propertyCategory ? o.categories.includes(propertyCategory) : true),
-      );
+      // Entries tagged with property categories (commentary) are offered only
+      // for those. When the property type has its own wording, only that is
+      // offered; otherwise the untagged entries are.
+      const forType = propertyCategory ? options.filter((o) => o.categories?.includes(propertyCategory)) : [];
+      const offered = forType.length
+        ? forType
+        : options.filter((o) => !o.categories?.length || (propertyCategory ? o.categories.includes(propertyCategory) : true));
       return (
         <LibraryField value={value} options={offered} invalid={invalid} onChange={onChange} append={Boolean(field.append)}
           filtered={offered.length < options.length} />
