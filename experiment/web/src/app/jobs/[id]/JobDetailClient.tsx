@@ -520,7 +520,10 @@ export function JobDetailClient({ id }: { id: string }) {
                         {owner ?? `${stage.roleLabel} not assigned`}
                       </span>
                     </span>
-                    {subs.length > 1 && <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />}
+                    {/* Every stage keeps the chevron's slot, so the pills line up. */}
+                    <span className="sc-chev">
+                      {subs.length > 1 && <Icon name={open ? "chevron-down" : "chevron-right"} size={16} color="var(--text-muted)" />}
+                    </span>
                   </button>
                   {open && (
                     <div className="sc-subs">
