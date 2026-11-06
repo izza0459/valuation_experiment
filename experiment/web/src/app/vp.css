@@ -1279,3 +1279,9 @@
 .doc-image { width: 100%; height: auto; border-radius: 6px; border: 1px solid var(--border-subtle); }
 .doc-open { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--accent); text-decoration: none; }
 .doc-open:hover { text-decoration: underline; }
+
+/* Location map pin (MapPreview): a teardrop in the accent colour. */
+.map-pin { background: none; border: 0; }
+.map-pin > span { display: block; width: 22px; height: 22px; margin: 0 2px; border-radius: 50% 50% 50% 0;
+  background: var(--accent, #006169); border: 3px solid #fff; transform: rotate(-45deg);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
