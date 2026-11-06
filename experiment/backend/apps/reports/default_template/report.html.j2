@@ -164,7 +164,7 @@
 {# ---------- 3 Due diligence ---------- #}
 <section>
   <h2>3. Extent of Due Diligence</h2>
-  <p>{% if inspection_type %}The subject property was inspected{% if inspector %} by {{ inspector }}{% endif %}{% if inspection_date %} on {{ inspection_date }}{% endif %} ({{ inspection_type }}). The inspection was non-intrusive and limited to accessible, visible areas.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
+  <p>{% if desktop %}This is a desktop valuation: the subject property was not inspected. It has been prepared from the information provided and other available sources, and the property is assumed to be in a condition consistent with its age and type.{% elif inspection_type %}The subject property was inspected{% if inspector %} by {{ inspector }}{% endif %}{% if inspection_date %} on {{ inspection_date }}{% endif %} ({{ inspection_type }}). The inspection was non-intrusive and limited to accessible, visible areas.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
 
   <h3>Information provided</h3>
   {% if information_provided %}<ul>{% for item in information_provided %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p>None recorded.</p>{% endif %}
@@ -435,11 +435,13 @@
   {% endfor %}
   {% else %}<p class="note">No documents have been attached.</p>{% endif %}
 </section>
+{% if not desktop %}
 <section>
   <h2>Appendix 5 – Inspection Photographs</h2>
   {% if photos %}<div class="photo-grid">{% for p in photos %}{{ photo(p) }}{% endfor %}</div>
   {% else %}<p class="note">No photographs have been attached.</p>{% endif %}
 </section>
+{% endif %}
 
 </body>
 </html>

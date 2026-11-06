@@ -38,7 +38,7 @@ const SECTIONS: { title: string; sub?: string; keys: string[] }[] = [
   {
     title: "Parties",
     sub: "Add every owner and applicant named on the request.",
-    keys: ["applicant_name", "ownership_name", "contact_name", "contact_role", "contact_number"],
+    keys: ["applicant_name", "ownership_name", "contact_role", "contact_name", "contact_number"],
   },
   {
     title: "Team",
@@ -110,7 +110,7 @@ export function NewInstruction() {
       });
       return;
     }
-    setValues((v) => ({ ...v, [key]: value }));
+    setValues((v) => withContactName(v, { ...v, [key]: value }));
     setErrors((e) => {
       const { [key]: _gone, ...rest } = e;
       void _gone;
@@ -307,4 +307,23 @@ export function NewInstruction() {
       </form>
     </Shell>
   );
+}
+
+/** The first of a names field's entries ("A. Owner" of ["A. Owner", "B. Owner"]). */
+function firstName(value: unknown): string {
+  const list = Array.isArray(value) ? value : String(value ?? "").split(/\n|,/);
+  return String(list.find((n) => String(n).trim()) ?? "").trim();
+}
+
+/** The contact is the owner or the applicant: their name is the contact's,
+ * kept in step while it hasn't been changed by hand. "Other": typed in. */
+function withContactName(before: Record<string, unknown>, after: Record<string, unknown>): Record<string, unknown> {
+  const nameFor = (v: Record<string, unknown>) =>
+    v.contact_role === "owner" ? firstName(v.ownership_name)
+      : v.contact_role === "applicant" ? firstName(v.applicant_name)
+        : "";
+  const current = String(after.contact_name ?? "");
+  const wasFilled = current === "" || current === nameFor(before);
+  if (!wasFilled || after.contact_name !== before.contact_name) return after; // typed by hand
+  return { ...after, contact_name: nameFor(after) || (after.contact_role === before.contact_role ? current : "") };
 }

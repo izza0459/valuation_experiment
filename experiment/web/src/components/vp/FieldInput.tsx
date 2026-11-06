@@ -190,7 +190,7 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
         : options.filter((o) => !o.categories?.length || (propertyCategory ? o.categories.includes(propertyCategory) : true));
       return (
         <LibraryField value={value} options={offered} invalid={invalid} onChange={onChange} append={Boolean(field.append)}
-          filtered={offered.length < options.length} />
+          filtered={offered.length < options.length} autoFill={field.key.endsWith("_commentary")} />
       );
     }
 
@@ -203,8 +203,17 @@ export function FieldInput({ field, value, onChange, options, users, readOnly, i
  * issued while one is left (backend apps/reports/context.unfilled_blanks). */
 const BLANK = /\[[^[\]\n]{1,160}\]/g;
 
-function Blanks({ text }: { text: string }) {
+function Blanks({ text, autoFill }: { text: string; autoFill?: boolean }) {
   const blanks = [...new Set((text.match(BLANK) ?? []).filter((b) => b !== "[●]"))];
+  // The commentary templates: the report fills their xxxxx and [blanks] in.
+  if (autoFill && (blanks.length || text.includes("xxxxx"))) {
+    return (
+      <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>
+        The xxxxx and [blanks] fill in from the ticked comparables and this job in the report. Preview the
+        report to see any left; those need writing here before sign-off.
+      </div>
+    );
+  }
   if (blanks.length === 0) return null;
   return (
     <div style={{ fontSize: 13, color: "#8a5300", marginTop: 6 }}>
@@ -451,6 +460,7 @@ function LibraryField({
   onChange,
   append = false,
   filtered = false,
+  autoFill = false,
 }: {
   value: unknown;
   options: Option[];
@@ -458,6 +468,7 @@ function LibraryField({
   onChange: (v: unknown) => void;
   append?: boolean;
   filtered?: boolean;
+  autoFill?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -465,6 +476,8 @@ function LibraryField({
   const entries = asList ? (value as LibraryEntry[]) : [];
   const picked = new Set(entries.map((e) => e.title));
   const onlyCustom = !asList && options.length > 0 && options.every((o) => o.label === "Custom" && !o.report_text);
+  // Nothing in the library for this field (or this property type): no button.
+  const noLibrary = onlyCustom || options.length === 0;
 
   const matches = options.filter(
     (o) =>
@@ -513,12 +526,12 @@ function LibraryField({
         <>
           <Textarea rows={str(value).length > 400 ? 8 : 4} value={str(value)} invalid={invalid}
             onChange={(e) => onChange(e.target.value)} />
-          <Blanks text={str(value)} />
+          <Blanks text={str(value)} autoFill={autoFill} />
         </>
       )}
 
-      {/* Nothing in the library but Custom (commentary): the box above is it. */}
-      {!onlyCustom && (
+      {/* Nothing in the library (or only Custom): the box above is it. */}
+      {!noLibrary && (
         <div>
           <Button
             size="sm"
@@ -531,7 +544,7 @@ function LibraryField({
         </div>
       )}
 
-      {open && !onlyCustom && (
+      {open && !noLibrary && (
         <div style={{ display: "grid", gap: 10 }}>
           <Input placeholder="Search text library" value={query} onChange={(e) => setQuery(e.target.value)} />
           {matches.length === 0 && (

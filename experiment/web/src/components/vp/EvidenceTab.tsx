@@ -117,7 +117,10 @@ export function EvidenceTab({ jobId, canEdit, readOnlyReason }: { jobId: string;
   // Once some are ticked, the unticked ones fold away under a link.
   const [showUnused, setShowUnused] = useState(false);
 
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  // The lead too: its Evidence completion (3 ticked) and Next follow the ticks.
+  // Refreshing only this table left them a tick behind, so 4 looked like 3.
+  const refresh = () =>
+    Promise.all([qc.invalidateQueries({ queryKey: key }), qc.invalidateQueries({ queryKey: ["jobs", jobId] })]);
 
   async function act(path: string, init: RequestInit) {
     setError(null);
