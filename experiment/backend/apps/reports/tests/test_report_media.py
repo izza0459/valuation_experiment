@@ -97,9 +97,11 @@ class TestRendering:
         assert page.count("data:image/jpeg;base64,") == 3 + 4  # three in the summary, all four in the appendix
         assert "have not been attached" not in page and "No photographs have been attached" not in page
 
-    def test_without_any_the_report_says_so(self, job):
+    def test_without_any_their_appendices_are_left_out(self, job):
+        """Nothing attached: no empty appendix, and nothing numbered past 3."""
         page = html(job)
-        assert "No photographs have been attached" in page and "No documents have been attached" in page
+        assert "Inspection Photographs" not in page and "Documents Received" not in page
+        assert "Appendix 4" not in page
 
     def test_a_pdf_document_appears_page_by_page(self, job, boss):
         service.upload(job.pk, boss, service.DOCUMENTS, [upload_file("d.pdf", pdf_bytes(3))], doc_type="spa")

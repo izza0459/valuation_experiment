@@ -36,6 +36,7 @@ from apps.media_files.checks import exec_summary_photos, media_blockers
 from apps.presets.dictionary import REINSTATEMENT_UNIT, REINSTATEMENT_VILLA
 from apps.presets.models import PresetOption
 
+from . import commentary
 from .maps import location_map_key
 
 NOT_APPLICABLE = "Not Applicable"
@@ -198,6 +199,11 @@ def unfilled_blanks(context: dict) -> list[str]:
     for key, label in (("condition", "Property Condition"), ("specification", "Property Specification"),
                        ("repairs", "Repairs")):
         scan(label, text.get(key))
+    # The commentary templates' xxxxx and [blanks] the job couldn't fill in
+    # (commentary.fill): no x's in a final report.
+    for key, label in (("valuation_commentary", "Valuation Commentary"), ("market_commentary", "Market Commentary")):
+        if left := commentary.remaining_blanks(text.get(key)):
+            found.append(f"{label}: {', '.join(left[:4])}{' …' if len(left) > 4 else ''}")
     return found
 
 
@@ -346,6 +352,10 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     long_leasehold = summary.interest_valued == LONG_LEASEHOLD
 
     market_value = _dec(valuation.market_value)
+    # A desktop valuation has no site visit: no inspection date or photographs
+    # in its report.
+    desktop = inspection.inspection_type == "desktop"
+    inspection_date = "" if desktop else fmt_date(inspection.inspection_date)
 
     address_inspected = _join(
         f"Unit {prop.unit_number}" if prop.unit_number else "",
@@ -509,7 +519,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         _row("Basis of value", labels("valuation", "basis_of_valuation", valuation.basis_of_valuation)),
         _row("Standards", STANDARDS),
         _row("Date of instruction", fmt_date(job.date_of_instruction)),
-        _row("Date of inspection", fmt_date(inspection.inspection_date)),
+        _row("Date of inspection", inspection_date),
         _row("Type of inspection", labels("inspection", "inspection_type", inspection.inspection_type)),
         _row("Date of valuation", fmt_date(valuation.valuation_date)),
         _row("Date of report", fmt_date(report_date)),
@@ -543,6 +553,32 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         spec("Utilities", "electrical_services", inspection.utilities_summary),
         spec("Air conditioning", "air_conditioning",
              ", ".join(labels.many("inspection", "air_conditioning", inspection.air_conditioning))),
+    )
+
+    # The commentary templates' blanks, filled from the comparables and the job.
+    facts = commentary.Facts(
+        beds=beds,
+        bua_sqft=_dec(summary.bua_sqft),
+        plot_sqft=_dec(summary.plot_area_sqft) if plot_bearing else None,
+        floor="G" if summary.property_category in VILLA_FLOOR_G else summary.property_floor_no,
+        views=inspection.views_summary or "",
+        building=prop.building_name or "",
+        community=prop.community_name or "",
+        category=summary.property_category or "",
+        occupancy=inspection.occupancy or "",
+        upgraded=bool(inspection.upgraded),
+        valuation_date=fmt_date(valuation.valuation_date),
+        market_value=market_value,
+        rate_per_sqft=_dec(valuation.market_value_rate_per_sqft),
+        parkings=summary.no_of_parkings if summary.parking in PARKING_PRESENT else None,
+        rent_low=_dec(valuation.market_rent_low),
+        rent_high=_dec(valuation.market_rent_high),
+        land_value=_dec(valuation.land_cost),
+        replacement_cost=_dec(valuation.construction_cost),
+        comparables=[
+            (link.comparable.status, link.comparable.price_aed, link.comparable.price_per_sqft)
+            for link in job.job_comparables.select_related("comparable").filter(selected=True)
+        ],
     )
 
     valuer = person_block(job.registered_valuer)
@@ -606,7 +642,8 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             labels.many("summary", "information_provided", summary.information_provided),
         ) or [],
         "inspection_type": labels("inspection", "inspection_type", inspection.inspection_type),
-        "inspection_date": fmt_date(inspection.inspection_date),
+        "inspection_date": inspection_date,
+        "desktop": desktop,
         "inspector": str(job.inspected_by) if job.inspected_by else "",
         "text": {
             "disclosure": summary.disclosure,
@@ -618,8 +655,10 @@ def build_context(job, *, issued: bool | None = None) -> dict:
             # No longer entered (Other Matters joined the assumptions library);
             # kept so older jobs still print theirs.
             "other_matters": summary.other_matters or [],
-            "market_commentary": keep("summary.market_commentary", summary.market_commentary) or "",
-            "valuation_commentary": keep("valuation.valuation_commentary", valuation.valuation_commentary) or "",
+            "market_commentary": commentary.fill(
+                keep("summary.market_commentary", summary.market_commentary) or "", facts),
+            "valuation_commentary": commentary.fill(
+                keep("valuation.valuation_commentary", valuation.valuation_commentary) or "", facts),
             # By property type (CRM feedback VL-04); empty boxes aren't printed.
             "type_commentary": [
                 {"title": title, "body": body}
@@ -656,6 +695,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         "counter_signatory": counter_signatory,
         "comparables": _comparables(job),
         **_media_context(job, summary),
+        **({"photos": [], "exec_photos": []} if desktop else {}),
         "checklist": {
             "makani_photo": checklist.makani_photo,
             "dewa_photo": checklist.dewa_photo,

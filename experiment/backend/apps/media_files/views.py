@@ -177,4 +177,6 @@ class MediaFileView(_MediaView):
         response["Content-Disposition"] = f'inline; filename="{name}"'
         response["X-Content-Type-Options"] = "nosniff"
         response["Cache-Control"] = "private, max-age=300"
+        # The lead card previews documents in a frame; only our own pages may.
+        response["X-Frame-Options"] = "SAMEORIGIN"
         return response

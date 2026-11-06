@@ -2,14 +2,17 @@
 
 /**
  * The lead card on the right of the workspace: Overview (the lead at a
- * glance, with the latest AVM) and Activity (everything that happened to it,
- * newest first: stage moves, review comments, calls, sends and edits).
+ * glance, with the latest AVM), Activity (everything that happened to it,
+ * newest first: stage moves, review comments, calls, sends and edits) and
+ * Documents (what came with the instruction, and any added since, to read
+ * without leaving the page).
  */
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Tabs } from "@/design-system";
-import { apiFetch } from "@/lib/api";
+import { Icon, Tabs } from "@/design-system";
+import { apiFetch, apiUrl } from "@/lib/api";
+import { useMedia, type MediaItem } from "@/lib/media";
 import { useOptions } from "@/lib/options";
 import { useJob } from "@/lib/jobs";
 import { aed, formatDateTime } from "./format";
@@ -40,9 +43,10 @@ export function RightPanel({ jobId }: { jobId: string }) {
   return (
     <aside className="rightpanel" style={{ width: 340, flexShrink: 0, alignSelf: "flex-start" }}>
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <Tabs size="sm" items={["Overview", "Activity"]} active={sub} onChange={setSub} style={{ gap: 22, padding: "0 18px", overflowY: "hidden", scrollbarWidth: "none" }} />
+        <Tabs size="sm" items={["Overview", "Activity", "Documents"]} active={sub} onChange={setSub} style={{ gap: 22, padding: "0 18px", overflowY: "hidden", scrollbarWidth: "none" }} />
         <div style={{ padding: 18 }}>
-          {sub === "Overview" ? <Overview jobId={jobId} /> : <Activity jobId={jobId} />}
+          {sub === "Overview" ? <Overview jobId={jobId} /> : sub === "Activity" ? <Activity jobId={jobId} />
+            : <Documents jobId={jobId} />}
         </div>
       </div>
     </aside>
@@ -194,4 +198,64 @@ function Activity({ jobId }: { jobId: string }) {
 function short(v?: string) {
   if (!v) return "";
   return v.length > 80 ? `${v.slice(0, 80)}…` : v;
+}
+
+/** Uploaded this soon after the lead was created: it came with the instruction. */
+const WITH_INSTRUCTION_MS = 30 * 60 * 1000;
+
+/** The lead's documents, oldest first (the bank's instruction document leads),
+ * each opening into a preview here. */
+function Documents({ jobId }: { jobId: string }) {
+  const { data, isLoading, isError } = useMedia(jobId, "documents");
+  const { data: job } = useJob(jobId);
+  const [open, setOpen] = useState<number | null>(null);
+  if (isLoading) return <div className="skel" style={{ height: 120 }} />;
+  if (isError || !data) return <div style={{ fontSize: 14, color: "var(--text-error)" }}>Could not load the documents.</div>;
+  const items = [...data.items].sort((a, b) => a.uploaded_at.localeCompare(b.uploaded_at));
+  if (items.length === 0) {
+    return <div style={{ fontSize: 14, color: "var(--text-muted)" }}>No documents yet. They&apos;re added with the instruction or on Documents.</div>;
+  }
+  const typeLabel = (v?: string) => data.doc_types.find((t) => t.value === v)?.label ?? (v ? v.replace(/_/g, " ") : "Document");
+  const created = job ? new Date(job.created_at).getTime() : null;
+  const withInstruction = (d: MediaItem) =>
+    created !== null && new Date(d.uploaded_at).getTime() - created < WITH_INSTRUCTION_MS;
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {items.map((d) => {
+        const shown = open === d.id;
+        return (
+          <div key={d.id} className={"doc-card" + (shown ? " on" : "")}>
+            <button type="button" className="doc-head" aria-expanded={shown} onClick={() => setOpen(shown ? null : d.id)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={apiUrl(d.thumb_url)} alt="" className="doc-thumb" loading="lazy" />
+              <span style={{ minWidth: 0, display: "grid", gap: 2 }}>
+                <span className="row" style={{ gap: 6 }}>
+                  <b className="one-line" style={{ fontWeight: 600, fontSize: 13.5 }}>{typeLabel(d.doc_type)}</b>
+                  {withInstruction(d) && <span className="doc-tag">Instruction</span>}
+                </span>
+                {d.caption && <span className="one-line" style={{ fontSize: 12.5 }}>{d.caption}</span>}
+                <span className="one-line" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {d.uploaded_by ? `${d.uploaded_by} · ` : ""}{formatDateTime(d.uploaded_at)}
+                </span>
+              </span>
+              <Icon name={shown ? "chevron-up" : "eye"} size={16} color="var(--text-muted)" />
+            </button>
+            {shown && (
+              <div style={{ display: "grid", gap: 6 }}>
+                {d.is_pdf ? (
+                  <iframe title={typeLabel(d.doc_type)} src={apiUrl(d.url)} className="doc-frame" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={apiUrl(d.url)} alt={d.caption || typeLabel(d.doc_type)} className="doc-image" />
+                )}
+                <a href={apiUrl(d.url)} target="_blank" rel="noopener noreferrer" className="doc-open">
+                  <Icon name="external-link" size={14} /> Open in a new tab
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }

@@ -41,7 +41,6 @@ const CALL_FIELDS = ["call_status", "call_remark", "inspection_booked_at"];
 import { ReviewPanel, SendPanel } from "@/components/vp/ReviewPanel";
 import { LostDialog } from "@/components/vp/LostDialog";
 import { RightPanel } from "@/components/vp/RightPanel";
-import { MediaTab } from "@/components/vp/MediaTab";
 import { TabEditor } from "@/components/vp/TabEditor";
 import { useFieldConfig, type TabDef } from "@/lib/fieldConfig";
 import { buildTabValues, useJob, type CallAttempt, type JobDetail } from "@/lib/jobs";
@@ -146,9 +145,8 @@ export function JobDetailClient({ id }: { id: string }) {
         tab: t,
         within: SHOWN_WITHIN[t.key],
       })),
-    // The documents Admin uploaded, for the inspector to read on site (QA #10).
-    // They're added and managed on Documents in the Valuation stage.
-    { key: "documents-received", label: "Documents received", stage: "inspection" },
+    // Documents are added on Documents in the Valuation stage and read from the
+    // lead card's Documents tab, so Inspection has no page for them.
     { key: "send", label: "Send to bank", stage: "send" },
   ];
   // What the user moves between: sections shown inside another are left out.
@@ -322,7 +320,6 @@ export function JobDetailClient({ id }: { id: string }) {
         />
       );
     }
-    if (page.key === "documents-received") return <MediaTab jobId={id} kind="documents" readOnly />;
     if (!page.tab || !job.tabs[page.key]) return null;
     return (
       <>

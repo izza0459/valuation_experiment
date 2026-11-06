@@ -252,11 +252,30 @@ class TestRendering:
         assert "AED 725,000" in html and "Rukan Residences" in html and job.bayut_internal_reference_no in html
 
     def test_all_the_sections_of_the_spec_are_there(self, job):
+        job.summary.market_commentary = "Prices held steady."
+        job.summary.save()
+        job.location.property_specification = "A one-bedroom apartment."
+        job.location.save()
         html = self.html(job)
-        for heading in ("Executive Summary", "Terms of Engagement", "Extent of Due Diligence", "Property Analysis",
-                        "Market Commentary", "Valuation Methodology", "Opinion of Market Value", "Disclaimer",
-                        "Appendix 1", "Appendix 2", "Appendix 3", "Appendix 4", "Appendix 5"):
+        for heading in ("1. Executive Summary", "2. Terms of Engagement", "3. Extent of Due Diligence",
+                        "4. Property Analysis", "5. Market Commentary", "6. Valuation Methodology",
+                        "7. Opinion of Market Value", "8. Disclaimer", "Appendix 1", "Appendix 2", "Appendix 3"):
             assert heading in html, heading
+
+    def test_a_section_with_nothing_filled_in_is_left_out_and_the_rest_renumbered(self, job):
+        """No market commentary: no section for it, and Valuation Methodology
+        moves up to its number. Empty parts of a section aren't printed either."""
+        job.location.property_specification = "A one-bedroom apartment."
+        job.location.save()
+        html = self.html(job)
+        assert "Market Commentary" not in html
+        assert "5. Valuation Methodology" in html and "6. Opinion of Market Value" in html and "7. Disclaimer" in html
+        assert "<h3>Description</h3>" in html
+        for empty in ("<h3>Accommodation</h3>", "<h3>Building specification</h3>", "<h3>Tenancy</h3>",
+                      "<h3>Comparable evidence</h3>", "<h3>Information provided</h3>", "<p>—</p>"):
+            assert empty not in html, empty
+        # Wording that prints by default (repairs, the unit's reinstatement note) still does.
+        assert "<h3>Condition</h3>" in html and "<h3>Reinstatement cost</h3>" in html
 
     def test_the_firms_wording_is_in_the_report(self, job):
         """Terms of engagement, disclaimer and appendices carry the firm's
