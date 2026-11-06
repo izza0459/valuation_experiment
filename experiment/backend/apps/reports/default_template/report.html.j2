@@ -69,6 +69,14 @@
 </head>
 <body class="{{ 'draft' if meta.is_draft else 'final' }}">
 
+{% set sec = namespace(n=0) %}
+{% set app = namespace(n=0) %}
+{# What Property Analysis has to show; the section goes if it's all empty. #}
+{% set acc_rows = accommodation | selectattr("rooms") | list %}
+{% set has_location = text.sub_community or text.location or property.map_src or property.coordinates %}
+{% set has_analysis = has_location or text.specification or acc_rows or building_specification or text.amenities
+   or text.condition or text.repairs or tenancy or reinstatement %}
+
 {# ---------- Cover ---------- #}
 <section class="cover">
   <div class="logo">{{ firm.name }}</div>
@@ -93,7 +101,7 @@
 
 {# ---------- 1 Executive summary ---------- #}
 <section>
-  <h2>1. Executive Summary</h2>
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Executive Summary</h2>
   {% if exec_photos %}
   <div class="photo-row">{% for p in exec_photos %}{{ photo(p) }}{% endfor %}</div>
   {% elif meta.is_draft %}
@@ -115,7 +123,7 @@
 
 {# ---------- 2 Terms of engagement ---------- #}
 <section>
-  <h2>2. Terms of Engagement</h2>
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Terms of Engagement</h2>
   <h3>Addressee</h3>
   <p>{{ client.name }}{% if client.billing_address %}<br>{{ client.billing_address }}{% endif %}{% if client.po_box %}<br>PO Box {{ client.po_box }}{% endif %}</p>
   <p>To be relied upon by {{ client.name }}{% if purpose %} for {{ purpose | lower }} purposes{% endif %} only.</p>
@@ -138,7 +146,7 @@
   <p>We confirm that neither the Valuer nor {{ firm.name }} has any pecuniary interest giving rise to a conflict of interest in valuing the property. This report represents our independent and objective opinion.</p>
 
   <h3>Disclosure</h3>
-  <p class="prose">{{ text.disclosure or "—" }}</p>
+  {% if text.disclosure %}<p class="prose">{{ text.disclosure }}</p>{% endif %}
   <p>The total fees earned by {{ firm.name }} from the Client, including the fee for this report, represent less than {{ terms.fee_share_pct }}% of our total revenues.</p>
 
   <h3>Knowledge and skills of valuer</h3>
@@ -163,93 +171,110 @@
 
 {# ---------- 3 Due diligence ---------- #}
 <section>
-  <h2>3. Extent of Due Diligence</h2>
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Extent of Due Diligence</h2>
   <p>{% if desktop %}This is a desktop valuation: the subject property was not inspected. It has been prepared from the information provided and other available sources, and the property is assumed to be in a condition consistent with its age and type.{% elif inspection_type %}The subject property was inspected{% if inspector %} by {{ inspector }}{% endif %}{% if inspection_date %} on {{ inspection_date }}{% endif %} ({{ inspection_type }}). The inspection was non-intrusive and limited to accessible, visible areas.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
 
+  {% if information_provided %}
   <h3>Information provided</h3>
-  {% if information_provided %}<ul>{% for item in information_provided %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p>None recorded.</p>{% endif %}
+  <ul>{% for item in information_provided %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% endif %}
 
+  {% if areas %}
   <h3>Property areas</h3>
   <table class="grid">
     <tr><th>Item</th><th>Area</th><th>Source</th></tr>
     {% for r in areas %}
-    <tr><td>{{ r.label }}</td><td>{{ r.value }}</td><td>{{ (bua_source if r.label == "Built-up area" else plot_source) or "—" }}</td></tr>
+    <tr><td>{{ r.label }}</td><td>{{ r.value }}</td><td>{{ (bua_source if r.label == "Built-up area" else plot_source) or "" }}</td></tr>
     {% endfor %}
   </table>
+  {% endif %}
   {% if bua_assumed_note %}<p class="note">{{ bua_assumed_note }}</p>{% endif %}
 </section>
 
-{# ---------- 4 Property analysis ---------- #}
+{# ---------- Property analysis: only what was filled in ---------- #}
+{% if has_analysis %}
 <section>
-  <h2>4. Property Analysis</h2>
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Property Analysis</h2>
+  {% if has_location %}
   <h3>Location</h3>
   {% if text.sub_community %}<p class="prose">{{ text.sub_community }}</p>{% endif %}
   {% if text.location %}<p class="prose">{{ text.location }}</p>{% endif %}
-  {% if not (text.sub_community or text.location) %}<p>—</p>{% endif %}
   {% if property.map_src %}
   <figure class="map"><img src="{{ property.map_src }}" alt="Location map"><figcaption>Location map · {{ property.coordinates }}</figcaption></figure>
-  {% else %}
-  <div class="map-box">
-    {% if property.coordinates %}Location map · {{ property.coordinates }}{% else %}Location map – coordinates not recorded{% endif %}
-  </div>
+  {% elif property.coordinates %}
+  <div class="map-box">Location map · {{ property.coordinates }}</div>
+  {% endif %}
   {% endif %}
 
+  {% if text.specification %}
   <h3>Description</h3>
-  {% if text.specification %}<div class="paras">{{ text.specification|paras }}</div>{% else %}<p>—</p>{% endif %}
+  <div class="paras">{{ text.specification|paras }}</div>
+  {% endif %}
 
+  {% if acc_rows %}
   <h3>Accommodation</h3>
   <table class="grid">
     <tr><th>Floor</th><th>Accommodation</th></tr>
-    {% for row in accommodation %}
-    <tr><td>{{ row.floor or "—" }}</td><td>{{ row.rooms | join(", ") or "—" }}</td></tr>
+    {% for row in acc_rows %}
+    <tr><td>{{ row.floor }}</td><td>{{ row.rooms | join(", ") }}</td></tr>
     {% endfor %}
   </table>
+  {% endif %}
 
+  {% if building_specification %}
   <h3>Building specification</h3>
-  {% if building_specification %}{{ table(building_specification) }}{% else %}<p>—</p>{% endif %}
+  {{ table(building_specification) }}
+  {% endif %}
 
   {% if text.amenities %}<h3>Communal amenities</h3><p class="prose">{{ text.amenities }}</p>{% endif %}
 
+  {% if text.condition or text.repairs %}
   <h3>Condition</h3>
-  {% if text.condition %}<div class="paras">{{ text.condition|paras }}</div>{% else %}<p>—</p>{% endif %}
+  {% if text.condition %}<div class="paras">{{ text.condition|paras }}</div>{% endif %}
   {% if text.repairs %}<p class="prose"><strong>Repairs noted:</strong> {{ text.repairs }}</p>{% endif %}
+  {% endif %}
 
+  {% if tenancy %}
   <h3>Tenancy</h3>
-  <p class="prose">{{ tenancy or "—" }}</p>
+  <p class="prose">{{ tenancy }}</p>
+  {% endif %}
 
+  {% if reinstatement %}
   <h3>Reinstatement cost</h3>
-  <p class="prose">{{ reinstatement or "—" }}</p>
+  <p class="prose">{{ reinstatement }}</p>
+  {% endif %}
 </section>
+{% endif %}
 
-{# ---------- 5 Market commentary ---------- #}
+{# ---------- Market commentary: only when written ---------- #}
+{% if text.market_commentary %}
 <section>
-  <h2>5. Market Commentary</h2>
-  {% if text.market_commentary %}<p class="prose">{{ text.market_commentary }}</p>{% else %}<p>—</p>{% endif %}
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Market Commentary</h2>
+  <p class="prose">{{ text.market_commentary }}</p>
 </section>
+{% endif %}
 
 {# ---------- 6 Valuation methodology ---------- #}
 <section>
-  <h2>6. Valuation Methodology</h2>
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Valuation Methodology</h2>
   <p>The market approach, comparable method, has been used: the property is valued by reference to prices achieved for, or asked for, similar properties, adjusted for the differences between them and the subject.</p>
   {% if text.valuation_commentary %}<h3>Valuation commentary</h3><p class="prose">{{ text.valuation_commentary }}</p>{% endif %}
   {% for c in text.type_commentary or [] %}<h3>{{ c.title }}</h3><p class="prose">{{ c.body }}</p>{% endfor %}
 
-  <h3>Comparable evidence</h3>
   {% if comparables %}
+  <h3>Comparable evidence</h3>
   <table class="grid">
     <tr><th>Building / district</th><th>Views</th><th>Floor</th><th>BUA (sqft)</th>{% if plot_bearing %}<th>Plot (sqft)</th>{% endif %}<th>Type</th><th>Price (AED)</th><th>AED / sqft</th><th>Date / status</th></tr>
     {% for c in comparables %}
     <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.floor }}</td><td>{{ c.bua_sqft }}</td>{% if plot_bearing %}<td>{{ c.plot_sqft }}</td>{% endif %}<td>{{ c.type }}</td><td>{{ c.price }}</td><td>{{ c.rate }}</td><td>{{ c.transaction }}</td></tr>
     {% endfor %}
   </table>
-  {% else %}
-  <p class="note">No comparable evidence has been recorded for this valuation.</p>
   {% endif %}
 </section>
 
 {# ---------- 7 Opinion of market value ---------- #}
 <section>
-  <h2>7. Opinion of Market Value</h2>
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Opinion of Market Value</h2>
   <p>Having carefully considered the matter, we are of the opinion that the {{ valuation.basis or "value" }} of the {% if interest %}{{ interest }} {% endif %}interest in the subject property, {{ "subject to the existing tenancy" if tenanted else "assuming vacant possession" }}, as at {{ dates.valuation or "the valuation date" }}, is fairly represented in the sum of:</p>
   <div class="value-box">
     <div class="value-figure">{{ valuation.market_value or "—" }}</div>
@@ -269,7 +294,7 @@
 
 {# ---------- 8 Disclaimer ---------- #}
 <section>
-  <h2>8. Disclaimer</h2>
+  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Disclaimer</h2>
   <p>This report has been prepared on the basis that there has been full disclosure of all information and facts that may affect the valuation.</p>
   <p>This report is provided solely for the stated purpose and for the use of the party to whom it is addressed. It is confidential to the Client and may not be disclosed to any third party, or reproduced in whole or in part in any document, circular or statement, without the prior written consent of {{ firm.name }}. No responsibility is accepted to any third party for the whole or any part of its contents.</p>
 </section>
@@ -277,7 +302,7 @@
 {# ---------- Appendices ---------- #}
 {% set f = firm.name %}
 <section class="terms">
-  <h2>Appendix 1 – Terms and Conditions</h2>
+  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Terms and Conditions</h2>
   <p>Thank you for instructing {{ f }} to conduct a valuation of your property. Set out below are {{ f }}’s Terms &amp; Conditions of Business (“Terms of Engagement”), which you should read carefully. These Terms of Engagement form an integral part of every proposal, contract and agreement for the provision of valuation services by {{ f }}.</p>
 
   <h3>1. Definitions and Interpretation</h3>
@@ -376,7 +401,7 @@
   <p>{{ f }} will commence provision of the Services once these Terms of Engagement have been signed and acknowledged by the Client.</p>
 </section>
 <section class="terms">
-  <h2>Appendix 2 – General Assumptions</h2>
+  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – General Assumptions</h2>
   <p>These general assumptions form part of our Terms of Engagement and apply to this valuation unless stated otherwise in the report. If any assumption proves incorrect, the valuation may need to be reviewed.</p>
   <h3>1. Basis of Valuation</h3>
   <p>The property has been valued on the basis set out in Section 2 and defined in Appendix 3.</p>
@@ -410,7 +435,7 @@
   <p>Where relevant, we have relied on construction cost and completion information provided by the owner or its advisers, and assume works are carried out in accordance with approved plans and with assignable warranties.</p>
 </section>
 <section class="terms">
-  <h2>Appendix 3 – Bases of Valuation</h2>
+  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Bases of Valuation</h2>
   <h3>Market Value (IVS)</h3>
   <p class="quote">“{{ market_value_definition }}”</p>
   <h3>Market Rent (IVS)</h3>
@@ -422,9 +447,10 @@
   <h3>Premise of Value – Highest and Best Use</h3>
   <p>The use, from a market participant’s perspective, that produces the highest value for an asset. It must be physically possible, legally permissible and financially feasible, and may be the current use or an alternative use.</p>
 </section>
+{% if documents %}
 <section>
-  <h2>Appendix 4 – Documents Received</h2>
-  {% if documents %}{% for d in documents %}
+  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Documents Received</h2>
+  {% for d in documents %}
   <div class="document">
     <h4>{{ d.title }}{% if d.caption %} – {{ d.caption }}{% endif %}</h4>
     {% for src in d.pages %}
@@ -433,13 +459,12 @@
     {% if d.total_pages > d.pages|length and d.pages %}<p class="note">The first {{ d.pages|length }} of {{ d.total_pages }} pages are shown.</p>{% endif %}
   </div>
   {% endfor %}
-  {% else %}<p class="note">No documents have been attached.</p>{% endif %}
 </section>
-{% if not desktop %}
+{% endif %}
+{% if photos and not desktop %}
 <section>
-  <h2>Appendix 5 – Inspection Photographs</h2>
-  {% if photos %}<div class="photo-grid">{% for p in photos %}{{ photo(p) }}{% endfor %}</div>
-  {% else %}<p class="note">No photographs have been attached.</p>{% endif %}
+  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Inspection Photographs</h2>
+  <div class="photo-grid">{% for p in photos %}{{ photo(p) }}{% endfor %}</div>
 </section>
 {% endif %}
 
