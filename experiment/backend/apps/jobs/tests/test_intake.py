@@ -89,13 +89,24 @@ class TestContactRole:
 
 
 class TestCreate:
-    def test_the_bank_reference_starts_as_the_banks_code(self, admin, bank):
+    def test_the_bank_reference_is_the_jobs_own(self, admin, bank):
+        """Unique to each job: never filled in from the bank."""
         bank.code = "TB-VAL"
         bank.save()
         res = create(admin, {"bank": bank.pk, "applicant_name": "A. Applicant"})
-        assert Job.objects.get(pk=res.json()["id"]).bank_reference_no == "TB-VAL"
+        assert Job.objects.get(pk=res.json()["id"]).bank_reference_no == ""
         res = create(admin, {"bank": bank.pk, "bank_reference_no": "REQ-77", "applicant_name": "A. Applicant"})
         assert Job.objects.get(pk=res.json()["id"]).bank_reference_no == "REQ-77"
+
+    def test_the_date_of_instruction_starts_as_today(self, admin, bank):
+        import datetime
+
+        from django.utils import timezone
+
+        job = Job.objects.get(pk=create(admin, {"bank": bank.pk}).json()["id"])
+        assert job.date_of_instruction == timezone.localdate()
+        res = create(admin, {"bank": bank.pk, "date_of_instruction": "2026-10-01"})
+        assert Job.objects.get(pk=res.json()["id"]).date_of_instruction == datetime.date(2026, 10, 1)
 
     def test_ops_can_fill_in_the_whole_form_then_only_setup(self, bank):
         """Regression: the form's team and category fields sit on Inspection

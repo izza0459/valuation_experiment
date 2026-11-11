@@ -10,6 +10,7 @@ leaves no half-created job behind.
 from __future__ import annotations
 
 from django.db import transaction
+from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.banks.models import Bank
@@ -58,6 +59,10 @@ def create_job(user, values: dict) -> Job:
         else:
             by_tab[tab][key] = raw
 
+    # Setup's Date of Instruction starts as today (Dubai), unless the form gives one.
+    if values.get("date_of_instruction") in (None, ""):
+        by_tab["instructions"]["date_of_instruction"] = timezone.localdate().isoformat()
+
     purpose = values.get("purpose") or "mortgage_security"
     bank_id = values.get("bank")
     bank = None
@@ -88,8 +93,6 @@ def create_job(user, values: dict) -> Job:
             property=Property.objects.create(),
             admin_user=user,
             billing_address=bank.billing_address if bank and bank.sla_signed else "",
-            # The bank's own code, unless the form gives a reference.
-            bank_reference_no=bank.code if bank else "",
         )
         job.save()  # allocates the reference number; the signal adds the tab rows
 
