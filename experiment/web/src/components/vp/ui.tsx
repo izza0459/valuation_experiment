@@ -15,7 +15,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Avatar, Icon, Tag, Toast } from "@/design-system";
-import { ROLE_LABELS, signOut, useMe } from "@/lib/auth";
+import { CLOUDFLARE_LOGOUT, ROLE_LABELS, signOut, useMe } from "@/lib/auth";
 
 /* --- small controls ------------------------------------------------ */
 
@@ -464,10 +464,14 @@ export function Shell({ children, bare }: { children: React.ReactNode; bare?: bo
   /** Leaves at once: waiting for the server (asleep on the free hosting)
    * made the button look broken. The session is ended in the background. */
   function leave() {
-    void signOut();
+    const sso = me?.authenticated && me.cloudflare_sso;
+    const done = signOut();
     qc.clear(); // nothing fetched as this user may be shown to the next
     qc.setQueryData(["me"], { authenticated: false });
-    router.replace("/login");
+    // Behind Cloudflare Access the app's session alone would come straight
+    // back: end the SSO session too, once ours is gone.
+    if (sso) void done.then(() => window.location.assign(CLOUDFLARE_LOGOUT));
+    else router.replace("/login");
   }
 
   if (isLoading || !user) {
