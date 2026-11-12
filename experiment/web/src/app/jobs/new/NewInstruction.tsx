@@ -76,6 +76,8 @@ export function NewInstruction() {
   // deed, an SPA...), each with its type and a caption. Uploaded once the lead
   // exists; the inspector sees them under Documents received.
   const [bankDocs, setBankDocs] = useState<InstructionDoc[]>([]);
+  // What a title deed filled in on this form (read on our server, nothing kept).
+  const [deedNote, setDeedNote] = useState<{ tone: "green" | "muted"; text: string } | null>(null);
   const setDoc = (doc: InstructionDoc, change: Partial<InstructionDoc>) =>
     setBankDocs((docs) => docs.map((d) => (d === doc ? { ...d, ...change } : d)));
   const [createdId, setCreatedId] = useState<number | null>(null);
@@ -145,6 +147,39 @@ export function NewInstruction() {
         setFormError(err instanceof ApiError ? err.message : "Couldn't reach the server. Try again.");
       }
       setBusy(false);
+    }
+  }
+
+  /** A title deed fills this form's empty fields: read on our server, nothing
+   * stored. Its numbers and area go into the lead once it's created. */
+  async function readDeed(file: File) {
+    setDeedNote({ tone: "muted", text: "Reading the title deed…" });
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await apiFetch<{ read: boolean; fields: { building_name: string; community_name: string;
+        ownership_name: string[] } }>("/api/title-deed/read/", { method: "POST", body: form });
+      const found: Record<string, unknown> = {
+        building_name: res.fields.building_name,
+        community_name: res.fields.community_name,
+        ownership_name: res.fields.ownership_name?.length ? res.fields.ownership_name : "",
+      };
+      const empty = (v: unknown) => v == null || v === "" || (Array.isArray(v) && v.every((x) => !String(x).trim()));
+      const filled = Object.keys(found).filter((k) => !empty(found[k]) && empty(values[k]));
+      if (filled.length) {
+        setValues((v) => ({ ...v, ...Object.fromEntries(filled.map((k) => [k, found[k]])) }));
+      }
+      const names: Record<string, string> = { building_name: "Building Name", community_name: "Community Name",
+        ownership_name: "Owner name(s)" };
+      setDeedNote(
+        !res.read
+          ? { tone: "muted", text: "Couldn't read this deed. Fill the details in by hand." }
+          : filled.length
+            ? { tone: "green", text: `Filled from the title deed: ${filled.map((k) => names[k]).join(", ")}. Its numbers and area go into the lead when it's created.` }
+            : { tone: "muted", text: "Read the title deed. Its numbers and area go into the lead when it's created." },
+      );
+    } catch {
+      setDeedNote({ tone: "muted", text: "Couldn't read this deed. Fill the details in by hand." });
     }
   }
 
@@ -241,6 +276,7 @@ export function NewInstruction() {
             onChange={(e) => {
               const picked = Array.from(e.target.files ?? []);
               if (picked[0]) setBankDocs([{ file: picked[0], docType: "bank_instruction", caption: "" }]);
+              setDeedNote(null);
               e.target.value = "";
             }} />
           <div style={{ display: "grid", gap: 8 }}>
@@ -258,9 +294,17 @@ export function NewInstruction() {
                     </button>
                   )}
                 </div>
+                {deedNote && (
+                  <div style={{ fontSize: 13, color: deedNote.tone === "green" ? "var(--green-600)" : "var(--text-muted)" }}>
+                    {deedNote.text}
+                  </div>
+                )}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
                   <Select aria-label="Document type" value={doc.docType} options={DOC_TYPES} disabled={Boolean(createdId)}
-                    onChange={(e) => setDoc(doc, { docType: e.target.value })} />
+                    onChange={(e) => {
+                      setDoc(doc, { docType: e.target.value });
+                      if (e.target.value === "title_deed") void readDeed(doc.file);
+                    }} />
                   <Input placeholder="Caption (optional)" maxLength={255} value={doc.caption} disabled={Boolean(createdId)}
                     onChange={(e) => setDoc(doc, { caption: e.target.value })} />
                 </div>

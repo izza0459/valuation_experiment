@@ -54,7 +54,9 @@ export type MediaList = {
 };
 
 export type Rejected = { name: string; reason: string };
-export type UploadOutcome = { created: MediaItem[]; rejected: Rejected[]; error?: string };
+/** `deed`: what an uploaded title deed filled in on the lead (read on our server). */
+export type DeedFill = { read: boolean; filled: string[]; different: string[] };
+export type UploadOutcome = { created: MediaItem[]; rejected: Rejected[]; error?: string; deed?: DeedFill };
 export type ChangeOutcome = { ok: true; item?: MediaItem } | { ok: false; conflict: boolean; message: string };
 
 export function useMedia(jobId: string, kind: MediaKind) {

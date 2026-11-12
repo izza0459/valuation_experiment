@@ -1,8 +1,8 @@
 from django.urls import path
 
-from .views import MediaFileView, MediaItemView, MediaListView, MediaReorderView
+from .views import MediaFileView, MediaItemView, MediaListView, MediaReorderView, TitleDeedReadView
 
-urlpatterns = []
+urlpatterns = [path("title-deed/read/", TitleDeedReadView.as_view(), name="title-deed-read")]
 for kind in ("photos", "documents"):
     urlpatterns += [
         path(f"jobs/<int:pk>/{kind}/", MediaListView.as_view(kind=kind), name=f"{kind}-list"),

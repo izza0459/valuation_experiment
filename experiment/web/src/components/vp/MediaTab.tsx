@@ -106,7 +106,15 @@ export function MediaTab({ jobId, kind, readOnly = false }: { jobId: string; kin
     setRejected(res.rejected);
     if (res.created.length > 0) {
       const n = res.created.length;
-      setNotice({ tone: "green", text: `${n} ${copy.noun}${n === 1 ? "" : "s"} added.` });
+      let text = `${n} ${copy.noun}${n === 1 ? "" : "s"} added.`;
+      // A title deed fills the lead's empty fields from its text.
+      if (res.deed) {
+        text += !res.deed.read ? " The title deed couldn't be read: fill its details in by hand."
+          : res.deed.filled.length ? ` Filled from the title deed: ${res.deed.filled.join(", ")}.`
+            : " Read the title deed; its details were already filled in.";
+        if (res.deed.different.length) text += ` The deed differs on: ${res.deed.different.join(", ")} (left as entered).`;
+      }
+      setNotice({ tone: res.deed && !res.deed.read ? "amber" : "green", text });
     } else if (res.error) {
       setNotice({ tone: "red", text: res.error });
     }

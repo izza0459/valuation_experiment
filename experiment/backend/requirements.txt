@@ -9,6 +9,8 @@ redis==5.1.1
 Pillow==13.0.0
 pillow-heif==1.3.0  # HEIC (iPhone) uploads
 pypdfium2==4.30.0  # renders uploaded PDFs to page images for thumbnails and the report
+pytesseract==0.3.13  # title-deed OCR with the tesseract binary in the image; nothing leaves the server
+pytesseract==0.3.13  # title-deed OCR with the tesseract binary in the image; nothing leaves the server
 num2words==0.5.13
 WeasyPrint==70.0
 Jinja2==3.1.6

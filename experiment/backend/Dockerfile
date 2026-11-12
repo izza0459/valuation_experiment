@@ -6,10 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # WeasyPrint (PDF report generation) needs Pango/Cairo at the OS level.
+# Tesseract reads scanned title deeds on our own server (apps/media_files/title_deed.py).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libpq-dev \
     libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 \
     libffi-dev shared-mime-info \
+    tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

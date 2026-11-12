@@ -23,7 +23,7 @@ from apps.jobs.models import Job
 from apps.jobs.tabs import TabError, VersionConflict, edit_denial
 from apps.presets.options import options_for
 
-from . import service
+from . import service, title_deed
 from .checks import EXEC_SUMMARY_PHOTOS, requirements
 from .models import Photo
 from .processing import MAX_BYTES
@@ -113,6 +113,10 @@ class MediaListView(_MediaView):
         except TabError as exc:
             return self._fail(exc, job)
         body = {"created": [describe(i, job) for i in result.created], "rejected": result.rejected}
+        # A title deed fills the lead's empty fields from its text (read here, on our server).
+        deeds = [i for i in result.created if kind is service.DOCUMENTS and i.doc_type == title_deed.TITLE_DEED]
+        if deeds and not job.is_locked:
+            body["deed"] = title_deed.fill_from_document(job.pk, request.user, deeds[0]).as_dict()
         if not result.created:
             body.update(code="rejected", detail="None of the files could be added.")
             return Response(body, status=400)
@@ -180,3 +184,32 @@ class MediaFileView(_MediaView):
         # The lead card previews documents in a frame; only our own pages may.
         response["X-Frame-Options"] = "SAMEORIGIN"
         return response
+
+
+
+class TitleDeedReadView(APIView):
+    """POST /api/title-deed/read/ (multipart `file`): what a title deed says,
+    for the New instruction form to fill itself in before the lead exists.
+    Read in memory on this server and thrown away: nothing is stored or sent."""
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"code": "bad_request", "detail": "Choose a file."}, status=400)
+        if upload.size > MAX_BYTES:
+            return Response({"code": "too_large", "detail": "The file is too large to read."}, status=400)
+        data = upload.read()
+        content_type = "application/pdf" if data[:5] == b"%PDF-" else "image"
+        deed = title_deed.parse(title_deed.read_text(data, content_type))
+        return Response({
+            "read": deed.found(),
+            "fields": {
+                "building_name": deed.building_name,
+                "community_name": deed.community,
+                "ownership_name": deed.owners,
+                "property_no": deed.property_no,
+            },
+        })
