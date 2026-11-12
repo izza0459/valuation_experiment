@@ -149,7 +149,8 @@ def parse(text: str) -> DeedFields:
     ], t))
 
     owner_label = r"\bOwner(?:s|'s)?\s*(?:Name)?\s*(?:\((?:English|En)\))?"
-    owners = re.findall(owner_label + _SEP + r"([A-Za-z][A-Za-z .'\-]{2,60})", t, re.IGNORECASE)
+    # Not "Owner ..." itself: an "Owners" heading above "Owner Name: X" lines.
+    owners = re.findall(owner_label + _SEP + r"(?!Owner)([A-Za-z][A-Za-z .'\-]{2,60})", t, re.IGNORECASE)
     seen = []
     for name in owners:
         name = re.sub(r"\s+", " ", name).strip(" .'-")

@@ -80,6 +80,11 @@ class TestParse:
         assert (deed.land_area_sqm, deed.unit_area_sqm) == (Decimal("418.06"), Decimal("310.20"))
         assert deed.owners == ["Omar Al Farsi", "Huda Al Farsi"]
 
+    def test_an_owners_heading_isnt_taken_for_an_owner(self):
+        deed = title_deed.parse("Title Deed\nOwners\nOwner Name (English): Omar Al Farsi Share: 50%\n"
+                                "Owner Name (English): Huda Al Farsi Share: 50%\n")
+        assert deed.owners == ["Omar Al Farsi", "Huda Al Farsi"]
+
     def test_text_that_isnt_a_deed_finds_nothing(self):
         assert not title_deed.parse("Dear valuer, please value this property.").found()
 
