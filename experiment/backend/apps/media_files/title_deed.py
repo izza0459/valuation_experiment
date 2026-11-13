@@ -30,7 +30,10 @@ logger = logging.getLogger(__name__)
 
 TITLE_DEED = "title_deed"
 MAX_PAGES = 3  # a title deed is one or two pages; the rest is attachments
-OCR_DPI = 300
+# 250 DPI reads a deed's 10-pt text well and is about a third quicker than 300
+# on a small server (Render's free tier has a tenth of a CPU).
+OCR_DPI = 250
+OCR_TIMEOUT = 90  # seconds; gunicorn allows 120
 # Fewer letters and digits than this on a page means there's no text layer.
 MIN_TEXT = 40
 
@@ -39,15 +42,14 @@ MIN_TEXT = 40
 
 
 def _ocr(image: Image.Image) -> str:
-    """Tesseract on one image, English and Arabic when both are installed."""
+    """Tesseract on one image, in English: the deed's labels and the fields we
+    take are on its English side, and adding Arabic more than doubles the time."""
     if not shutil.which("tesseract"):
         return ""
     try:
         import pytesseract
 
-        langs = pytesseract.get_languages(config="")
-        lang = "+".join(lang for lang in ("eng", "ara") if lang in langs) or "eng"
-        return pytesseract.image_to_string(image.convert("L"), lang=lang, timeout=60)
+        return pytesseract.image_to_string(image.convert("L"), lang="eng", timeout=OCR_TIMEOUT)
     except Exception:  # OCR is a convenience: never let it break an upload
         logger.warning("OCR failed", exc_info=True)
         return ""
@@ -117,6 +119,7 @@ class DeedFields:
     building_no: str = ""
     building_name: str = ""
     community: str = ""
+    property_type: str = ""  # as the deed says it: Unit, Villa, Land ...
     unit_area_sqm: Decimal | None = None
     land_area_sqm: Decimal | None = None
     owners: list[str] = field(default_factory=list)
@@ -136,6 +139,7 @@ def parse(text: str) -> DeedFields:
     deed.building_no = _first([r"\bBuilding\s*(?:No\.?|Number)" + _SEP + _CODE], t)
     deed.building_name = _first([r"\bBuilding\s*Name" + _SEP + _LINE, r"\bProject\s*Name" + _SEP + _LINE], t)
     deed.community = _first([r"\b(?:Community|Area\s*Name|Location)" + _SEP + _LINE], t)
+    deed.property_type = _first([r"\bProperty\s*Type" + _SEP + r"([A-Za-z][A-Za-z ]{1,30})"], t)
 
     unit = r"(?:sq\.?\s*m(?:eters?|etres?)?|sqm|m2|m²|square\s*met(?:er|re)s?)"
     amount = r"([\d,]+(?:\.\d+)?)"
@@ -160,6 +164,16 @@ def parse(text: str) -> DeedFields:
             seen.append(name)
     deed.owners = seen
     return deed
+
+
+# What a deed's property type means as our Property Category. "Unit" isn't here:
+# on a deed it can be a flat, an office or a shop.
+CATEGORY = {"villa": "villa", "townhouse": "townhouse", "flat": "apartment", "apartment": "apartment",
+            "penthouse": "penthouse", "duplex": "duplex"}
+
+
+def category(deed: DeedFields) -> str:
+    return CATEGORY.get(deed.property_type.strip().lower(), "")
 
 
 # --- filling the lead -------------------------------------------------------------------------------------------

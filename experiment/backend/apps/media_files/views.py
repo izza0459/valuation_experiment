@@ -204,12 +204,26 @@ class TitleDeedReadView(APIView):
         data = upload.read()
         content_type = "application/pdf" if data[:5] == b"%PDF-" else "image"
         deed = title_deed.parse(title_deed.read_text(data, content_type))
+        unit_area, land_area = deed.unit_area_sqm, deed.land_area_sqm
         return Response({
             "read": deed.found(),
+            # False: a scan or photo can't be read on this server (no OCR installed).
+            "ocr": title_deed.ocr_available(),
+            # The form's own fields.
             "fields": {
                 "building_name": deed.building_name,
                 "community_name": deed.community,
                 "ownership_name": deed.owners,
-                "property_no": deed.property_no,
+                "unit_number": deed.property_no,
+                "property_category": title_deed.category(deed),
+            },
+            # The rest: saved to the lead when the deed is uploaded with it.
+            "also": {
+                "Property No.": deed.property_no,
+                "Plot No.": deed.plot_no,
+                "Municipality No.": deed.municipality_no,
+                "Building No.": deed.building_no,
+                "BUA": f"{unit_area} sqm" if unit_area is not None else "",
+                "Plot area": f"{land_area} sqm" if land_area is not None else "",
             },
         })

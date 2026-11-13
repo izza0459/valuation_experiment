@@ -85,6 +85,10 @@ class TestParse:
                                 "Owner Name (English): Huda Al Farsi Share: 50%\n")
         assert deed.owners == ["Omar Al Farsi", "Huda Al Farsi"]
 
+    def test_a_villa_deed_names_its_category(self):
+        deed = title_deed.parse(VILLA_DEED)
+        assert (deed.property_type, title_deed.category(deed)) == ("Villa", "villa")
+
     def test_text_that_isnt_a_deed_finds_nothing(self):
         assert not title_deed.parse("Dear valuer, please value this property.").found()
 
@@ -171,9 +175,14 @@ class TestReadBeforeTheLeadExists:
         res = client.post("/api/title-deed/read/", {"file": upload_file("deed.pdf", text_pdf(UNIT_DEED))},
                           format="multipart")
         assert res.status_code == 200, res.json()
-        assert res.json() == {"read": True, "fields": {
+        body = res.json()
+        assert body["read"] is True
+        assert body["fields"] == {
             "building_name": "Marina Gate 1", "community_name": "Marsa Dubai",
-            "ownership_name": ["Layla Hassan"], "property_no": "2304"}}
+            "ownership_name": ["Layla Hassan"], "unit_number": "2304",
+            # "Unit" on a deed can be a flat, an office or a shop: left for the person.
+            "property_category": ""}
+        assert body["also"]["Plot No."] == "392" and body["also"]["BUA"] == "120.50 sqm"
         assert not Document.objects.exists()
 
     def test_signed_in_only(self):

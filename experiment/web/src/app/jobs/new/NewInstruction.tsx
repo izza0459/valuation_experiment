@@ -151,17 +151,23 @@ export function NewInstruction() {
   }
 
   /** A title deed fills this form's empty fields: read on our server, nothing
-   * stored. Its numbers and area go into the lead once it's created. */
+   * stored. Its other numbers and area go into the lead once it's created. */
   async function readDeed(file: File) {
     setDeedNote({ tone: "muted", text: "Reading the title deed…" });
     const form = new FormData();
     form.append("file", file);
     try {
-      const res = await apiFetch<{ read: boolean; fields: { building_name: string; community_name: string;
-        ownership_name: string[] } }>("/api/title-deed/read/", { method: "POST", body: form });
+      const res = await apiFetch<{
+        read: boolean; ocr: boolean;
+        fields: { building_name: string; community_name: string; ownership_name: string[]; unit_number: string;
+          property_category: string };
+        also: Record<string, string>;
+      }>("/api/title-deed/read/", { method: "POST", body: form });
       const found: Record<string, unknown> = {
+        unit_number: res.fields.unit_number,
         building_name: res.fields.building_name,
         community_name: res.fields.community_name,
+        property_category: res.fields.property_category,
         ownership_name: res.fields.ownership_name?.length ? res.fields.ownership_name : "",
       };
       const empty = (v: unknown) => v == null || v === "" || (Array.isArray(v) && v.every((x) => !String(x).trim()));
@@ -169,17 +175,22 @@ export function NewInstruction() {
       if (filled.length) {
         setValues((v) => ({ ...v, ...Object.fromEntries(filled.map((k) => [k, found[k]])) }));
       }
-      const names: Record<string, string> = { building_name: "Building Name", community_name: "Community Name",
-        ownership_name: "Owner name(s)" };
+      const names: Record<string, string> = { unit_number: "Unit Number", building_name: "Building Name",
+        community_name: "Community Name", property_category: "Property Category", ownership_name: "Owner name(s)" };
+      // The deed's other details have no field on this form: they're saved to the lead with the deed.
+      const also = Object.entries(res.also ?? {}).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`);
+      const later = also.length ? ` Also read, saved to the lead when it's created: ${also.join(", ")}.` : "";
       setDeedNote(
         !res.read
-          ? { tone: "muted", text: "Couldn't read this deed. Fill the details in by hand." }
+          ? { tone: "muted", text: res.ocr
+            ? "Couldn't read this deed. Fill the details in by hand."
+            : "This deed has no text to read (a scan or photo), and this server can't read scans: OCR isn't installed here. Fill the details in by hand." }
           : filled.length
-            ? { tone: "green", text: `Filled from the title deed: ${filled.map((k) => names[k]).join(", ")}. Its numbers and area go into the lead when it's created.` }
-            : { tone: "muted", text: "Read the title deed. Its numbers and area go into the lead when it's created." },
+            ? { tone: "green", text: `Filled from the title deed: ${filled.map((k) => names[k]).join(", ")}.${later}` }
+            : { tone: "muted", text: `Read the title deed; this form's fields were already filled in.${later}` },
       );
     } catch {
-      setDeedNote({ tone: "muted", text: "Couldn't read this deed. Fill the details in by hand." });
+      setDeedNote({ tone: "muted", text: "Couldn't reach the deed reader, or it took too long. Fill the details in by hand." });
     }
   }
 
