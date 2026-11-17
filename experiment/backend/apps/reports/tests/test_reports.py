@@ -243,6 +243,12 @@ class TestContent:
 # --- rendering ------------------------------------------------------------------------------------------
 
 
+def section(number, title, kind="Section"):
+    """A section's head as the template prints it: its number badge, then the title."""
+    badge = f"{number:02d}" if isinstance(number, int) else number
+    return f'<span class="badge">{badge}</span>{kind}</div><h2>{title}</h2>'
+
+
 class TestRendering:
     def html(self, job):
         return render_html(choose_template(job), build_context(job))
@@ -257,10 +263,12 @@ class TestRendering:
         job.location.property_specification = "A one-bedroom apartment."
         job.location.save()
         html = self.html(job)
-        for heading in ("1. Executive Summary", "2. Terms of Engagement", "3. Extent of Due Diligence",
-                        "4. Property Analysis", "5. Market Commentary", "6. Valuation Methodology",
-                        "7. Opinion of Market Value", "8. Disclaimer", "Appendix 1", "Appendix 2", "Appendix 3"):
-            assert heading in html, heading
+        for n, title in enumerate(("Executive Summary", "Terms of Engagement", "Extent of Due Diligence",
+                                   "Property Analysis", "Market Commentary", "Valuation Methodology",
+                                   "Opinion of Market Value", "Disclaimer"), 1):
+            assert section(n, title) in html, title
+        for n, title in enumerate(("Terms and Conditions", "General Assumptions", "Bases of Valuation"), 1):
+            assert section(f"A{n}", title, f"Appendix {n}") in html, title
 
     def test_a_section_with_nothing_filled_in_is_left_out_and_the_rest_renumbered(self, job):
         """No market commentary: no section for it, and Valuation Methodology
@@ -269,7 +277,8 @@ class TestRendering:
         job.location.save()
         html = self.html(job)
         assert "Market Commentary" not in html
-        assert "5. Valuation Methodology" in html and "6. Opinion of Market Value" in html and "7. Disclaimer" in html
+        assert section(5, "Valuation Methodology") in html and section(6, "Opinion of Market Value") in html
+        assert section(7, "Disclaimer") in html
         assert "<h3>Description</h3>" in html
         for empty in ("<h3>Accommodation</h3>", "<h3>Building specification</h3>", "<h3>Tenancy</h3>",
                       "<h3>Comparable evidence</h3>", "<h3>Information provided</h3>", "<p>—</p>"):

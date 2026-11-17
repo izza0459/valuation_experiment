@@ -44,6 +44,22 @@
 <figure>{% if p.src %}<img src="{{ p.src }}" alt="">{% else %}<div class="missing-image">Photograph unavailable</div>{% endif %}<figcaption>{{ p.caption }}</figcaption></figure>
 {%- endmacro %}
 
+{#- A section's head: its number badge, then the title. #}
+{% macro head(no, title, kind="Section") -%}
+<header class="sec-head"><div class="kick"><span class="badge">{{ no }}</span>{{ kind }}</div><h2>{{ title }}</h2></header>
+{%- endmacro %}
+
+{#- A label on the left, its content on the right. #}
+{% macro item(label) -%}
+<div class="item"><h3>{{ label }}</h3><div>{{ caller() }}</div></div>
+{%- endmacro %}
+
+{#- The rows of `rows` whose label is one of `wanted`, as a card. #}
+{% macro card(title, rows, wanted, cls="") -%}
+{% set picked = rows | selectattr("label", "in", wanted) | list %}
+{% if picked %}<div class="card {{ cls }}"><div class="ct">{{ title }}</div>{{ table(picked) }}</div>{% endif %}
+{%- endmacro %}
+
 {% macro signature(person, role) -%}
 <div class="signature">
   <div class="sig-line"></div>
@@ -76,18 +92,28 @@
 {% set has_location = text.sub_community or text.location or property.map_src or property.coordinates %}
 {% set has_analysis = has_location or text.specification or acc_rows or building_specification or text.amenities
    or text.condition or text.repairs or tenancy or reinstatement %}
+{% set shown_address = property.inspected_address or property.address or "" %}
+{% set short_address = shown_address.split(",")[:2] | join(",") %}
+{% set initial = (firm.name or "B")[:1] %}
+
+{# ---------- Running header and footer (print) ---------- #}
+<div class="runhead"><span class="brand"><span class="badge-b">{{ initial }}</span>{{ firm.name }}</span><span>Valuation Report · <b>{{ short_address }}</b></span></div>
+<div class="runfoot"><span>Valuation Ref No.: <b>{{ meta.ref_no }}</b>{% if meta.version > 1 %} (version {{ meta.version }}){% endif %}</span><span>Confidential · {{ client.name }}</span><span class="pg">Page  |</span></div>
 
 {# ---------- Cover ---------- #}
 <section class="cover">
-  <div class="logo">{{ firm.name }}</div>
-  <h1>Valuation Report</h1>
-  <p class="cover-address">{{ property.address or "—" }}</p>
-  <table class="kv cover-table">
-    <tr><th>Valuation Ref No.</th><td>{{ meta.ref_no }}{% if meta.version > 1 %} (version {{ meta.version }}){% endif %}</td></tr>
-    <tr><th>Valuation date</th><td>{{ dates.valuation or "—" }}</td></tr>
-    <tr><th>Prepared for</th><td>{{ client.name }}</td></tr>
-    <tr><th>Prepared by</th><td>{{ firm.name }}</td></tr>
-  </table>
+  <svg class="cover-bars" viewBox="0 0 210 190" preserveAspectRatio="none" aria-hidden="true">
+    <g fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="0.35">
+      <rect x="-2" y="95" width="18" height="100"/><rect x="24" y="70" width="18" height="125"/>
+      <rect x="48" y="45" width="30" height="150"/><line x1="48" y1="56" x2="78" y2="56"/>
+      <rect x="84" y="2" width="23" height="193"/><line x1="84" y1="11" x2="107" y2="11"/><line x1="84" y1="23" x2="107" y2="23"/>
+      <line x1="84" y1="35" x2="107" y2="35"/><line x1="84" y1="47" x2="107" y2="47"/><line x1="84" y1="59" x2="107" y2="59"/>
+      <rect x="113" y="54" width="20" height="141"/><rect x="139" y="28" width="27" height="167"/>
+      <line x1="139" y1="39" x2="166" y2="39"/><line x1="139" y1="51" x2="166" y2="51"/>
+      <rect x="172" y="69" width="19" height="126"/><rect x="197" y="44" width="16" height="151"/>
+    </g>
+  </svg>
+  <div class="cover-mast"><span class="badge-b">{{ initial }}</span>{{ firm.name }}</div>
   {% if meta.is_draft %}
   <div class="draft-box">
     <strong>DRAFT – not issued.</strong>
@@ -97,23 +123,75 @@
     {% endif %}
   </div>
   {% endif %}
+  <div class="cover-body">
+    <div class="cover-kick">{{ firm.name }}</div>
+    <h1>Valuation Report</h1>
+    <p class="cover-address">{{ shown_address or "—" }}</p>
+  </div>
+  <div class="cover-meta">
+    <div><div class="k">Valuation Ref No.</div><div class="v">{{ meta.ref_no }}{% if meta.version > 1 %} (v{{ meta.version }}){% endif %}</div></div>
+    <div><div class="k">Valuation date</div><div class="v">{{ dates.valuation or "—" }}</div></div>
+    <div><div class="k">Prepared for</div><div class="v">{{ client.name }}</div></div>
+    <div><div class="k">Prepared by</div><div class="v">{{ firm.name }}</div></div>
+  </div>
 </section>
 
-{# ---------- 1 Executive summary ---------- #}
+{# ---------- Executive summary ---------- #}
 <section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Executive Summary</h2>
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Executive Summary") }}
   {% if exec_photos %}
   <div class="photo-row">{% for p in exec_photos %}{{ photo(p) }}{% endfor %}</div>
   {% elif meta.is_draft %}
   <p class="note">Executive-summary photographs have not been attached.</p>
   {% endif %}
 
-  <h3>Property details</h3>
-  {{ table(property_details) }}
+  <div class="stats">
+    <div><div class="n big">{{ headline.value or "—" }}</div><div class="k">Market value</div></div>
+    <div><div class="n">{{ headline.rate or "—" }}{% if headline.rate %}<small>AED / sqft</small>{% endif %}</div><div class="k">Market value rate</div></div>
+    <div><div class="n{{ ' long' if headline.rent and not headline.rent_plain }}">{{ headline.rent or "—" }}{% if headline.rent_plain %}<small>AED p.a.</small>{% endif %}</div><div class="k">Market rent</div></div>
+    <div><div class="n">{{ headline.bua_sqft or "—" }}{% if headline.bua_sqft %}<small>sqft</small>{% endif %}</div><div class="k">Built-up area</div></div>
+  </div>
 
-  <h3>Valuation summary</h3>
-  {{ table(valuation_summary) }}
+  {% set g_client = ["Client", "Valuation Ref No.", "Bank reference", "Applicant", "Applicants", "Owner", "Owners", "Occupancy"] %}
+  {% set g_interest = ["Interest valued", "Lease expiry", "Acquisition method", "Type of property", "Developer", "Upgrades / modifications"] %}
+  {% set g_areas = ["Built-up area", "Plot area", "Floor", "Total no. of floors"] %}
+  {% set g_age = ["Year built", "Age of the property", "Remaining economic life", "Utilities"] %}
+  {% set grouped = g_client + g_interest + g_areas + g_age %}
+  {% set g_address = property_details | rejectattr("label", "in", grouped) | map(attribute="label") | list %}
+
+  <div class="label">Property details</div>
+  <div class="cards">
+    {{ card("Client & references", property_details, g_client) }}
+    {{ card("Interest & type", property_details, g_interest) }}
+  </div>
+  <div class="cards">{{ card("Address & location", property_details, g_address, "wide") }}</div>
+  <div class="cards">
+    {{ card("Areas & floors", property_details, g_areas) }}
+    {{ card("Age & services", property_details, g_age) }}
+  </div>
   {% if bua_assumed_note %}<p class="note">{{ bua_assumed_note }}</p>{% endif %}
+
+  {% set vs = {} %}
+  {% for r in valuation_summary %}{% set _ = vs.update({r.label: r.value}) %}{% endfor %}
+  {% set v_panel = ["Market Value", "Market Value in words", "Market Value rate", "Market Rent"] %}
+  {% set v_dates = ["Date of instruction", "Date of inspection", "Type of inspection", "Date of valuation", "Date of report"] %}
+  <div class="label">Valuation summary</div>
+  <div class="vsum">
+    <div class="vl">
+      <div class="k">Market value</div>
+      <div class="big">{{ vs.get("Market Value") or "—" }}</div>
+      <div class="words">{{ vs.get("Market Value in words", "") }}</div>
+      {% if vs.get("Market Value rate") %}<div class="k">Market value rate</div><div class="sm">{{ vs.get("Market Value rate") }}</div>{% endif %}
+      {% if vs.get("Market Rent") %}<div class="k">Market rent</div><div class="sm">{{ vs.get("Market Rent") }}</div>{% endif %}
+    </div>
+    <div class="vr">{{ table(valuation_summary | rejectattr("label", "in", v_panel + v_dates) | list) }}</div>
+  </div>
+  <div class="dates">
+    <div><div class="k">Date of instruction</div><div class="v">{{ vs.get("Date of instruction", "—") }}</div></div>
+    <div><div class="k">Date of inspection</div><div class="v">{{ vs.get("Date of inspection", "—") }}</div>{% if vs.get("Type of inspection") %}<div class="s">Type of inspection: {{ vs.get("Type of inspection") }}</div>{% endif %}</div>
+    <div><div class="k">Date of valuation</div><div class="v">{{ vs.get("Date of valuation", "—") }}</div></div>
+    <div><div class="k">Date of report</div><div class="v">{{ vs.get("Date of report", "—") }}</div></div>
+  </div>
 
   <div class="signatures">
     {{ signature(valuer, "Valuer") }}
@@ -121,18 +199,20 @@
   </div>
 </section>
 
-{# ---------- 2 Terms of engagement ---------- #}
+{# ---------- Terms of engagement ---------- #}
 <section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Terms of Engagement</h2>
-  <h3>Addressee</h3>
-  <p>{{ client.name }}{% if client.billing_address %}<br>{{ client.billing_address }}{% endif %}{% if client.po_box %}<br>PO Box {{ client.po_box }}{% endif %}</p>
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Terms of Engagement") }}
+  {% call item("Addressee") %}
+  <p><strong>{{ client.name }}</strong>{% if client.billing_address %}<br>{{ client.billing_address }}{% endif %}{% if client.po_box %}<br>PO Box {{ client.po_box }}{% endif %}</p>
   <p>To be relied upon by {{ client.name }}{% if purpose %} for {{ purpose | lower }} purposes{% endif %} only.</p>
+  {% endcall %}
 
-  <h3>Standards</h3>
+  {% call item("Standards") %}
   <p>This Valuation Report has been prepared in accordance with the Emirates Book of Valuation Standards (EBVS) and the RICS Valuation – Global Standards (effective {{ terms.standards_effective }}).</p>
   <p>The RICS Valuation – Global Standards incorporate and are consistent with the International Valuation Standards (IVS).</p>
+  {% endcall %}
 
-  <h3>Basis of valuation</h3>
+  {% call item("Basis of valuation") %}
   {% if valuation.basis_key in ("market_value", "market_value_transferable_title") %}
   <p>The valuation has been prepared on the basis of {{ valuation.basis }} as defined in the International Valuation Standards and adopted by RICS:</p>
   <p class="quote">“{{ market_value_definition }}”</p>
@@ -141,52 +221,59 @@
   {% else %}
   <p>The valuation has been prepared on the basis of {{ valuation.basis or "—" }}, as defined in Appendix 3.</p>
   {% endif %}
+  {% endcall %}
 
-  <h3>Independence and objectivity</h3>
+  {% call item("Independence and objectivity") %}
   <p>We confirm that neither the Valuer nor {{ firm.name }} has any pecuniary interest giving rise to a conflict of interest in valuing the property. This report represents our independent and objective opinion.</p>
+  {% endcall %}
 
-  <h3>Disclosure</h3>
+  {% call item("Disclosure") %}
   {% if text.disclosure %}<p class="prose">{{ text.disclosure }}</p>{% endif %}
   <p>The total fees earned by {{ firm.name }} from the Client, including the fee for this report, represent less than {{ terms.fee_share_pct }}% of our total revenues.</p>
+  {% endcall %}
 
-  <h3>Knowledge and skills of valuer</h3>
+  {% call item("Knowledge and skills of valuer") %}
   <p>We confirm that we have sufficient knowledge of the relevant local and national property markets, and the skills and understanding to undertake the valuation competently.</p>
+  {% endcall %}
 
   {# Report text inputs (Oct 2026): the opening paragraphs print in every report. #}
-  <h3>Assumptions</h3>
+  {% call item("Assumptions") %}
   <p>In preparing this valuation, {{ firm.name }} has relied on a number of assumptions. These are matters treated as true for the purposes of this assignment without independent investigation or verification. They form part of the basis on which the valuation has been prepared and should be read together with the opinion of value set out in this report.</p>
-  <p>An Assumption is defined in the RICS Valuation – Global Standards (the “Red Book”) as: <em>“A supposition taken to be true. It involves facts, conditions or situations affecting the subject of, or approach to, a valuation that, by agreement, do not need to be verified by the valuer as part of the valuation process. Typically, an assumption is made where specific investigation by the valuer is not required in order to prove that something is true.”</em></p>
+  <p>An Assumption is defined in the RICS Valuation – Global Standards (the “Red Book”) as:</p>
+  <p class="quote">“A supposition taken to be true. It involves facts, conditions or situations affecting the subject of, or approach to, a valuation that, by agreement, do not need to be verified by the valuer as part of the valuation process. Typically, an assumption is made where specific investigation by the valuer is not required in order to prove that something is true.”</p>
   <p>In preparing this valuation, we have adopted a number of Assumptions. These are referred to throughout this report and set out in full in Appendix 2.</p>
   {% if text.assumptions %}{{ entries(text.assumptions) }}{% endif %}
+  {% endcall %}
 
-  <h3>Special assumptions</h3>
-  <p>A Special Assumption is defined in the RICS Valuation – Global Standards (the “Red Book”) as: <em>“An assumption that either assumes facts that differ from the actual facts existing at the valuation date or that would not be made by a typical market participant in a transaction on the valuation date.”</em></p>
-  {% if text.special_assumptions %}<p>For the purpose of this report, {{ firm.name }} has adopted the following Special Assumptions.</p>{{ entries(text.special_assumptions) }}{% else %}<p>No Special Assumptions have been adopted.</p>{% endif %}
+  {% call item("Special assumptions") %}
+  <p>A Special Assumption is defined in the RICS Valuation – Global Standards (the “Red Book”) as:</p>
+  <p class="quote">“An assumption that either assumes facts that differ from the actual facts existing at the valuation date or that would not be made by a typical market participant in a transaction on the valuation date.”</p>
+  {% if text.special_assumptions %}<p>For the purpose of this report, {{ firm.name }} has adopted the following Special Assumptions.</p>{{ entries(text.special_assumptions) }}{% else %}<p><strong>No Special Assumptions have been adopted.</strong></p>{% endif %}
+  {% endcall %}
 
   {% if text.other_matters %}
-  <h3>Other matters</h3>
-  {{ entries(text.other_matters) }}
+  {% call item("Other matters") %}{{ entries(text.other_matters) }}{% endcall %}
   {% endif %}
 </section>
 
-{# ---------- 3 Due diligence ---------- #}
-<section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Extent of Due Diligence</h2>
+{# ---------- Due diligence ---------- #}
+<section class="cont">
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Extent of Due Diligence") }}
   <p>{% if desktop %}This is a desktop valuation: the subject property was not inspected. It has been prepared from the information provided and other available sources, and the property is assumed to be in a condition consistent with its age and type.{% elif inspection_type %}The subject property was inspected{% if inspector %} by {{ inspector }}{% endif %}{% if inspection_date %} on {{ inspection_date }}{% endif %} ({{ inspection_type }}). The inspection was non-intrusive and limited to accessible, visible areas.{% else %}The type and date of inspection have not been recorded.{% endif %}</p>
 
   {% if information_provided %}
-  <h3>Information provided</h3>
-  <ul>{% for item in information_provided %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% call item("Information provided") %}<div class="pills">{% for i in information_provided %}<span class="pill">{{ i }}</span>{% endfor %}</div>{% endcall %}
   {% endif %}
 
   {% if areas %}
-  <h3>Property areas</h3>
+  {% call item("Property areas") %}
   <table class="grid">
     <tr><th>Item</th><th>Area</th><th>Source</th></tr>
     {% for r in areas %}
     <tr><td>{{ r.label }}</td><td>{{ r.value }}</td><td>{{ (bua_source if r.label == "Built-up area" else plot_source) or "" }}</td></tr>
     {% endfor %}
   </table>
+  {% endcall %}
   {% endif %}
   {% if bua_assumed_note %}<p class="note">{{ bua_assumed_note }}</p>{% endif %}
 </section>
@@ -194,11 +281,13 @@
 {# ---------- Property analysis: only what was filled in ---------- #}
 {% if has_analysis %}
 <section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Property Analysis</h2>
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Property Analysis") }}
   {% if has_location %}
-  <h3>Location</h3>
+  <div class="label">Location</div>
+  <div class="loc-text">
   {% if text.sub_community %}<p class="prose">{{ text.sub_community }}</p>{% endif %}
   {% if text.location %}<p class="prose">{{ text.location }}</p>{% endif %}
+  </div>
   {% if property.map_src %}
   <figure class="map"><img src="{{ property.map_src }}" alt="Location map"><figcaption>Location map · {{ property.coordinates }}</figcaption></figure>
   {% elif property.coordinates %}
@@ -207,41 +296,41 @@
   {% endif %}
 
   {% if text.specification %}
-  <h3>Description</h3>
-  <div class="paras">{{ text.specification|paras }}</div>
+  {% call item("Description") %}<div class="paras">{{ text.specification|paras }}</div>{% endcall %}
   {% endif %}
 
   {% if acc_rows %}
-  <h3>Accommodation</h3>
+  {% call item("Accommodation") %}
   <table class="grid">
     <tr><th>Floor</th><th>Accommodation</th></tr>
     {% for row in acc_rows %}
     <tr><td>{{ row.floor }}</td><td>{{ row.rooms | join(", ") }}</td></tr>
     {% endfor %}
   </table>
+  {% endcall %}
   {% endif %}
 
   {% if building_specification %}
-  <h3>Building specification</h3>
-  {{ table(building_specification) }}
+  {% call item("Building specification") %}{{ table(building_specification) }}{% endcall %}
   {% endif %}
 
-  {% if text.amenities %}<h3>Communal amenities</h3><p class="prose">{{ text.amenities }}</p>{% endif %}
+  {% if text.amenities %}
+  {% call item("Communal amenities") %}<div class="pills">{% for a in text.amenities.split(",") if a.strip() %}<span class="pill">{{ a.strip() }}</span>{% endfor %}</div>{% endcall %}
+  {% endif %}
 
   {% if text.condition or text.repairs %}
-  <h3>Condition</h3>
+  {% call item("Condition") %}
   {% if text.condition %}<div class="paras">{{ text.condition|paras }}</div>{% endif %}
-  {% if text.repairs %}<p class="prose"><strong>Repairs noted:</strong> {{ text.repairs }}</p>{% endif %}
+  {% if text.repairs %}<p class="prose callout"><strong>Repairs noted:</strong> {{ text.repairs }}</p>{% endif %}
+  {% endcall %}
   {% endif %}
 
   {% if tenancy %}
-  <h3>Tenancy</h3>
-  <p class="prose">{{ tenancy }}</p>
+  {% call item("Tenancy") %}<p class="prose">{{ tenancy }}</p>{% endcall %}
   {% endif %}
 
   {% if reinstatement %}
-  <h3>Reinstatement cost</h3>
-  <p class="prose">{{ reinstatement }}</p>
+  {% call item("Reinstatement cost") %}<p class="prose">{{ reinstatement }}</p>{% endcall %}
   {% endif %}
 </section>
 {% endif %}
@@ -249,32 +338,56 @@
 {# ---------- Market commentary: only when written ---------- #}
 {% if text.market_commentary %}
 <section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Market Commentary</h2>
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Market Commentary") }}
   <p class="prose">{{ text.market_commentary }}</p>
 </section>
 {% endif %}
 
-{# ---------- 6 Valuation methodology ---------- #}
-<section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Valuation Methodology</h2>
+{# ---------- Valuation methodology ---------- #}
+<section class="{{ 'cont' if text.market_commentary else '' }}">
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Valuation Methodology") }}
   <p>The market approach, comparable method, has been used: the property is valued by reference to prices achieved for, or asked for, similar properties, adjusted for the differences between them and the subject.</p>
-  {% if text.valuation_commentary %}<h3>Valuation commentary</h3><p class="prose">{{ text.valuation_commentary }}</p>{% endif %}
-  {% for c in text.type_commentary or [] %}<h3>{{ c.title }}</h3><p class="prose">{{ c.body }}</p>{% endfor %}
+  {% if text.valuation_commentary %}<h3 class="label">Valuation commentary</h3><p class="prose">{{ text.valuation_commentary }}</p>{% endif %}
+  {% if text.type_commentary %}
+  <div class="type-cards">{% for c in text.type_commentary %}<div class="card"><b>{{ c.title }}</b><span class="prose">{{ c.body }}</span></div>{% endfor %}</div>
+  {% endif %}
 
   {% if comparables %}
-  <h3>Comparable evidence</h3>
+  <h3 class="label">Comparable evidence</h3>
   <table class="grid">
-    <tr><th>Building / district</th><th>Views</th><th>Floor</th><th>BUA (sqft)</th>{% if plot_bearing %}<th>Plot (sqft)</th>{% endif %}<th>Type</th><th>Price (AED)</th><th>AED / sqft</th><th>Date / status</th></tr>
+    <tr><th>Building / district</th><th>Views</th><th>Floor</th><th class="num">BUA (sqft)</th>{% if plot_bearing %}<th class="num">Plot (sqft)</th>{% endif %}<th>Type</th><th class="num">Price (AED)</th><th class="num">AED / sqft</th><th>Date / status</th></tr>
     {% for c in comparables %}
-    <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.floor }}</td><td>{{ c.bua_sqft }}</td>{% if plot_bearing %}<td>{{ c.plot_sqft }}</td>{% endif %}<td>{{ c.type }}</td><td>{{ c.price }}</td><td>{{ c.rate }}</td><td>{{ c.transaction }}</td></tr>
+    <tr><td>{{ c.district }}</td><td>{{ c.views }}</td><td>{{ c.floor }}</td><td class="num">{{ c.bua_sqft }}</td>{% if plot_bearing %}<td class="num">{{ c.plot_sqft }}</td>{% endif %}<td>{{ c.type }}</td><td class="num">{{ c.price }}</td><td class="num">{{ c.rate }}</td><td>{{ c.transaction }}</td></tr>
     {% endfor %}
   </table>
+  {% if chart %}
+  <div class="chart">
+    <div class="ct">Comparable evidence · AED / sqft</div>
+    <svg viewBox="0 0 600 230" font-family="IBM Plex Mono, monospace">
+      {% for t in chart.ticks %}
+      <line x1="{{ chart.left }}" x2="{{ chart.right }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#e3e6e4" stroke-width="{{ 1 if loop.first else 0.6 }}"/>
+      <text x="{{ chart.left - 8 }}" y="{{ t.y + 3 }}" text-anchor="end" font-size="9" fill="#8a918d">{{ t.label }}</text>
+      {% endfor %}
+      {% for b in chart.bars %}
+      <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="3" fill="{{ '#123d28' if b.top else '#1e6b45' }}"/>
+      <text x="{{ b.cx }}" y="{{ b.y - 6 }}" text-anchor="middle" font-size="10" font-weight="600" fill="#1b1f1d">{{ b.value }}</text>
+      <text x="{{ b.cx }}" y="{{ chart.base + 14 }}" text-anchor="middle" font-size="8" font-weight="600" fill="#1b1f1d" font-family="IBM Plex Sans, sans-serif">{{ b.label }}</text>
+      <text x="{{ b.cx }}" y="{{ chart.base + 26 }}" text-anchor="middle" font-size="8" fill="#8a918d" font-family="IBM Plex Sans, sans-serif">{{ b.sub }}</text>
+      {% endfor %}
+      {% if chart.subject_y is not none %}
+      <line x1="{{ chart.left }}" x2="{{ chart.right }}" y1="{{ chart.subject_y }}" y2="{{ chart.subject_y }}" stroke="#a86a12" stroke-width="1.2" stroke-dasharray="5 4"/>
+      <text x="{{ chart.right }}" y="{{ chart.subject_y - 6 }}" text-anchor="end" font-size="8" font-weight="600" fill="#a86a12" font-family="IBM Plex Sans, sans-serif">Subject · Market Value rate</text>
+      <text x="{{ chart.right }}" y="{{ chart.subject_y + 13 }}" text-anchor="end" font-size="9" font-weight="600" fill="#a86a12">{{ chart.subject }}</text>
+      {% endif %}
+    </svg>
+  </div>
+  {% endif %}
   {% endif %}
 </section>
 
-{# ---------- 7 Opinion of market value ---------- #}
+{# ---------- Opinion of market value ---------- #}
 <section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Opinion of Market Value</h2>
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Opinion of Market Value") }}
   <p>Having carefully considered the matter, we are of the opinion that the {{ valuation.basis or "value" }} of the {% if interest %}{{ interest }} {% endif %}interest in the subject property, {{ "subject to the existing tenancy" if tenanted else "assuming vacant possession" }}, as at {{ dates.valuation or "the valuation date" }}, is fairly represented in the sum of:</p>
   <div class="value-box">
     <div class="value-figure">{{ valuation.market_value or "—" }}</div>
@@ -283,8 +396,8 @@
   <p>The above value is provided gross of any land transfer charges, legal costs or sales fees. These costs are subject to negotiation, and transfer fees may change without public consultation. They may be shared between vendor and purchaser or borne by one party, typically depending on relative negotiating positions.</p>
   <p>This valuation report has been prepared by the valuer for and on behalf of {{ firm.name }}. The valuer confirms they have the requisite local knowledge and skills to undertake the valuation competently. The signatory also confirms the report is genuine and authorised by {{ legal_name() }}.</p>
   {% if valuation.uncertainty and valuation.uncertainty_note %}
-  <h3>Special note</h3>
-  <p class="prose">{{ valuation.uncertainty_note }}</p>
+  <h3 class="label">Special note</h3>
+  <p class="prose callout">{{ valuation.uncertainty_note }}</p>
   {% endif %}
   <div class="signatures">
     {{ signature(valuer, "Valuer") }}
@@ -292,19 +405,21 @@
   </div>
 </section>
 
-{# ---------- 8 Disclaimer ---------- #}
-<section>
-  {% set sec.n = sec.n + 1 %}<h2>{{ sec.n }}. Disclaimer</h2>
+{# ---------- Disclaimer ---------- #}
+<section class="cont">
+  {% set sec.n = sec.n + 1 %}{{ head("%02d" % sec.n, "Disclaimer") }}
+  <div class="disclaimer">
   <p>This report has been prepared on the basis that there has been full disclosure of all information and facts that may affect the valuation.</p>
   <p>This report is provided solely for the stated purpose and for the use of the party to whom it is addressed. It is confidential to the Client and may not be disclosed to any third party, or reproduced in whole or in part in any document, circular or statement, without the prior written consent of {{ firm.name }}. No responsibility is accepted to any third party for the whole or any part of its contents.</p>
+  </div>
 </section>
 
 {# ---------- Appendices ---------- #}
 {% set f = firm.name %}
 <section class="terms">
-  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Terms and Conditions</h2>
-  <p>Thank you for instructing {{ f }} to conduct a valuation of your property. Set out below are {{ f }}’s Terms &amp; Conditions of Business (“Terms of Engagement”), which you should read carefully. These Terms of Engagement form an integral part of every proposal, contract and agreement for the provision of valuation services by {{ f }}.</p>
-
+  {% set app.n = app.n + 1 %}{{ head("A%d" % app.n, "Terms and Conditions", "Appendix %d" % app.n) }}
+  <p class="intro">Thank you for instructing {{ f }} to conduct a valuation of your property. Set out below are {{ f }}’s Terms &amp; Conditions of Business (“Terms of Engagement”), which you should read carefully. These Terms of Engagement form an integral part of every proposal, contract and agreement for the provision of valuation services by {{ f }}.</p>
+  <div class="tc-cols">
   <h3>1. Definitions and Interpretation</h3>
   <h4>The Client</h4>
   <p>A person or persons who at any relevant time own, or have a formal interest in, the property that gives them the right to possession of the property, or the person duly authorised to instruct {{ f }} to provide the Services below.</p>
@@ -327,82 +442,84 @@
   <p>In carrying out the Services, {{ f }} will exercise the degree of skill, diligence, prudence and foresight reasonably expected of a skilled and experienced consultant of international repute engaged in the same or similar activities as the Services, under the same or similar circumstances as those contemplated in the proposal to which these Terms of Engagement apply.</p>
 
   <h3>3. Fees and Expenses</h3>
-  <p>3.1 The fees for the Services are calculated in accordance with the Fee Structure of the Valuation Proposal.</p>
-  <p>3.2 The Client agrees to reimburse {{ f }} for all expenses, as identified or otherwise agreed, which are properly and reasonably incurred by {{ f }} in the provision of the Services, provided that the Client is given appropriate receipts or other reasonable evidence of such expenditure. Such expenses may include, without limitation, travel, accommodation, subsistence, telephone, postage, copying, photography and advertising, or as otherwise agreed.</p>
-  <p>3.3 {{ f }} may require payments on account before commencing or completing any Services. In such event, the amount of the payment on account shall be calculated having regard to the programme for performance of the Services and the likely timing and amount of expenses to be incurred.</p>
-  <p>3.4 The fees are exclusive of value added tax which, where applicable, will be charged to the Client at the prevailing rate.</p>
+  <p><span class="cl">3.1</span> The fees for the Services are calculated in accordance with the Fee Structure of the Valuation Proposal.</p>
+  <p><span class="cl">3.2</span> The Client agrees to reimburse {{ f }} for all expenses, as identified or otherwise agreed, which are properly and reasonably incurred by {{ f }} in the provision of the Services, provided that the Client is given appropriate receipts or other reasonable evidence of such expenditure. Such expenses may include, without limitation, travel, accommodation, subsistence, telephone, postage, copying, photography and advertising, or as otherwise agreed.</p>
+  <p><span class="cl">3.3</span> {{ f }} may require payments on account before commencing or completing any Services. In such event, the amount of the payment on account shall be calculated having regard to the programme for performance of the Services and the likely timing and amount of expenses to be incurred.</p>
+  <p><span class="cl">3.4</span> The fees are exclusive of value added tax which, where applicable, will be charged to the Client at the prevailing rate.</p>
 
   <h3>4. Payment</h3>
-  <p>4.1 All invoices are payable by the Client immediately on receipt.</p>
-  <p>4.2 All payments due to {{ f }} under the Terms of Engagement must be made without set-off or counterclaim and free of and without deduction for any taxes, levies or duties of any description. If the Client is required by applicable law to make any such deduction, the sum due shall be increased so that {{ f }} receives on the due date a net sum equal to the sum it would have received had no such deduction been required.</p>
+  <p><span class="cl">4.1</span> All invoices are payable by the Client immediately on receipt.</p>
+  <p><span class="cl">4.2</span> All payments due to {{ f }} under the Terms of Engagement must be made without set-off or counterclaim and free of and without deduction for any taxes, levies or duties of any description. If the Client is required by applicable law to make any such deduction, the sum due shall be increased so that {{ f }} receives on the due date a net sum equal to the sum it would have received had no such deduction been required.</p>
 
   <h3>5. The Client’s Obligations</h3>
-  <p>5.1 In consideration of {{ f }} performing the Services on these Terms of Engagement, the Client agrees to pay {{ f }} all fees, expenses and value added tax as required under the relevant fee structure. {{ f }} may suspend and/or cease further work on behalf of the Client in the event of non-payment, partial payment or late payment of any of its invoices.</p>
-  <p>5.2 The Client will provide {{ f }} with any information and documents that {{ f }} may reasonably request for the proper performance of its obligations under these Terms of Engagement.</p>
-  <p>5.3 The Client will use reasonable efforts to allow {{ f }} such access to the Client’s premises, and to such other premises and property, as is necessary to perform the Services during normal business hours.</p>
-  <p>5.4 The Client confirms that {{ f }} is entitled to rely upon the accuracy, sufficiency and consistency of any information supplied to it by the Client. {{ f }} will not be liable for any inaccuracies in information provided by the Client or by any third party on the Client’s behalf.</p>
-  <p>5.5 The Client authorises {{ f }} to disclose the Confidential Information to its employees, officers, subcontractors and professional advisers on a strict “need-to-know” basis only, and {{ f }} shall ensure that each recipient is bound to hold the Confidential Information in confidence to the standard required under each Valuation Proposal.</p>
+  <p><span class="cl">5.1</span> In consideration of {{ f }} performing the Services on these Terms of Engagement, the Client agrees to pay {{ f }} all fees, expenses and value added tax as required under the relevant fee structure. {{ f }} may suspend and/or cease further work on behalf of the Client in the event of non-payment, partial payment or late payment of any of its invoices.</p>
+  <p><span class="cl">5.2</span> The Client will provide {{ f }} with any information and documents that {{ f }} may reasonably request for the proper performance of its obligations under these Terms of Engagement.</p>
+  <p><span class="cl">5.3</span> The Client will use reasonable efforts to allow {{ f }} such access to the Client’s premises, and to such other premises and property, as is necessary to perform the Services during normal business hours.</p>
+  <p><span class="cl">5.4</span> The Client confirms that {{ f }} is entitled to rely upon the accuracy, sufficiency and consistency of any information supplied to it by the Client. {{ f }} will not be liable for any inaccuracies in information provided by the Client or by any third party on the Client’s behalf.</p>
+  <p><span class="cl">5.5</span> The Client authorises {{ f }} to disclose the Confidential Information to its employees, officers, subcontractors and professional advisers on a strict “need-to-know” basis only, and {{ f }} shall ensure that each recipient is bound to hold the Confidential Information in confidence to the standard required under each Valuation Proposal.</p>
 
   <h3>6. Intellectual Property Rights</h3>
-  <p>6.1 {{ f }} is the beneficial owner of {{ f }}’s Materials.</p>
-  <p>6.2 Subject to all payments due under the Terms of Engagement having been paid, {{ f }} grants the Client an irrevocable, royalty-free, non-exclusive licence to use and reproduce the Deliverables for all purposes relating to the subject matter of the Valuation Proposal.</p>
-  <p>6.3 The Client acknowledges that, in the course of providing the Services, {{ f }} may use products, materials and methodologies proprietary to the Client. {{ f }} agrees that it does not acquire any rights in those proprietary products, materials and methodologies, whether under these Terms of Engagement or otherwise.</p>
+  <p><span class="cl">6.1</span> {{ f }} is the beneficial owner of {{ f }}’s Materials.</p>
+  <p><span class="cl">6.2</span> Subject to all payments due under the Terms of Engagement having been paid, {{ f }} grants the Client an irrevocable, royalty-free, non-exclusive licence to use and reproduce the Deliverables for all purposes relating to the subject matter of the Valuation Proposal.</p>
+  <p><span class="cl">6.3</span> The Client acknowledges that, in the course of providing the Services, {{ f }} may use products, materials and methodologies proprietary to the Client. {{ f }} agrees that it does not acquire any rights in those proprietary products, materials and methodologies, whether under these Terms of Engagement or otherwise.</p>
 
   <h3>7. Electronic Communications</h3>
-  <p>7.1 {{ f }} and the Client may correspond or convey documentation by email unless the Client expressly requests otherwise.</p>
-  <p>7.2 {{ f }} is not liable for any loss, damage, expense, harm or inconvenience resulting from the loss, delay, interception, corruption or alteration of any email due to any reason beyond {{ f }}’s reasonable control.</p>
-  <p>7.3 The Client will use all reasonable procedures to ensure that any materials sent by any electronic medium to {{ f }} are virus-free.</p>
+  <p><span class="cl">7.1</span> {{ f }} and the Client may correspond or convey documentation by email unless the Client expressly requests otherwise.</p>
+  <p><span class="cl">7.2</span> {{ f }} is not liable for any loss, damage, expense, harm or inconvenience resulting from the loss, delay, interception, corruption or alteration of any email due to any reason beyond {{ f }}’s reasonable control.</p>
+  <p><span class="cl">7.3</span> The Client will use all reasonable procedures to ensure that any materials sent by any electronic medium to {{ f }} are virus-free.</p>
 
   <h3>8. Documents</h3>
-  <p>8.1 The Services are provided for the Client’s benefit only. No part of any report or advice produced by {{ f }} for the Client may be reproduced, transmitted, copied or disclosed to any third party without the prior written consent of {{ f }}. {{ f }} is not liable to any third party who relies on advice produced for the benefit of the Client.</p>
-  <p>8.2 {{ f }} is authorised to retain the Client’s documents while payments due under the Terms of Engagement remain outstanding.</p>
-  <p>8.3 {{ f }} will keep its files relating to a particular Client’s report for {{ terms.file_retention_years }} years after issue of its final invoice, on the basis that {{ f }} has the Client’s authority to destroy the files on expiry of that period unless the Client has previously requested in writing the return of its papers. {{ f }} is not liable for any loss of documentation after the stated retention date.</p>
-  <p>8.4 The Client is responsible for {{ f }}’s charges in producing any documentation the Client requires to comply with a third party’s request for disclosure.</p>
+  <p><span class="cl">8.1</span> The Services are provided for the Client’s benefit only. No part of any report or advice produced by {{ f }} for the Client may be reproduced, transmitted, copied or disclosed to any third party without the prior written consent of {{ f }}. {{ f }} is not liable to any third party who relies on advice produced for the benefit of the Client.</p>
+  <p><span class="cl">8.2</span> {{ f }} is authorised to retain the Client’s documents while payments due under the Terms of Engagement remain outstanding.</p>
+  <p><span class="cl">8.3</span> {{ f }} will keep its files relating to a particular Client’s report for {{ terms.file_retention_years }} years after issue of its final invoice, on the basis that {{ f }} has the Client’s authority to destroy the files on expiry of that period unless the Client has previously requested in writing the return of its papers. {{ f }} is not liable for any loss of documentation after the stated retention date.</p>
+  <p><span class="cl">8.4</span> The Client is responsible for {{ f }}’s charges in producing any documentation the Client requires to comply with a third party’s request for disclosure.</p>
 
   <h3>9. Confidentiality</h3>
-  <p>9.1 {{ f }} will seek the Client’s prior consent should it wish to publicise the fact that it has provided Services to the Client. Such consent is not to be unreasonably withheld or delayed.</p>
-  <p>9.2 In respect of any information supplied under the Terms of Engagement by either party and designated by the disclosing party as confidential, the recipient agrees to:</p>
-  <p>i. protect the Confidential Information in a reasonable and appropriate manner or in accordance with applicable professional standards;</p>
-  <p>ii. use the Confidential Information only to perform its obligations under the Terms of Engagement; and</p>
-  <p>iii. reproduce the Confidential Information only as required to perform its obligations under the Terms of Engagement.</p>
+  <p><span class="cl">9.1</span> {{ f }} will seek the Client’s prior consent should it wish to publicise the fact that it has provided Services to the Client. Such consent is not to be unreasonably withheld or delayed.</p>
+  <p><span class="cl">9.2</span> In respect of any information supplied under the Terms of Engagement by either party and designated by the disclosing party as confidential, the recipient agrees to:</p>
+  <p><span class="cl">i.</span> protect the Confidential Information in a reasonable and appropriate manner or in accordance with applicable professional standards;</p>
+  <p><span class="cl">ii.</span> use the Confidential Information only to perform its obligations under the Terms of Engagement; and</p>
+  <p><span class="cl">iii.</span> reproduce the Confidential Information only as required to perform its obligations under the Terms of Engagement.</p>
   <p>This confidentiality provision does not apply to information which is (i) publicly known; (ii) disclosed by a third party without restriction; (iii) independently developed; or (iv) disclosed pursuant to a legal requirement or order.</p>
 
   <h3>10. Non-Solicitation</h3>
-  <p>10.1 The Client undertakes not to offer employment to, or induce or solicit to take up employment with the Client, any employee of {{ f }} working for the Client under the Terms of Engagement, for a period of {{ terms.non_solicitation_months }} months following the end of that person’s involvement under the Terms of Engagement.</p>
-  <p>10.2 In the event that the Client breaches clause 10.1, the Client agrees to pay a penalty equal to {{ terms.non_solicitation_months }} months’ salary of the member of staff in question.</p>
+  <p><span class="cl">10.1</span> The Client undertakes not to offer employment to, or induce or solicit to take up employment with the Client, any employee of {{ f }} working for the Client under the Terms of Engagement, for a period of {{ terms.non_solicitation_months }} months following the end of that person’s involvement under the Terms of Engagement.</p>
+  <p><span class="cl">10.2</span> In the event that the Client breaches clause 10.1, the Client agrees to pay a penalty equal to {{ terms.non_solicitation_months }} months’ salary of the member of staff in question.</p>
 
   <h3>11. Limitation of Liability</h3>
-  <p>11.1 {{ f }}’s total liability relating to an Engagement under these Terms of Engagement (including any act or omission of {{ f }}) will in no event exceed the fees collected by {{ f }} under these Terms of Engagement for the Engagement which has given rise to the liability.</p>
+  <p><span class="cl">11.1</span> {{ f }}’s total liability relating to an Engagement under these Terms of Engagement (including any act or omission of {{ f }}) will in no event exceed the fees collected by {{ f }} under these Terms of Engagement for the Engagement which has given rise to the liability.</p>
 
   <h3>12. Force Majeure</h3>
-  <p>12.1 Neither party is liable to the other for any delay in performance, or failure to perform or comply with the Terms of Engagement, due to a Force Majeure event.</p>
-  <p>12.2 Both parties agree to notify each other on becoming aware of a Force Majeure event, such notice to contain details of the circumstances giving rise to it.</p>
-  <p>12.3 A Force Majeure event will be grounds for termination of the Engagement if it remains in effect for more than {{ terms.force_majeure_days }} days, or if it will clearly result in a party being unable to perform its obligations under these Terms of Engagement for more than {{ terms.force_majeure_days }} days. A party terminating the Engagement due to a Force Majeure event will not incur any liability to the other party, except for payment obligations accrued for Services rendered before the Force Majeure event began.</p>
+  <p><span class="cl">12.1</span> Neither party is liable to the other for any delay in performance, or failure to perform or comply with the Terms of Engagement, due to a Force Majeure event.</p>
+  <p><span class="cl">12.2</span> Both parties agree to notify each other on becoming aware of a Force Majeure event, such notice to contain details of the circumstances giving rise to it.</p>
+  <p><span class="cl">12.3</span> A Force Majeure event will be grounds for termination of the Engagement if it remains in effect for more than {{ terms.force_majeure_days }} days, or if it will clearly result in a party being unable to perform its obligations under these Terms of Engagement for more than {{ terms.force_majeure_days }} days. A party terminating the Engagement due to a Force Majeure event will not incur any liability to the other party, except for payment obligations accrued for Services rendered before the Force Majeure event began.</p>
 
   <h3>13. Termination</h3>
-  <p>13.1 {{ f }} may terminate the Engagement by notice with immediate effect if the Client has failed to pay an invoice within {{ terms.late_payment_days }} days of the final date for payment of that invoice.</p>
-  <p>13.2 Either party may terminate the Engagement by notice with immediate effect if the other party becomes insolvent.</p>
-  <p>13.3 Either party may terminate the Engagement by notice with immediate effect if the other party is in breach of its obligations and, where the breach is capable of remedy, fails to remedy it within {{ terms.remedy_days }} days of receipt of a notice specifying the breach.</p>
-  <p>13.4 Either party may terminate the Engagement by giving not less than {{ terms.termination_notice_days }} days’ written notice to the other. In such event {{ f }} is entitled to payment of fees for the Services performed, and of expenses properly incurred, up to the date of termination. Where the Terms of Engagement do not specify how such fees are calculated, a fair and reasonable pro rata calculation shall apply, having regard to the fees payable for completion of the Engagement, its expected duration and the Services performed before termination.</p>
-  <p>13.5 The expiry or termination of an Engagement, however arising, will not affect any provisions expressed to operate or continue in effect after termination, and is without prejudice to any rights or liabilities accrued at the date of expiry or termination.</p>
+  <p><span class="cl">13.1</span> {{ f }} may terminate the Engagement by notice with immediate effect if the Client has failed to pay an invoice within {{ terms.late_payment_days }} days of the final date for payment of that invoice.</p>
+  <p><span class="cl">13.2</span> Either party may terminate the Engagement by notice with immediate effect if the other party becomes insolvent.</p>
+  <p><span class="cl">13.3</span> Either party may terminate the Engagement by notice with immediate effect if the other party is in breach of its obligations and, where the breach is capable of remedy, fails to remedy it within {{ terms.remedy_days }} days of receipt of a notice specifying the breach.</p>
+  <p><span class="cl">13.4</span> Either party may terminate the Engagement by giving not less than {{ terms.termination_notice_days }} days’ written notice to the other. In such event {{ f }} is entitled to payment of fees for the Services performed, and of expenses properly incurred, up to the date of termination. Where the Terms of Engagement do not specify how such fees are calculated, a fair and reasonable pro rata calculation shall apply, having regard to the fees payable for completion of the Engagement, its expected duration and the Services performed before termination.</p>
+  <p><span class="cl">13.5</span> The expiry or termination of an Engagement, however arising, will not affect any provisions expressed to operate or continue in effect after termination, and is without prejudice to any rights or liabilities accrued at the date of expiry or termination.</p>
 
   <h3>14. Dispute Resolution &amp; Governing Law</h3>
-  <p>14.1 The Terms of Engagement are governed by and construed in accordance with the laws of the United Arab Emirates.</p>
-  <p>14.2 All disputes between the parties arising out of or in connection with these Terms of Engagement are subject to the exclusive jurisdiction of the {{ terms.courts }}.</p>
+  <p><span class="cl">14.1</span> The Terms of Engagement are governed by and construed in accordance with the laws of the United Arab Emirates.</p>
+  <p><span class="cl">14.2</span> All disputes between the parties arising out of or in connection with these Terms of Engagement are subject to the exclusive jurisdiction of the {{ terms.courts }}.</p>
 
   <h3>15. General</h3>
-  <p>15.1 The Terms of Engagement constitute the entire agreement between {{ f }} and the Client and supersede all prior agreements, understandings, representations or communications between the parties. No amendment or variation of these Terms of Engagement will have contractual effect without the prior written approval of both parties.</p>
-  <p>15.2 An Engagement may not be assigned or otherwise transferred without the prior express written consent of the other party. {{ f }} may assign the Engagement to an affiliate or use a subcontractor to provide the Services with the prior written consent of the Client, which will not be unreasonably withheld. The Client may assign the Engagement in favour of its lenders, and {{ f }} may not withhold its consent to such assignment.</p>
-  <p>15.3 Any notice given under the Terms of Engagement must be in writing and delivered to the address provided in the proposal by hand, email or courier. Notices are deemed given: when delivered, if by hand; on confirmed delivery by the courier company, if by courier; and immediately, if by email, provided no bounce-back report is received.</p>
-  <p>15.4 No term of the Terms of Engagement may be waived, and no breach excused, unless the waiver or consent is in writing and signed by the party granting it.</p>
-  <p>15.5 If any term or provision of these Terms of Engagement is determined to be illegal or unenforceable, it shall be deemed severed, and all other terms and provisions shall remain in full force and effect.</p>
-  <p>15.6 The Terms of Engagement do not make either party the agent or legal representative of the other, and do not create a partnership or joint venture. Both parties are independent contractors acting as principals for their own accounts.</p>
-  <p>15.7 The Terms of Engagement have been prepared and executed in the English language and, notwithstanding any translation, the English language version will prevail.</p>
+  <p><span class="cl">15.1</span> The Terms of Engagement constitute the entire agreement between {{ f }} and the Client and supersede all prior agreements, understandings, representations or communications between the parties. No amendment or variation of these Terms of Engagement will have contractual effect without the prior written approval of both parties.</p>
+  <p><span class="cl">15.2</span> An Engagement may not be assigned or otherwise transferred without the prior express written consent of the other party. {{ f }} may assign the Engagement to an affiliate or use a subcontractor to provide the Services with the prior written consent of the Client, which will not be unreasonably withheld. The Client may assign the Engagement in favour of its lenders, and {{ f }} may not withhold its consent to such assignment.</p>
+  <p><span class="cl">15.3</span> Any notice given under the Terms of Engagement must be in writing and delivered to the address provided in the proposal by hand, email or courier. Notices are deemed given: when delivered, if by hand; on confirmed delivery by the courier company, if by courier; and immediately, if by email, provided no bounce-back report is received.</p>
+  <p><span class="cl">15.4</span> No term of the Terms of Engagement may be waived, and no breach excused, unless the waiver or consent is in writing and signed by the party granting it.</p>
+  <p><span class="cl">15.5</span> If any term or provision of these Terms of Engagement is determined to be illegal or unenforceable, it shall be deemed severed, and all other terms and provisions shall remain in full force and effect.</p>
+  <p><span class="cl">15.6</span> The Terms of Engagement do not make either party the agent or legal representative of the other, and do not create a partnership or joint venture. Both parties are independent contractors acting as principals for their own accounts.</p>
+  <p><span class="cl">15.7</span> The Terms of Engagement have been prepared and executed in the English language and, notwithstanding any translation, the English language version will prevail.</p>
   <p>{{ f }} will commence provision of the Services once these Terms of Engagement have been signed and acknowledged by the Client.</p>
+  </div>
 </section>
 <section class="terms">
-  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – General Assumptions</h2>
-  <p>These general assumptions form part of our Terms of Engagement and apply to this valuation unless stated otherwise in the report. If any assumption proves incorrect, the valuation may need to be reviewed.</p>
+  {% set app.n = app.n + 1 %}{{ head("A%d" % app.n, "General Assumptions", "Appendix %d" % app.n) }}
+  <p class="intro">These general assumptions form part of our Terms of Engagement and apply to this valuation unless stated otherwise in the report. If any assumption proves incorrect, the valuation may need to be reviewed.</p>
+  <div class="tc-cols">
   <h3>1. Basis of Valuation</h3>
   <p>The property has been valued on the basis set out in Section 2 and defined in Appendix 3.</p>
   <h3>2. Title</h3>
@@ -433,29 +550,32 @@
   <p>No allowance is made for VAT, corporate tax or any other tax liability arising on disposal, nor for any repayment of grants or incentives.</p>
   <h3>15. Properties under Construction</h3>
   <p>Where relevant, we have relied on construction cost and completion information provided by the owner or its advisers, and assume works are carried out in accordance with approved plans and with assignable warranties.</p>
+  </div>
 </section>
-<section class="terms">
-  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Bases of Valuation</h2>
-  <h3>Market Value (IVS)</h3>
-  <p class="quote">“{{ market_value_definition }}”</p>
-  <h3>Market Rent (IVS)</h3>
-  <p class="quote">“The estimated amount for which an interest in real property should be leased on the valuation date between a willing lessor and a willing lessee on appropriate lease terms in an arm’s length transaction, after proper marketing and where the parties had each acted knowledgeably, prudently and without compulsion.”</p>
-  <h3>Investment Value / Worth</h3>
-  <p>The value of an asset to a particular owner or prospective owner for individual investment or operational objectives. It is an entity-specific basis and does not assume an exchange.</p>
-  <h3>Fair Value (IFRS 13)</h3>
-  <p>The price that would be received to sell an asset or paid to transfer a liability in an orderly transaction between market participants at the measurement date.</p>
-  <h3>Premise of Value – Highest and Best Use</h3>
-  <p>The use, from a market participant’s perspective, that produces the highest value for an asset. It must be physically possible, legally permissible and financially feasible, and may be the current use or an alternative use.</p>
+<section class="bases">
+  {% set app.n = app.n + 1 %}{{ head("A%d" % app.n, "Bases of Valuation", "Appendix %d" % app.n) }}
+  <div class="basis"><h3>Market Value (IVS)</h3>
+  <p class="quote">“{{ market_value_definition }}”</p></div>
+  <div class="basis"><h3>Market Rent (IVS)</h3>
+  <p class="quote">“The estimated amount for which an interest in real property should be leased on the valuation date between a willing lessor and a willing lessee on appropriate lease terms in an arm’s length transaction, after proper marketing and where the parties had each acted knowledgeably, prudently and without compulsion.”</p></div>
+  <div class="basis"><h3>Investment Value / Worth</h3>
+  <p>The value of an asset to a particular owner or prospective owner for individual investment or operational objectives. It is an entity-specific basis and does not assume an exchange.</p></div>
+  <div class="basis"><h3>Fair Value (IFRS 13)</h3>
+  <p>The price that would be received to sell an asset or paid to transfer a liability in an orderly transaction between market participants at the measurement date.</p></div>
+  <div class="basis"><h3>Premise of Value – Highest and Best Use</h3>
+  <p>The use, from a market participant’s perspective, that produces the highest value for an asset. It must be physically possible, legally permissible and financially feasible, and may be the current use or an alternative use.</p></div>
 </section>
 {% if documents %}
 <section>
-  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Documents Received</h2>
+  {% set app.n = app.n + 1 %}{{ head("A%d" % app.n, "Documents Received", "Appendix %d" % app.n) }}
   {% for d in documents %}
   <div class="document">
     <h4>{{ d.title }}{% if d.caption %} – {{ d.caption }}{% endif %}</h4>
+    <div class="doc-frame">
     {% for src in d.pages %}
     <figure class="doc-page">{% if src %}<img src="{{ src }}" alt="">{% else %}<div class="missing-image">Page unavailable</div>{% endif %}<figcaption>Page {{ loop.index }} of {{ d.total_pages }}</figcaption></figure>
     {% else %}<figure><div class="missing-image">Document unavailable</div></figure>{% endfor %}
+    </div>
     {% if d.total_pages > d.pages|length and d.pages %}<p class="note">The first {{ d.pages|length }} of {{ d.total_pages }} pages are shown.</p>{% endif %}
   </div>
   {% endfor %}
@@ -463,7 +583,7 @@
 {% endif %}
 {% if photos and not desktop %}
 <section>
-  {% set app.n = app.n + 1 %}<h2>Appendix {{ app.n }} – Inspection Photographs</h2>
+  {% set app.n = app.n + 1 %}{{ head("A%d" % app.n, "Inspection Photographs", "Appendix %d" % app.n) }}
   <div class="photo-grid">{% for p in photos %}{{ photo(p) }}{% endfor %}</div>
 </section>
 {% endif %}

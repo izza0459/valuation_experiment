@@ -90,6 +90,17 @@ def fmt_rent(value) -> str:
     return text.replace("\u2013", " \u2013 ")
 
 
+def _rent_text(value) -> str:
+    """'AED 60,000 per annum', without doubling an AED or "p.a." the valuer typed."""
+    text = fmt_rent(value)
+    if not text:
+        return ""
+    if not text.upper().startswith("AED"):
+        text = f"AED {text}"
+    lower = text.lower()
+    return text if ("p.a" in lower or "per annum" in lower or "annual" in lower) else f"{text} per annum"
+
+
 def _dec(value):
     return None if value in (None, "") else Decimal(str(value))
 
@@ -319,8 +330,44 @@ def _comparables(job) -> list[dict]:
             "price": fmt_number(c.price_aed) or EMPTY,
             "rate": fmt_number(c.price_per_sqft.quantize(Decimal("1"))) if c.price_per_sqft else EMPTY,
             "transaction": _join(c.get_status_display(), when, sep=" "),
+            # For the chart: the building, and the rate as a number.
+            "building": c.building_name or c.community_name or "",
+            "rate_value": float(c.price_per_sqft) if c.price_per_sqft else None,
         })
     return rows
+
+
+def _nice_ceiling(value: float) -> int:
+    """The chart's top: the next round figure above `value` (4,739 -> 5,000)."""
+    step = 10 ** max(len(str(int(value))) - 1, 0)
+    return int(-(-value // step) * step) or step
+
+
+def comparables_chart(comparables: list[dict], subject_rate) -> dict | None:
+    """A bar chart of the comparables' AED / sqft against the subject's rate,
+    laid out for an SVG 600 x 230 (drawn in the template)."""
+    bars = [c for c in comparables if c.get("rate_value")][:8]
+    if not bars:
+        return None
+    subject = float(subject_rate) if subject_rate else None
+    top = _nice_ceiling(max([c["rate_value"] for c in bars] + ([subject] if subject else [])) * 1.08)
+    left, right, base, height = 60, 590, 190, 160
+    slot = (right - left - 140) / len(bars)  # room on the right for the subject's label
+    width = min(slot * 0.62, 70)
+    y = lambda v: base - v / top * height  # noqa: E731
+    biggest = max(c["rate_value"] for c in bars)
+    return {
+        "bars": [{
+            "x": round(left + slot * i + (slot - width) / 2, 1), "w": round(width, 1),
+            "y": round(y(c["rate_value"]), 1), "h": round(base - y(c["rate_value"]), 1),
+            "cx": round(left + slot * i + slot / 2, 1), "value": f"{c['rate_value']:,.0f}",
+            "label": (c["building"] or "").upper()[:16], "sub": c["transaction"], "top": c["rate_value"] == biggest,
+        } for i, c in enumerate(bars)],
+        "ticks": [{"y": round(y(top * k / 5), 1), "label": f"{top * k / 5:,.0f}"} for k in range(6)],
+        "subject_y": round(y(subject), 1) if subject else None,
+        "subject": f"AED {subject:,.0f} / sqft" if subject else "",
+        "left": left, "right": right, "base": base,
+    }
 
 
 def build_context(job, *, issued: bool | None = None) -> dict:
@@ -527,7 +574,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         _row("Market Value in words", calculations.amount_in_words(market_value) if market_value else ""),
         _row("Market Value rate", f"{fmt_aed(valuation.market_value_rate_per_sqft)} / sqft"
              if valuation.market_value_rate_per_sqft else ""),
-        row("Market Rent", f"AED {fmt_rent(valuation.market_rent)} per annum" if valuation.market_rent else "",
+        row("Market Rent", _rent_text(valuation.market_rent),
             "valuation.market_rent", always=False),
         row("Capacity of valuer", labels("summary", "capacity_of_valuer", summary.capacity_of_valuer),
             "summary.capacity_of_valuer"),
@@ -587,6 +634,7 @@ def build_context(job, *, issued: bool | None = None) -> dict:
     counter_signatory = person_block(job.counter_signatory or job.peer_reviewer)
     if issued is None:
         issued = job.is_locked
+    comparables = _comparables(job)
 
     return {
         "meta": {
@@ -693,7 +741,17 @@ def build_context(job, *, issued: bool | None = None) -> dict:
         },
         "valuer": valuer,
         "counter_signatory": counter_signatory,
-        "comparables": _comparables(job),
+        "comparables": comparables,
+        "chart": comparables_chart(comparables, valuation.market_value_rate_per_sqft),
+        # The executive summary's headline figures.
+        "headline": {
+            "value": fmt_aed(market_value),
+            "rate": fmt_number(_dec(valuation.market_value_rate_per_sqft).quantize(Decimal("1")))
+            if valuation.market_value_rate_per_sqft else "",
+            "rent": fmt_rent(valuation.market_rent) if keep("valuation.market_rent", valuation.market_rent) else "",
+            "rent_plain": str(valuation.market_rent or "").replace(",", "").strip().isdigit(),
+            "bua_sqft": fmt_number(_dec(summary.bua_sqft).quantize(Decimal("1"))) if summary.bua_sqft else "",
+        },
         **_media_context(job, summary),
         **({"photos": [], "exec_photos": []} if desktop else {}),
         "checklist": {

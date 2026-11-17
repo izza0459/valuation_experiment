@@ -8,6 +8,8 @@ to reach Python internals from inside the report.
 
 from __future__ import annotations
 
+import base64
+import functools
 import hashlib
 from pathlib import Path
 
@@ -104,9 +106,36 @@ def choose_template(job) -> ReportTemplate:
 # --- rendering --------------------------------------------------------------------------
 
 
+FONTS_DIR = Path(__file__).parent / "fonts"
+# (family, weight, style, file): Fraunces for headings, IBM Plex Sans for text,
+# IBM Plex Mono for figures. SIL Open Font Licence (fonts/OFL-*.txt).
+FONTS = [
+    ("Fraunces", 600, "normal", "fraunces-latin-600-normal.woff"),
+    ("Fraunces", 700, "normal", "fraunces-latin-700-normal.woff"),
+    *[("IBM Plex Sans", w, "normal", f"ibm-plex-sans-latin-{w}-normal.woff") for w in (400, 500, 600, 700)],
+    ("IBM Plex Sans", 400, "italic", "ibm-plex-sans-latin-400-italic.woff"),
+    *[("IBM Plex Mono", w, "normal", f"ibm-plex-mono-latin-{w}-normal.woff") for w in (400, 500, 600)],
+]
+
+
+@functools.cache
+def font_faces() -> str:
+    """The report's fonts as @font-face rules with the files embedded, since
+    the PDF engine fetches nothing but data: URIs (embedded_only_fetcher)."""
+    rules = []
+    for family, weight, style, name in FONTS:
+        path = FONTS_DIR / name
+        if not path.exists():
+            continue
+        data = base64.b64encode(path.read_bytes()).decode()
+        rules.append(f'@font-face{{font-family:"{family}";font-weight:{weight};font-style:{style};'
+                     f'src:url(data:font/woff;base64,{data}) format("woff");}}')
+    return "\n".join(rules)
+
+
 def render_html(template: ReportTemplate, context: dict) -> str:
     env = _environment()
-    css = env.from_string(template.css).render(
+    css = font_faces() + "\n" + env.from_string(template.css).render(
         firm_name=context["firm"]["name"], ref_no=context["meta"]["ref_no"], is_draft=context["meta"]["is_draft"]
     )
     # The stylesheet is trusted template content, not report data: it must not
